@@ -18,6 +18,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <style>
 :root{
   --bg:#1A1626;
@@ -1128,7 +1131,85 @@ function ensureSlots(){
 function ensureWater(){ if(!state.water || state.water.date!==todayStr()) state.water={date:todayStr(),ml:0}; }
 function waterGoalMl(){ const w=state.goals&&state.goals.weight; return w?Math.round(w*35/250)*250:2500; }
 function addWater(ml){ ensureWater(); state.water.ml=Math.max(0,state.water.ml+ml); save(); if(currentView==="hoy") renderHoy(); }
-function save(){ localStorage.setItem(LS, JSON.stringify(state)); }
+function saveLocal(){ localStorage.setItem(LS, JSON.stringify(state)); }
+function save(){ state._updatedAt=Date.now(); saveLocal(); if(typeof fbUser!=="undefined" && fbUser && !cloudApplying) cloudPush(false); }
+
+/* ====================================================================
+   FIREBASE — respaldo y sincronización en la nube (correo/contraseña)
+   ==================================================================== */
+const FIREBASE_CONFIG={
+  apiKey:"AIzaSyA5zhHH4lqNgf4Pyayb4WTIQ-sr81Qv9w8",
+  authDomain:"vexx-969a0.firebaseapp.com",
+  projectId:"vexx-969a0",
+  storageBucket:"vexx-969a0.firebasestorage.app",
+  messagingSenderId:"1070236548448",
+  appId:"1:1070236548448:web:c8be0906d528c1b28bf205"
+};
+let fbReady=false, fbAuth=null, fbDb=null, fbUser=null, cloudLastSync=null, cloudPushTimer=null, cloudApplying=false;
+function initFirebase(){
+  if(typeof firebase==="undefined" || !firebase.initializeApp) return;
+  try{
+    firebase.initializeApp(FIREBASE_CONFIG);
+    fbAuth=firebase.auth(); fbDb=firebase.firestore(); fbReady=true;
+    fbAuth.onAuthStateChanged(u=>{ fbUser=u||null; if(u) cloudPull(); if(currentView==="ajustes") renderAjustes(); });
+  }catch(e){ console.warn("Firebase init", e); }
+}
+function fbErr(err){ const c=(err&&err.code)||"";
+  if(c.includes("email-already")) return "Ese correo ya tiene cuenta — inicia sesión";
+  if(c.includes("wrong-password")||c.includes("invalid-cred")) return "Correo o contraseña incorrectos";
+  if(c.includes("user-not-found")) return "No existe esa cuenta — créala";
+  if(c.includes("weak-password")) return "Contraseña muy corta (mín. 6)";
+  if(c.includes("invalid-email")) return "Correo inválido";
+  return "Error: "+((err&&err.message)||c); }
+function fbSignUp(){ if(!fbReady) return toast("Nube no disponible"); const e=val("fbEmail").trim(),p=val("fbPass");
+  if(!e||p.length<6) return toast("Correo y contraseña (mín. 6 caracteres)");
+  fbAuth.createUserWithEmailAndPassword(e,p).then(()=>{ toast("Cuenta creada ✓"); cloudPush(true); }).catch(err=>toast(fbErr(err))); }
+function fbSignIn(){ if(!fbReady) return toast("Nube no disponible"); const e=val("fbEmail").trim(),p=val("fbPass");
+  if(!e||!p) return toast("Escribe correo y contraseña");
+  fbAuth.signInWithEmailAndPassword(e,p).then(()=>toast("Sesión iniciada ✓")).catch(err=>toast(fbErr(err))); }
+function fbSignOut(){ if(fbAuth) fbAuth.signOut().then(()=>{ toast("Sesión cerrada"); if(currentView==="ajustes") renderAjustes(); }); }
+function fbSyncNow(){ if(!fbUser) return; cloudPush(true); toast("Sincronizando…"); }
+function nowTime(){ const d=new Date(); return d.getHours()+":"+String(d.getMinutes()).padStart(2,"0"); }
+function cloudPull(){
+  if(!fbUser||!fbDb) return;
+  fbDb.collection("users").doc(fbUser.uid).get().then(snap=>{
+    if(snap.exists){
+      const d=snap.data(), remoteAt=d.updatedAt||0, localAt=state._updatedAt||0;
+      if(d.data && remoteAt>=localAt){
+        cloudApplying=true;
+        state=Object.assign(state, d.data);
+        sessionDraft=state.sessionDraft||null;
+        ensureSlots(); ensureWater(); saveLocal();
+        cloudApplying=false; cloudLastSync=nowTime();
+        nav(currentView||"hoy");
+        toast("Datos traídos de la nube ☁️");
+      } else { cloudPush(true); }
+    } else { cloudPush(true); }
+  }).catch(err=>{ console.warn("cloudPull", err); });
+}
+function cloudPush(now){
+  if(!fbUser||!fbDb||cloudApplying) return;
+  clearTimeout(cloudPushTimer);
+  const doPush=()=>{ if(!fbUser) return;
+    fbDb.collection("users").doc(fbUser.uid).set({data:state, updatedAt:state._updatedAt||Date.now()})
+      .then(()=>{ cloudLastSync=nowTime(); if(currentView==="ajustes") renderAjustes(); })
+      .catch(err=>console.warn("cloudPush", err)); };
+  if(now) doPush(); else cloudPushTimer=setTimeout(doPush, 2500);
+}
+function cloudCardHTML(){
+  if(typeof firebase==="undefined" || !fbReady)
+    return `<div class="card" style="margin-bottom:14px"><h3>☁️ Nube</h3><p class="card-sub" style="margin:0">Sin conexión a la nube en este momento (revisa tu internet).</p></div>`;
+  if(fbUser)
+    return `<div class="card" style="margin-bottom:14px"><div class="flex-between"><h3 style="margin:0">☁️ Cuenta en la nube</h3><span class="pill">conectado</span></div>
+      <div class="kv"><span>Sesión</span><b style="font-size:13px">${fbUser.email||"—"}</b></div>
+      <div class="kv"><span>Última sincronización</span><b style="font-size:13px">${cloudLastSync||"—"}</b></div>
+      <div class="row" style="margin-top:10px"><button class="btn-primary" onclick="fbSyncNow()">Sincronizar ahora</button><button class="btn-ghost" onclick="fbSignOut()">Cerrar sesión</button></div></div>`;
+  return `<div class="card" style="margin-bottom:14px"><h3>☁️ Cuenta en la nube</h3>
+    <p class="card-sub">Inicia sesión para respaldar tu progreso y verlo en otros dispositivos.</p>
+    <div class="field"><label>Correo</label><input type="email" id="fbEmail" autocomplete="username" placeholder="tucorreo@ejemplo.com"></div>
+    <div class="field"><label>Contraseña</label><input type="password" id="fbPass" autocomplete="current-password" placeholder="mín. 6 caracteres"></div>
+    <div class="row"><button class="btn-primary" onclick="fbSignIn()">Iniciar sesión</button><button class="btn-ghost" onclick="fbSignUp()">Crear cuenta</button></div></div>`;
+}
 
 /* ---------- utilidades de alimentos ---------- */
 function allFoods(){ return PREDEFINED.concat(state.customFoods); }
@@ -1347,7 +1428,7 @@ function renderAjustes(){
     {ic:"⬇️",label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
     {ic:"⬆️",label:"Importar respaldo",val:"",act:"triggerImport()"}
   ];
-  let html="";
+  let html=cloudCardHTML();
   if(g&&g.calories){
     html+=`<div class="card" style="margin-bottom:14px"><h3>Meta diaria</h3>
       <div class="kv"><span>Calorías</span><b style="color:var(--accent)">${nfmt(g.calories)} kcal</b></div>
@@ -2890,6 +2971,7 @@ function init(){
   nav("hoy");
   requestPersistentStorage();
   registerSW();
+  initFirebase();
 }
 init();
 </script>
