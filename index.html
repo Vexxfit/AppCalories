@@ -842,7 +842,7 @@ nav button{min-height:46px;justify-content:center}
       <input id="apSearch" placeholder="Escribe para buscar…" oninput="renderAddResults()" autocomplete="off"></div>
     <div id="apResults" class="add-results"></div>
     <div id="apQty"></div>
-    <button class="btn-primary" style="width:100%;margin-top:6px" onclick="confirmAddToPlan()">Agregar</button>
+    <button class="btn-primary" id="apConfirmBtn" style="width:100%;margin-top:6px" onclick="confirmAddToPlan()">Agregar</button>
   </div>
 </div>
 
@@ -1129,8 +1129,9 @@ function ensureSlots(){
   state.meals.forEach(m=>{ if(!Array.isArray(state.plan.slots[m.id])) state.plan.slots[m.id]=[]; });
 }
 function ensureWater(){ if(!state.water || state.water.date!==todayStr()) state.water={date:todayStr(),ml:0}; }
-function waterGoalMl(){ const w=state.goals&&state.goals.weight; return w?Math.round(w*35/250)*250:2500; }
+function waterGoalMl(){ if(state.prefs&&state.prefs.waterGoal>0) return state.prefs.waterGoal; const w=state.goals&&state.goals.weight; return w?Math.round(w*35/250)*250:2500; }
 function addWater(ml){ ensureWater(); state.water.ml=Math.max(0,state.water.ml+ml); save(); if(currentView==="hoy") renderHoy(); }
+function editWaterGoal(){ const cur=(waterGoalMl()/1000); const v=prompt("Meta de agua en litros:", cur); if(v==null) return; const L=parseFloat(v); if(L>0){ state.prefs.waterGoal=Math.round(L*1000); save(); if(currentView==="hoy") renderHoy(); toast("Meta de agua actualizada"); } }
 function saveLocal(){ localStorage.setItem(LS, JSON.stringify(state)); }
 function save(){ state._updatedAt=Date.now(); saveLocal(); if(typeof fbUser!=="undefined" && fbUser && !cloudApplying) cloudPush(false); }
 
@@ -1336,7 +1337,7 @@ function renderHoy(){
     const items=state.plan.slots[key]||[], st=sumMacros(items);
     const prevHas=prev&&prev.slots[key]&&prev.slots[key].length;
     const itemsHtml=items.length?`<div class="meal-items">${items.map((it,i)=>`
-      <div class="meal-item"><span class="mi-name">${it.name} <span style="color:var(--muted)">· ${it.label}</span></span>
+      <div class="meal-item"><span class="mi-name" style="cursor:pointer" onclick="event.stopPropagation();editPlanItem('${key}',${i})">${it.name} <span style="color:var(--muted)">· ${it.label} ✎</span></span>
         <span class="mi-kcal">${r0(it.macros.cal)} kcal</span>
         <span class="mi-del" onclick="event.stopPropagation();removePlanItem('${key}',${i})">×</span></div>`).join("")}</div>`:"";
     const sub = items.length ? `${items.length} ${items.length===1?'elemento':'elementos'} · P ${r0(st.protein)} · C ${r0(st.carbs)} · G ${r0(st.fat)}`
@@ -1351,7 +1352,7 @@ function renderHoy(){
   }).join("");
   const goalCta=goalCal?"":`<button class="btn-primary" style="width:100%;margin-top:4px" onclick="nav('metas')">Calcular mi meta diaria</button>`;
   const microLine = (t.sugar>0||t.sodium>0)?`<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">Azúcar ${r1(t.sugar)} g · Sodio ${nfmt(t.sodium)} mg</div>`:"";
-  const copyDayBtn = (consumed===0 && prev) ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">↻ Copiar mi día de ayer</button>` : "";
+  const copyDayBtn = prev ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">↻ Copiar mi día de ayer</button>` : "";
   document.getElementById("hoyContent").innerHTML=`
     <div style="margin:4px 2px 18px"><div class="greet">${greet}</div><div class="subtle">${fecha}</div></div>
     <div class="card hero">
@@ -1370,7 +1371,7 @@ function waterCardHTML(){
     <div class="flex-between" style="margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">💧</span>
         <div><div style="font-weight:700;font-size:16px">Agua</div>
-          <div style="font-size:13px;color:var(--muted)">${(ml/1000).toFixed(2).replace(/\\.?0+$/,'')} / ${(goal/1000)} L</div></div></div>
+          <div style="font-size:13px;color:var(--muted)">${(ml/1000).toFixed(2).replace(/\\.?0+$/,'')} / ${(goal/1000)} L <span style="color:var(--accent);cursor:pointer" onclick="editWaterGoal()">✎ meta</span></div></div></div>
       <div style="display:flex;gap:6px">
         <button class="btn-ghost btn-sm" onclick="addWater(250)">+250</button>
         <button class="btn-ghost btn-sm" onclick="addWater(500)">+500</button>
@@ -1534,12 +1535,6 @@ function loadExampleDiet(){
   save(); renderComidas(); toast("Dieta de ejemplo cargada");
 }
 
-/* abrir hoja de "agregar rápido" desde el botón + o desde una comida */
-function openAdd(slot){
-  set("apType","food"); renderPlanPicker();
-  if(slot) set("apSlot",slot);
-  openModal("planModal");
-}
 function refreshAfterPlanChange(){
   if(currentView==="hoy") renderHoy();
   else if(currentView==="plan") renderPlan();
@@ -1752,16 +1747,31 @@ function removePlanItem(slot,i){ state.plan.slots[slot].splice(i,1); save(); ref
 
 let addSel=null;   // {type:'food'|'dish', id}
 let addUnit="g";   // 'g' | 'pza'
+let editingPlan=null;  // {slot,index} cuando editas un ítem ya añadido
 function openAddToPlan(slot){ openAdd(slot); }
 function openAdd(slot){
+  editingPlan=null;
   const sl=document.getElementById("apSlot");
   sl.innerHTML=state.meals.map(m=>`<option value="${m.id}">${m.name}</option>`).join("");
   if(slot) set("apSlot",slot);
   set("apType","food"); set("apSearch","");
   addSel=null; addUnit="g";
+  const cb=document.getElementById("apConfirmBtn"); if(cb) cb.textContent="Agregar";
   renderAddResults(); renderAddQty();
   openModal("planModal");
   setTimeout(()=>{ const s=document.getElementById("apSearch"); if(s) s.focus(); },120);
+}
+function editPlanItem(slot,i){
+  const it=state.plan.slots[slot] && state.plan.slots[slot][i]; if(!it) return;
+  openAdd(slot);
+  editingPlan={slot,index:i};
+  set("apType", it.type); onAddTypeChange();
+  selectAddItem(it.refId);
+  if(it.type==="food") addUnit=it.unit||"g";
+  renderAddQty();
+  set("apQtyVal", it.qty!=null? it.qty : (it.type==="dish"?100:(it.unit==="pza"?1:100)));
+  renderAddPreview();
+  const cb=document.getElementById("apConfirmBtn"); if(cb) cb.textContent="Guardar cambios";
 }
 function onAddTypeChange(){ addSel=null; addUnit="g"; set("apSearch",""); renderAddResults(); renderAddQty(); }
 function quickAddDish(id){ openAdd(); set("apType","dish"); onAddTypeChange(); selectAddItem(id); }
@@ -1823,11 +1833,19 @@ function confirmAddToPlan(){
   const slot=val("apSlot");
   if(!addSel) return toast("Busca y elige un alimento");
   if(num("apQtyVal")<=0) return toast("Cantidad inválida");
-  const c=addComputed();
+  const c=addComputed(), qty=num("apQtyVal");
   const item = addSel.type==="food"
-    ? {type:"food",refId:addSel.id,name:c.f.name,label:c.label,macros:c.macros}
-    : {type:"dish",refId:addSel.id,name:c.d.name,label:c.label,macros:c.macros};
-  state.plan.slots[slot].push(item); save(); closeModal("planModal"); refreshAfterPlanChange(); toast("Agregado a "+slot);
+    ? {type:"food",refId:addSel.id,name:c.f.name,label:c.label,macros:c.macros,qty,unit:addUnit}
+    : {type:"dish",refId:addSel.id,name:c.d.name,label:c.label,macros:c.macros,qty,unit:"pct"};
+  if(editingPlan){
+    const o=editingPlan, arr=state.plan.slots[o.slot];
+    if(arr && arr[o.index]) arr.splice(o.index,1);
+    if(!state.plan.slots[slot]) state.plan.slots[slot]=[];
+    state.plan.slots[slot].push(item); editingPlan=null;
+    save(); closeModal("planModal"); refreshAfterPlanChange(); toast("Cambios guardados ✓");
+  } else {
+    state.plan.slots[slot].push(item); save(); closeModal("planModal"); refreshAfterPlanChange(); toast("Agregado a "+slot);
+  }
 }
 
 /* ====================================================================
