@@ -567,6 +567,9 @@ nav button{min-height:46px;justify-content:center}
           <div class="field"><label>Pasos/día (promedio)</label><input type="number" id="gSteps" placeholder="Ej. 8000" inputmode="numeric"></div>
           <div class="field"><label>Días de entreno/sem</label><input type="number" id="gTrainDays" placeholder="Ej. 5" min="0" max="7" inputmode="numeric"></div>
         </div>
+        <div class="row">
+          <div class="field"><label>Años entrenando</label><input type="number" id="gYears" placeholder="Ej. 3" min="0" step="0.5" inputmode="decimal"></div>
+        </div>
         <div class="field"><label>Nivel de actividad</label>
           <select id="gActivity">
             <option value="auto" selected>Automático (por pasos)</option>
@@ -1092,15 +1095,16 @@ function todayStr(){
 /* azúcar (g) y sodio (mg) por 100 g para alimentos comunes (cobertura parcial, como apps reales) */
 const MICROS={
   p_huevo:[1.1,142],p_jamon:[1,1000],p_pollo:[0,74],p_claras:[0.7,166],p_atun:[0,247],p_salmon:[0,59],
-  l_leche:[4.8,43],l_lechedesc:[5,52],l_lechelala:[4.7,50],l_yogur:[3.6,36],l_yogurtnat:[4.7,46],l_yoplaitgr:[4,40],
+  p_resmol:[0,66],p_bistec:[0,55],p_tilapia:[0,52],p_camaron:[0,111],p_pavo:[0,104],p_cerdo:[0,53],
+  l_leche:[4.8,43],l_lechede:[5,52],l_lechelala:[4.7,50],l_yogur:[3.6,36],l_yogurtnat:[4.7,46],l_yoplaitgr:[4,40],
   l_panela:[2.6,350],l_oaxaca:[3,600],l_manchego:[1.5,600],l_reques:[3.4,330],
   c_tmaiz:[0.8,12],c_tharina:[2,400],c_panint:[5,450],c_panblanco:[5,480],c_panbimbo00:[3,380],
   c_avena:[1,2],c_arroz:[0.1,1],c_papa:[0.8,5],c_pasta:[0.6,1],c_miel:[82,4],
   f_platano:[12,1],f_manzana:[10,1],f_naranja:[9,0],f_mango:[14,1],f_fresa:[4.9,1],f_papaya:[8,8],
-  v_mixtas:[4,30],v_jitomate:[2.6,5],v_zanahoria:[4.7,69],v_brocoli:[1.7,33],v_espinaca:[0.4,79],
+  v_mixtas:[4,30],v_jitomate:[2.6,5],v_zanahoria:[4.7,69],v_brocoli:[1.7,33],v_espinaca:[0.4,79],v_nopal:[1.1,20],v_chayote:[1.7,2],
   g_frijol:[0.3,1],g_lenteja:[1.8,2],g_garbanzo:[5,7],
-  x_aguacate:[0.7,7],x_almendra:[4,1],x_nuez:[2.6,2],x_cacah:[4,18],x_crcacah:[9,17],
-  s_whey:[8,130]
+  x_aguacate:[0.7,7],x_almendra:[4,1],x_nuez:[2.6,2],x_cacah:[4,18],x_crcacah:[9,17],x_aceite:[0,2],
+  s_whey:[8,130],s_creatina:[0,0]
 };
 function load(){
   try{
@@ -1118,6 +1122,8 @@ function load(){
   if(!Array.isArray(state.workouts)) state.workouts = [];
   if(!Array.isArray(state.measurements)) state.measurements = [];
   if(!state.prefs) state.prefs = { unit:"kg" };
+  if(!state.manualPRs) state.manualPRs = {};
+  if(!state.steps) state.steps = {};   // pasos por día {date:n}
   // comidas personalizables (sembrado en el primer arranque)
   if(!Array.isArray(state.meals) || !state.meals.length) state.meals = DEFAULT_MEALS.map(m=>({...m}));
   ensureSlots(); ensureWater();
@@ -1379,8 +1385,18 @@ function waterCardHTML(){
       </div>
     </div>
     <div style="height:8px;background:var(--bg2);border-radius:5px;overflow:hidden"><div style="height:100%;width:${pct*100}%;background:#34C7FF;border-radius:5px"></div></div>
+    <div class="flex-between" style="margin-top:12px;font-size:13px">
+      <span style="color:var(--muted)">👟 Pasos hoy: <b style="color:var(--text)">${nfmt(stepsToday())}</b>${state.goals&&state.goals.steps?` / ${nfmt(state.goals.steps)}`:""}</span>
+      <span style="color:var(--accent);cursor:pointer" onclick="editStepsToday()">✎ registrar</span>
+    </div>
   </div>`;
 }
+function stepsToday(){ return (state.steps&&state.steps[todayStr()])||0; }
+function editStepsToday(){ const v=prompt("Pasos de hoy:", stepsToday()||""); if(v==null) return; const n=parseInt(v); if(n>=0){ if(!state.steps) state.steps={}; state.steps[todayStr()]=n; save(); if(currentView==="hoy") renderHoy(); toast("Pasos guardados"); } }
+/* barra de adherencia (etiqueta + %) */
+function adhRow(lbl,pct){ const col=pct>=85?'var(--ok)':(pct>=60?'var(--warn)':'var(--bad)');
+  return `<div style="margin-bottom:9px"><div class="flex-between" style="font-size:13px"><span>${lbl}</span><b style="color:${col}">${pct}%</b></div>
+    <div style="height:6px;background:var(--bg2);border-radius:4px;overflow:hidden;margin-top:3px"><div style="height:100%;width:${Math.min(pct,100)}%;background:${col};border-radius:4px"></div></div></div>`; }
 /* ---------- racha de cumplimiento de calorías ---------- */
 function dayShift(dateStr,delta){
   const d=new Date(dateStr+"T00:00:00"); d.setDate(d.getDate()+delta);
@@ -1878,7 +1894,7 @@ function activityFromSteps(steps, trainDays){
 function calcGoals(){
   const w=num("gWeight"), h=num("gHeight"), age=num("gAge");
   const sex=val("gSex"), obj=val("gObjective");
-  const steps=num("gSteps"), trainDays=num("gTrainDays"), actSel=val("gActivity");
+  const steps=num("gSteps"), trainDays=num("gTrainDays"), actSel=val("gActivity"), years=num("gYears");
   if(w<=0||h<=0||age<=0) return toast("Revisa peso, altura y edad");
   const act = actSel==="auto" ? activityFromSteps(steps,trainDays) : parseFloat(actSel);
   const bmr = 10*w + 6.25*h - 5*age + (sex==="male"?5:-161);   // Mifflin-St Jeor
@@ -1905,7 +1921,7 @@ function calcGoals(){
   const fiber=Math.round(targetCal/1000*14);
   state.goals = {
     weight:w,height:h,age,sex,objective:obj,category:cat,
-    activitySel:actSel, activity:act, steps:steps||null, trainDays:trainDays||null,
+    activitySel:actSel, activity:act, steps:steps||null, trainDays:trainDays||null, years:years||null,
     goalWeight, targetDate, dateMode, warn,
     weighDay: val("gWeighDay")||"1",
     bmr:Math.round(bmr), tdee:Math.round(tdee), calories:Math.round(targetCal),
@@ -1967,6 +1983,52 @@ function adaptiveCardHTML(){
     ${Math.abs(diff)>=50?`<button class="btn-primary" style="width:100%;margin-top:10px" onclick="applyAdaptive(${a.suggested})">Ajustar a ${nfmt(a.suggested)} kcal (${diff>0?'+':''}${diff})</button>`
       :`<p class="card-sub" style="margin-top:8px">Tu meta actual ya coincide con tu gasto real. 👌</p>`}`;
 }
+/* ----- ajuste por peso esperado vs real ----- */
+function calorieAdjustment(){
+  const g=state.goals; if(!g||!g.calories||!g.tdee) return null;
+  const cat=g.category||goalCategory(g.objective||"maintenance"); if(cat==="maintenance") return null;
+  const expectedKgWk=(g.tdee-g.calories)*7/7700;   // + = pérdida esperada
+  const today=todayStr();
+  const wm=(state.measurements||[]).filter(m=>m.peso!=null && (new Date(today)-new Date(m.date))/86400000<=35).sort((a,b)=>a.date<b.date?-1:1);
+  if(wm.length<2) return {enough:false};
+  const first=wm[0], last=wm[wm.length-1];
+  const weeks=Math.max((new Date(last.date)-new Date(first.date))/86400000/7,0.5);
+  const actualKgWk=(first.peso-last.peso)/weeks;    // + = pérdida real
+  const gap=expectedKgWk-actualKgWk;                // + = vas más lento de lo esperado
+  const kcal=Math.round(gap*7700/7/25)*25;          // kcal/día para cerrar la brecha
+  return {enough:true, expectedKgWk, actualKgWk, kcal};
+}
+/* ----- detector de estancamiento (consciente de déficit y recomposición) ----- */
+function stagnationCheck(){
+  const today=todayStr();
+  const wm=(state.measurements||[]).filter(m=>m.peso!=null && (new Date(today)-new Date(m.date))/86400000<=24).sort((a,b)=>a.date<b.date?-1:1);
+  if(wm.length<2) return null;
+  const wChange=wm[wm.length-1].peso-wm[0].peso;
+  const {rows}=weeklyRows(); let str=0;
+  if(rows.length>=2){ const a=rows[rows.length-2].total,b=rows[rows.length-1].total; str=a>0?(b-a)/a:0; }
+  const flat=Math.abs(wChange)<0.6, strUp=str>0.03, strDown=str<-0.03;
+  const cat=(state.goals&&(state.goals.category||goalCategory(state.goals.objective)))||"maintenance";
+  if(flat && strUp) return {tone:"var(--ok)", msg:"Peso estable pero tu fuerza sube: probable recomposición (ganas músculo y pierdes grasa). ¡Vas bien!"};
+  if(flat && !strUp && !strDown) return {tone:"var(--warn)", msg:"Estancamiento: peso y fuerza planos ~3 semanas. Cambia algo (ajusta calorías o sube intensidad/volumen)."};
+  if(strDown && cat==="deficit") return {tone:"var(--muted)", msg:"Bajó un poco la fuerza, pero en déficit es normal. Mantén proteína alta y prioriza tus básicos."};
+  return null;
+}
+function coachExtraHTML(){
+  let h="";
+  const ca=calorieAdjustment();
+  if(ca && ca.enough && Math.abs(ca.kcal)>=50){
+    const action = ca.kcal>0 ? `reduce ${ca.kcal} kcal` : `aumenta ${Math.abs(ca.kcal)} kcal`;
+    h+=`<div class="divider"></div><h3 style="margin-bottom:6px">Ajuste recomendado 🎯</h3>
+      <div class="kv"><span>Ritmo objetivo</span><b>${r1(ca.expectedKgWk)} kg/sem</b></div>
+      <div class="kv"><span>Ritmo real</span><b>${r1(ca.actualKgWk)} kg/sem</b></div>
+      <div style="background:var(--accent-soft);border-radius:12px;padding:11px 13px;margin-top:8px;font-size:13px;color:#5b21b6">
+        ${ca.kcal>0?"Vas más lento de lo previsto":"Vas más rápido de lo previsto"}. Recomendación: <b>${action}/día</b>.
+        ${state.goals?`<button class="btn-ghost btn-sm" style="margin-top:8px;width:100%" onclick="applyAdaptive(${(state.goals.calories||0)-ca.kcal})">Aplicar (${nfmt((state.goals.calories||0)-ca.kcal)} kcal)</button>`:""}</div>`;
+  }
+  const st=stagnationCheck();
+  if(st) h+=`<div style="border-left:3px solid ${st.tone};background:var(--bg2);border-radius:0 12px 12px 0;padding:10px 13px;margin-top:12px;font-size:13px">${st.msg}</div>`;
+  return h;
+}
 /* proyección de peso: 1 kg grasa ≈ 7700 kcal */
 function weightProjection(g){
   if(!g||!g.tdee||!g.calories) return null;
@@ -2025,6 +2087,7 @@ function renderGoalsTab(){
     if(g.activitySel) set("gActivity",g.activitySel); else if(g.activity) set("gActivity",String(g.activity));
     if(g.steps) set("gSteps",g.steps);
     if(g.trainDays!=null) set("gTrainDays",g.trainDays);
+    if(g.years!=null) set("gYears",g.years);
     if(g.objective) set("gObjective",g.objective);
     if(g.goalWeight) set("gGoalWeight",g.goalWeight);
     if(g.targetDate) set("gTargetDate",g.targetDate);
@@ -2050,7 +2113,8 @@ function renderGoalsTab(){
     <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${g.fat} g</b></div>
     <div class="kv"><span><span class="mdot bg-fib"></span>Fibra</span><b class="m-fib">${g.fiber} g</b></div>
     ${projectionHTML(g)}
-    ${adaptiveCardHTML()}`;
+    ${adaptiveCardHTML()}
+    ${coachExtraHTML()}`;
 }
 
 /* ====================================================================
@@ -2298,7 +2362,13 @@ function renderHistory(){
     const pr=computeExercisePRs(state.workouts||[]); let prCount=0;
     Object.values(pr).forEach(p=>{ if((p.weight.date&&within7(p.weight.date))||(p.orm.date&&within7(p.orm.date))) prCount++; });
     const prRow=prCount?`<div class="kv"><span>Records 🏆</span><b style="color:var(--accent)">${prCount} esta semana</b></div>`:"";
-    ws.innerHTML=`
+    // adherencia (Nutrición / Entreno / Pasos)
+    const g=state.goals; let adhRows="";
+    if(g&&g.calories){ const lo=g.calories-200,hi=g.calories+100; const okN=week.filter(d=>d.calories>=lo&&d.calories<=hi).length; adhRows+=adhRow("Nutrición", week.length?Math.round(okN/week.length*100):0); }
+    if(g&&g.trainDays){ adhRows+=adhRow("Entrenamiento", Math.min(100,Math.round(wts.length/g.trainDays*100))); }
+    if(g&&g.steps){ let days=0,hit=0; for(let i=0;i<7;i++){ const dd=dayShift(today,-i); if(state.steps&&state.steps[dd]!=null){ days++; if(state.steps[dd]>=g.steps) hit++; } } if(days) adhRows+=adhRow("Pasos", Math.round(hit/days*100)); }
+    const adhBlock = adhRows?`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px">Adherencia</div>${adhRows}<div class="divider" style="margin:6px 0 12px"></div>`:"";
+    ws.innerHTML=`${adhBlock}
       <div class="kv"><span>Días registrados</span><b>${week.length}</b></div>
       ${adher}
       <div class="kv"><span>Calorías promedio</span><b style="color:var(--accent2)">${avg("calories")} kcal</b></div>
@@ -2456,10 +2526,12 @@ function renderSesion(){
     </div>
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
+      const rec=nextWeightRec(e.exId,e.repRange,e.group);
       return `<div class="ex-block">
         <div class="exh">
           <div><div class="exname">${e.name}</div>
-            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div></div>
+            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div>
+            ${rec?`<div class="exmeta" style="color:var(--ok);font-weight:600">💡 La última vez llegaste al tope — sube a ${fmtW(rec.newWeight)}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
         <div class="set-head"><span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span></div>
@@ -2808,16 +2880,47 @@ function renderRecords(){
     sel.innerHTML = usedIds.map(id=>`<option value="${id}" ${id===cur?"selected":""}>${exName(id)}</option>`).join("");
     renderExerciseChart();
   }else{ sel.innerHTML=""; document.getElementById("exerciseChart").innerHTML=`<div class="empty">Sin datos.</div>`; }
-  // tabla de PRs
+  // tabla de PRs (auto + PR real manual)
   const pr=computeExercisePRs(state.workouts);
-  const ids=Object.keys(pr).sort((a,b)=>pr[b].orm.val-pr[a].orm.val);
+  const allIds=[...new Set([...Object.keys(pr), ...Object.keys(state.manualPRs||{})])]
+    .sort((a,b)=>((pr[b]&&pr[b].orm.val)||0)-((pr[a]&&pr[a].orm.val)||0));
   const prt=document.getElementById("prTable");
-  prt.innerHTML = ids.length ? `<table><thead><tr><th>Ejercicio</th><th class="r">Mejor peso</th><th class="r">1RM est.</th><th class="r">Mejor tonelaje</th></tr></thead><tbody>
-    ${ids.map(id=>{const p=pr[id];return `<tr><td>${p.name}</td>
-      <td class="r num">${fmtW(p.weight.val)}<br><span style="font-size:9px;color:var(--muted)">${p.weight.date}</span></td>
-      <td class="r num" style="color:var(--accent2)">${fmtW(p.orm.val)}<br><span style="font-size:9px;color:var(--muted)">${p.orm.date}</span></td>
-      <td class="r num">${fmtTon(p.ton.val)}<br><span style="font-size:9px;color:var(--muted)">${p.ton.date}</span></td></tr>`;}).join("")}
-    </tbody></table>` : `<div class="empty">Aún no hay records.</div>`;
+  prt.innerHTML = `<button class="btn-ghost btn-sm" style="margin-bottom:10px" onclick="addManualPRFlow()">+ Registrar PR real</button>` +
+    (allIds.length ? `<table><thead><tr><th>Ejercicio</th><th class="r">Mejor (auto)</th><th class="r">1RM est.</th><th class="r">PR real</th></tr></thead><tbody>
+    ${allIds.map(id=>{const p=pr[id]||{name:exName(id),weight:{val:0,date:""},orm:{val:0,date:""}}; const m=(state.manualPRs||{})[id];
+      return `<tr><td>${p.name||exName(id)}</td>
+      <td class="r num">${p.weight.val?fmtW(p.weight.val):"—"}</td>
+      <td class="r num" style="color:var(--accent2)">${p.orm.val?fmtW(p.orm.val):"—"}</td>
+      <td class="r">${m?`<span class="num">${fmtW(m.weight)}${m.reps?" ×"+m.reps:""}</span><br><span style="font-size:9px;color:var(--muted)">${m.date||""}</span> `:""}<span style="color:var(--accent);cursor:pointer;font-size:13px" onclick="setManualPR('${id}')">✎</span></td></tr>`;}).join("")}
+    </tbody></table>` : `<div class="empty">Aún no hay records. Usa "Registrar PR real" para añadir el tuyo.</div>`);
+}
+/* ----- PR manual ----- */
+function setManualPR(exId){
+  const ex=exById(exId); const cur=(state.manualPRs||{})[exId]||{};
+  const w=parseFloat(prompt(`PR real de "${ex?ex.name:exId}" — peso (${unit()}):`, cur.weight!=null?uw(cur.weight):""));
+  if(!(w>0)) return;
+  const reps=parseInt(prompt("Repeticiones (opcional):", cur.reps||"")||"0")||0;
+  const date=prompt("Fecha (AAAA-MM-DD):", cur.date||todayStr())||todayStr();
+  if(!state.manualPRs) state.manualPRs={};
+  state.manualPRs[exId]={weight:toKg(w), reps, date};
+  save(); renderRecords(); toast("PR real guardado");
+}
+function addManualPRFlow(){
+  const q=prompt("¿Para qué ejercicio? (escribe parte del nombre)"); if(!q) return;
+  const ex=state.exercises.find(e=>e.name.toLowerCase().includes(q.toLowerCase()));
+  if(!ex) return toast("No encontré ese ejercicio");
+  setManualPR(ex.id);
+}
+/* ----- recomendación de peso para la próxima sesión ----- */
+function parseTopRep(rr){ if(!rr) return null; const m=String(rr).match(/(\d+)\s*-\s*(\d+)/); if(m) return parseInt(m[2]); const s=String(rr).match(/^(\d+)/); return s?parseInt(s[1]):null; }
+function nextWeightRec(exId, repRange, group){
+  const last=lastSetsFor(exId); if(!last||!last.length) return null;
+  const top=parseTopRep(repRange); if(!top) return null;
+  const valid=last.filter(s=>(s.weight||0)>0); if(!valid.length) return null;
+  if(!valid.every(s=>(s.reps||0)>=top)) return null;     // solo si llegaste al tope en todas
+  const lower=/Cuádriceps|Femoral|Glúteo|Aductor/i.test(group||"");
+  const base=Math.max(...valid.map(s=>s.weight||0));
+  return {newWeight: base+(lower?5:2.5)};
 }
 function exerciseSeries(exId){
   return state.workouts.filter(w=>w.entries.some(e=>e.exId===exId))
@@ -2879,6 +2982,30 @@ function bfCategory(pct){
   let i=t.findIndex(x=>pct<x); if(i<0) i=4;
   return labs[i];
 }
+/* 3 métodos de grasa corporal con su nivel de confiabilidad */
+function bodyFatMethods(m){
+  const g=state.goals||{}, sex=g.sex||"male", height=g.height||null, age=g.age||null;
+  const weight=(m&&m.peso)||g.weight||null, out=[];
+  if(!height) return out;
+  const neck=m&&m.cuello, waist=m&&m.abdomen, hip=m&&m.cadera;
+  const b1=bodyFat(m);
+  if(b1) out.push({name:b1.method, pct:b1.pct, conf: b1.method==="US Navy"?"Alta":"Baja"});
+  if(waist>0){
+    const rfm=64 - 20*(height/waist) + 12*(sex==="female"?1:0);
+    if(isFinite(rfm)&&rfm>2&&rfm<70) out.push({name:"RFM (cintura/altura)", pct:rfm, conf:(hip>0||neck>0)?"Media-alta":"Media"});
+  }
+  if(weight&&age){
+    const bmi=weight/Math.pow(height/100,2), base=1.20*bmi+0.23*age-10.8*(sex==="male"?1:0)-5.4;
+    const years=g.years||0, freq=g.trainDays||0; let best=0;
+    (state.workouts||[]).forEach(w=>w.entries.forEach(e=>{ best=Math.max(best, entryBest1RM(e)); }));
+    const relStr=weight?best/weight:0;
+    const musc=Math.min(1,(Math.min(years/5,1)+Math.min(freq/5,1)+Math.min(relStr/2,1))/3);
+    const exp=base - musc*7;
+    if(isFinite(exp)&&exp>2&&exp<70) out.push({name:"Experiencia/fuerza", pct:exp, conf:(years&&freq&&best)?"Media":"Baja"});
+  }
+  return out;
+}
+function confColor(c){ return c==="Alta"?"var(--ok)":(/Media/.test(c)?"var(--warn)":"var(--bad)"); }
 function saveMeasurement(){
   const date=val("meDate")||todayStr();
   const m={date};
@@ -2900,19 +3027,26 @@ function renderMedidas(){
   if(!sel.value) sel.innerHTML=MEAS_FIELDS.map(([k,l])=>`<option value="${k}">${l.replace(" (kg)","")}</option>`).join("")+`<option value="grasa">Grasa %</option>`;
   // tarjeta de grasa corporal (última medición o datos de meta)
   const last=state.measurements.length?state.measurements[state.measurements.length-1]:null;
-  const bf=bodyFat(last);
+  const methods=bodyFatMethods(last);
   const bfEl=document.getElementById("bfCard");
   if(bfEl){
-    bfEl.innerHTML = bf
-      ? `<div class="card" style="display:flex;align-items:center;gap:16px">
-           <div style="position:relative;width:84px;height:84px;flex-shrink:0">${ringSVG(Math.min(bf.pct/40,1),"var(--accent)",84,9,false)}
-             <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
-               <div class="num" style="font-size:20px;color:var(--accent)">${r1(bf.pct)}%</div></div></div>
-           <div style="flex:1"><div style="font-weight:700;font-size:16px">Grasa corporal estimada</div>
-             <div style="font-size:13px;color:var(--muted);margin-top:2px">${bfCategory(bf.pct)} · ${bf.method}</div></div>
-         </div>`
-      : `<div class="card"><h3 style="margin:0 0 6px">Grasa corporal estimada</h3>
-           <p class="card-sub" style="margin:0">Registra tu <b>cuello</b> y <b>cintura</b> (y calcula tu meta con peso/altura/edad) para estimarla.</p></div>`;
+    if(methods.length){
+      const avg=methods.reduce((a,x)=>a+x.pct,0)/methods.length;
+      bfEl.innerHTML=`<div class="card">
+        <div style="display:flex;align-items:center;gap:16px;margin-bottom:6px">
+          <div style="position:relative;width:84px;height:84px;flex-shrink:0">${ringSVG(Math.min(avg/40,1),"var(--accent)",84,9,false)}
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div class="num" style="font-size:20px;color:var(--accent)">${r1(avg)}%</div></div></div>
+          <div style="flex:1"><div style="font-weight:700;font-size:16px">Grasa corporal estimada</div>
+            <div style="font-size:13px;color:var(--muted);margin-top:2px">${bfCategory(avg)} · promedio de ${methods.length} método${methods.length>1?'s':''}</div></div>
+        </div>
+        ${methods.map(mm=>`<div class="kv"><span>${mm.name}</span><b>${r1(mm.pct)}% <span style="font-size:11px;color:${confColor(mm.conf)};font-weight:600">· ${mm.conf}</span></b></div>`).join("")}
+        <p class="card-sub" style="margin:10px 0 0">La confiabilidad depende de los datos: cuello+cintura suben la precisión. "Experiencia/fuerza" es orientativa.</p>
+      </div>`;
+    } else {
+      bfEl.innerHTML=`<div class="card"><h3 style="margin:0 0 6px">Grasa corporal estimada</h3>
+        <p class="card-sub" style="margin:0">Registra tu <b>cuello</b> y <b>cintura</b> (y calcula tu meta con peso/altura/edad) para estimarla.</p></div>`;
+    }
   }
   renderMeasChart();
   // tabla
