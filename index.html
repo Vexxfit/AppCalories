@@ -971,6 +971,26 @@ nav button{min-height:46px;justify-content:center}
   </div>
 </div>
 
+<div class="modal-bg" id="mealGoalModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('mealGoalModal')">×</button>
+    <h3 id="mealGoalTitle">Objetivo de la comida</h3>
+    <p class="card-sub" style="margin-bottom:12px">Deja en blanco lo que no quieras fijar.</p>
+    <div class="row">
+      <div class="field"><label>Calorías</label><input type="number" id="mgCal" inputmode="numeric" placeholder="kcal"></div>
+      <div class="field"><label>Proteína (g)</label><input type="number" id="mgProtein" inputmode="numeric"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Carbohidratos (g)</label><input type="number" id="mgCarbs" inputmode="numeric"></div>
+      <div class="field"><label>Grasa (g)</label><input type="number" id="mgFat" inputmode="numeric"></div>
+    </div>
+    <div class="row" style="gap:8px;margin-top:4px">
+      <button class="btn-primary" onclick="saveMealGoal()">Guardar objetivo</button>
+      <button class="btn-ghost btn-sm" style="flex:0" onclick="clearMealGoal()">Quitar</button>
+    </div>
+  </div>
+</div>
+
 <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importData(this)">
 <div id="toast"></div>
 
@@ -1532,6 +1552,7 @@ function streakCardHTML(){
 function renderAjustes(){
   const g=state.goals;
   const dark=state.prefs&&state.prefs.theme==="dark";
+  const dw=(state.prefs&&state.prefs.deloadWeeks)||0;
   const rows=[
     {ic:"🎯",label:"Metas y calorías",val:(g&&g.calories)?`${nfmt(g.calories)} kcal`:"Definir",act:"nav('metas')"},
     {ic:"🥑",label:"Base de alimentos",val:`${allFoods().length}`,act:"nav('alimentos')"},
@@ -1540,6 +1561,7 @@ function renderAjustes(){
     {ic:"🔄",label:"Sustituciones",val:"",act:"nav('sustituciones')"},
     {ic:"⚖️",label:"Unidades de peso",val:unit(),act:"toggleUnitAndRefresh()"},
     {ic:dark?"🌙":"☀️",label:"Tema",val:dark?"Oscuro":"Claro",act:"toggleTheme()"},
+    {ic:"🪫",label:"Semana de descarga (deload)",val:dw?`cada ${dw} sem`:"Off",act:"setDeload()"},
     {ic:"⬇️",label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
     {ic:"⬆️",label:"Importar respaldo",val:"",act:"triggerImport()"}
   ];
@@ -1596,21 +1618,27 @@ function renderComidas(){
     return `<div class="list-row" style="align-items:flex-start">
       <span style="font-size:18px;margin-top:6px">${m.icon||"🍴"}</span>
       <div class="lr-main"><input value="${(m.name||'').replace(/"/g,'&quot;')}" onchange="renameMeal(${i},this.value)" style="font-weight:600;background:transparent;padding:6px 0;border-radius:0">
-        <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy</div>
-        <div class="row" style="gap:6px;margin-top:6px">
-          <input type="number" inputmode="numeric" placeholder="🎯 kcal" value="${(m.goal&&m.goal.cal)||''}" onchange="setMealGoal(${i},'cal',this.value)" style="font-size:12px;padding:6px 8px">
-          <input type="number" inputmode="numeric" placeholder="🎯 prot (g)" value="${(m.goal&&m.goal.protein)||''}" onchange="setMealGoal(${i},'protein',this.value)" style="font-size:12px;padding:6px 8px">
-        </div></div>
+        <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy${m.goal?` · 🎯 ${goalSummary(m.goal)}`:''}</div>
+        <button class="btn-ghost btn-sm" style="margin-top:7px" onclick="openMealGoal(${i})">🎯 ${m.goal?"Editar objetivo":"Definir objetivo"}</button></div>
       <button class="icon-btn" onclick="moveMeal(${i},-1)" aria-label="Subir">↑</button>
       <button class="icon-btn" onclick="moveMeal(${i},1)" aria-label="Bajar">↓</button>
       <button class="icon-btn" style="color:var(--bad)" onclick="deleteMeal(${i})" aria-label="Eliminar">×</button>
     </div>`;
   }).join("");
 }
-function setMealGoal(i,field,v){ const m=state.meals[i]; if(!m) return; if(!m.goal)m.goal={}; const n=parseFloat(v);
-  if(n>0) m.goal[field]=Math.round(n); else delete m.goal[field];
-  if(m.goal && m.goal.cal==null && m.goal.protein==null) delete m.goal;
-  save(); if(currentView==="hoy")renderHoy(); }
+let editingMealGoal=null;
+function openMealGoal(i){ editingMealGoal=i; const m=state.meals[i]; if(!m) return; const g=m.goal||{};
+  document.getElementById("mealGoalTitle").textContent="Objetivo · "+(m.name||"Comida");
+  set("mgCal",g.cal||""); set("mgProtein",g.protein||""); set("mgCarbs",g.carbs||""); set("mgFat",g.fat||"");
+  openModal("mealGoalModal"); }
+function saveMealGoal(){ if(editingMealGoal==null) return; const m=state.meals[editingMealGoal]; if(!m) return;
+  const g={}, cal=num("mgCal"),p=num("mgProtein"),c=num("mgCarbs"),f=num("mgFat");
+  if(cal>0)g.cal=Math.round(cal); if(p>0)g.protein=Math.round(p); if(c>0)g.carbs=Math.round(c); if(f>0)g.fat=Math.round(f);
+  if(Object.keys(g).length) m.goal=g; else delete m.goal;
+  save(); closeModal("mealGoalModal"); renderComidas(); if(currentView==="hoy")renderHoy(); toast("Objetivo guardado"); }
+function clearMealGoal(){ if(editingMealGoal==null) return; delete state.meals[editingMealGoal].goal; save(); closeModal("mealGoalModal"); renderComidas(); if(currentView==="hoy")renderHoy(); toast("Objetivo quitado"); }
+function goalSummary(g){ return [g.cal?g.cal+" kcal":null,g.protein?"P "+g.protein:null,g.carbs?"C "+g.carbs:null,g.fat?"G "+g.fat:null].filter(Boolean).join(" · "); }
+function goalProgressText(g,t){ const p=[]; if(g.cal)p.push(`${r0(t.cal)}/${g.cal} kcal`); if(g.protein)p.push(`P ${r0(t.protein)}/${g.protein}`); if(g.carbs)p.push(`C ${r0(t.carbs)}/${g.carbs}`); if(g.fat)p.push(`G ${r0(t.fat)}/${g.fat}`); return p.join(" · "); }
 function mealGoalLabel(m, st){ if(!m||!m.goal) return ""; const p=[];
   if(m.goal.cal){ const ok=st.cal>=m.goal.cal*0.9&&st.cal<=m.goal.cal*1.1; p.push(`<span style="color:${ok?'var(--ok)':'var(--muted)'}">${r0(st.cal)}/${m.goal.cal} kcal</span>`); }
   if(m.goal.protein){ const ok=st.protein>=m.goal.protein*0.9; p.push(`<span style="color:${ok?'var(--ok)':'var(--muted)'}">P ${r0(st.protein)}/${m.goal.protein}</span>`); }
@@ -1995,7 +2023,7 @@ function openMealDash(key){
   document.getElementById("mealDashTitle").textContent = meal?meal.name:"Comida";
   document.getElementById("mealDashBody").innerHTML = items.length ? `
     <div style="display:flex;justify-content:center;margin:4px 0 14px">${donutSVG(segs, r0(t.cal), "kcal", 168)}</div>
-    ${(meal&&meal.goal)?`<div class="kv" style="background:var(--accent-soft);border-radius:8px;padding:7px 10px"><span>🎯 Meta</span><b>${meal.goal.cal?`${r0(t.cal)}/${meal.goal.cal} kcal`:""}${(meal.goal.cal&&meal.goal.protein)?" · ":""}${meal.goal.protein?`P ${r0(t.protein)}/${meal.goal.protein} g`:""}</b></div>`:""}
+    ${(meal&&meal.goal)?`<div class="kv" style="background:var(--accent-soft);border-radius:8px;padding:7px 10px"><span>🎯 Meta</span><b>${goalProgressText(meal.goal,t)}</b></div>`:""}
     <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${r1(t.protein)} g · ${pct(kcalP)}%</b></div>
     <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${r1(t.carbs)} g · ${pct(kcalC)}%</b></div>
     <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${r1(t.fat)} g · ${pct(kcalF)}%</b></div>
@@ -2835,7 +2863,7 @@ function renderSesion(){
       </div>
       <textarea id="sessNote" placeholder="📝 Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
       <small class="hint" style="display:block;margin-top:8px">Toca el número de serie para marcar: <b style="color:#28303B;background:#C7CDD6;padding:0 5px;border-radius:4px">C</b> calentamiento (no cuenta) · <b style="color:#fff;background:#FF453A;padding:0 5px;border-radius:4px">F</b> fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 5px;border-radius:4px">D</b> dropset · <b style="color:#fff;background:#7C3AED;padding:0 5px;border-radius:4px">S</b> superserie</small>
-      ${(d.week>0 && d.week%5===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">🪫 Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
+      ${(((state.prefs&&state.prefs.deloadWeeks)||0)>0 && d.week>0 && d.week%state.prefs.deloadWeeks===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">🪫 Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
     </div>
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
@@ -2934,31 +2962,31 @@ function openMoveFolder(id){ movingTplId=id; const t=tplById(id); renderFolderSe
 function confirmMoveFolder(){ const t=tplById(movingTplId); if(t){ const v=val("moveFolderSelect"); t.folder=(v&&v!=="__new")?v:null; save(); renderTemplateList(); } closeModal("moveFolderModal"); }
 
 /* --- lista de días (agrupada por carpeta) --- */
+function folderIcon(s,color){ s=s||16; color=color||"var(--accent)";
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true" style="vertical-align:-3px"><path d="M3 6a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.4.6L11.4 6H19a2 2 0 0 1 2 2v1.4H7.2a2 2 0 0 0-1.9 1.3L3 17.6z"/><path d="M6.4 11h15.2a1 1 0 0 1 .95 1.3l-2 6.3A2 2 0 0 1 18.6 20H4.1a1 1 0 0 1-.95-1.3l2.3-7A1 1 0 0 1 6.4 11z"/></svg>`; }
 function tplCard(t){
   const groups=[...new Set(t.exercises.map(x=>exGroupOf(x.exId)))].join(", ");
-  return `<div class="card" style="background:var(--surface2);padding:12px;margin-bottom:10px">
-    <div class="flex-between">
-      <div><b style="font-family:'Bebas Neue';font-size:18px;letter-spacing:.5px">${t.name}</b>
-        <div style="font-size:11px;color:var(--muted)">${t.exercises.length} ejercicios · ${groups||"—"}</div></div>
-      <div class="row" style="flex:0;gap:6px">
-        <button class="btn-ghost btn-sm" style="flex:0" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">📁</button>
-        <button class="btn-ghost btn-sm" onclick="editTemplate('${t.id}')">Editar</button>
-        <button class="btn-danger btn-sm" onclick="deleteTemplate('${t.id}')">×</button>
-      </div>
+  return `<div style="background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:9px 10px 9px 12px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
+      <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.exercises.length} ej · ${groups||"—"}</div>
     </div>
+    <button class="icon-btn" style="flex:0 0 auto" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">${folderIcon(15)}</button>
+    <button class="btn-ghost btn-sm" style="flex:0 0 auto" onclick="editTemplate('${t.id}')">Editar</button>
+    <button class="icon-btn" style="flex:0 0 auto;color:var(--bad)" title="Eliminar" onclick="deleteTemplate('${t.id}')">×</button>
   </div>`;
 }
 function renderTemplateList(){
   const el=document.getElementById("templateList");
   const fs=state.folders||[];
   const inFolder=fid=>state.templates.filter(t=>(t.folder||null)===fid);
-  const newFolderBtn=`<div class="row" style="margin-bottom:10px;gap:6px"><button class="btn-ghost btn-sm" onclick="newFolder()">📁 Nueva carpeta</button></div>`;
+  const newFolderBtn=`<div class="row" style="margin-bottom:10px;gap:6px"><button class="btn-ghost btn-sm" onclick="newFolder()">${folderIcon(14)} Nueva carpeta</button></div>`;
   if(!state.templates.length){ el.innerHTML=newFolderBtn+`<div class="empty">Sin días. Crea uno o restaura los del Excel.</div>`; return; }
   let html=newFolderBtn;
   fs.forEach(f=>{
     const items=inFolder(f.id), col=collapsedFolders[f.id];
     html+=`<div style="display:flex;align-items:center;gap:8px;margin:8px 2px 6px">
-      <span style="cursor:pointer;font-weight:700;font-size:14px" onclick="toggleFolder('${f.id}')">${col?'▸':'▾'} 📁 ${f.name} <span style="color:var(--muted);font-weight:400;font-size:12px">(${items.length})</span></span>
+      <span style="cursor:pointer;font-weight:700;font-size:14px" onclick="toggleFolder('${f.id}')">${col?'▸':'▾'} ${folderIcon(15)} ${f.name} <span style="color:var(--muted);font-weight:400;font-size:12px">(${items.length})</span></span>
       <span style="color:var(--muted);cursor:pointer" onclick="renameFolder('${f.id}')">✎</span>
       <span style="color:var(--bad);cursor:pointer" onclick="deleteFolder('${f.id}')">×</span></div>`;
     if(!col) html += items.length ? items.map(tplCard).join("") : `<div class="empty" style="margin:0 0 10px">Carpeta vacía · usa 📁 en un día para moverlo aquí.</div>`;
@@ -3613,6 +3641,7 @@ function registerSW(){
 }
 function applyTheme(){ document.documentElement.setAttribute("data-theme", (state.prefs&&state.prefs.theme==="dark")?"dark":"light"); }
 function toggleTheme(){ if(!state.prefs)state.prefs={}; state.prefs.theme=(state.prefs.theme==="dark")?"light":"dark"; save(); applyTheme(); renderAjustes(); toast(state.prefs.theme==="dark"?"Modo oscuro":"Modo claro"); }
+function setDeload(){ const cur=(state.prefs&&state.prefs.deloadWeeks)||0; const v=prompt("Sugerir semana de descarga (deload) cada cuántas semanas de entreno? (0 = desactivar)", cur); if(v==null)return; const n=Math.max(0,Math.min(52,parseInt(v)||0)); if(!state.prefs)state.prefs={}; state.prefs.deloadWeeks=n; save(); renderAjustes(); toast(n?`Deload cada ${n} semanas`:"Deload desactivado"); }
 function init(){
   load();
   applyTheme();
