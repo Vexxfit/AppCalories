@@ -3242,7 +3242,7 @@ function showShareLink(url, name, cloud){ window.__shareUrl=url; window.__shareN
   openModal("shareLinkModal"); }
 async function buildAndShare(payload, name){
   if(typeof fbReady!=="undefined" && fbReady && fbDb){
-    try{ const id=shortId(); await fbDb.collection("shared").doc(id).set({p:compactShare(payload), at:Date.now()});
+    try{ const id=shortId(); await fbDb.collection("shared").doc(id).set({p:JSON.stringify(compactShare(payload)), at:Date.now()});
       return showShareLink(shareBase()+"#s="+id, name, true); }catch(e){ console.warn("share cloud",e); }
   }
   await loadLZ();
@@ -3264,7 +3264,7 @@ async function importRoutineFromHash(){
   const h=location.hash||""; let payload=null, m;
   if(m=h.match(/^#s=([A-Za-z0-9]+)$/)){
     if(typeof fbDb!=="undefined" && fbDb){ try{ const snap=await fbDb.collection("shared").doc(m[1]).get();
-      if(snap.exists){ const d=snap.data()||{}; payload = d.p?expandShare(d.p):(d.payload||null); } }catch(e){ console.warn("import cloud",e); } }
+      if(snap.exists){ const d=snap.data()||{}; payload = d.p?expandShare(JSON.parse(d.p)):(d.payload||null); } }catch(e){ console.warn("import cloud",e); } }
     if(!payload) toast("No pude cargar el link (revisa tu internet)");
   } else if(m=h.match(/^#c=(.+)$/)){ await loadLZ();
     try{ const j=window.LZString&&LZString.decompressFromEncodedURIComponent(m[1]); if(j) payload=expandShare(JSON.parse(j)); }catch(e){}
