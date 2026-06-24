@@ -633,6 +633,7 @@ nav button{min-height:46px;justify-content:center}
         <button class="btn-ghost btn-sm" onclick="saveManualMacros()">Guardar macros manuales</button>
       </div>
     </div>
+    <div class="card" style="margin-top:16px" id="bodyCompCard"></div>
   </section>
 
   <!-- ============ SUSTITUCIONES ============ -->
@@ -798,6 +799,11 @@ nav button{min-height:46px;justify-content:center}
       </div>
       <div id="bfCard" style="margin-top:16px"></div>
       <div class="card" style="margin-top:16px">
+        <h3>Masa magra vs grasa</h3>
+        <p class="card-sub">Cómo evoluciona tu composición con el tiempo.</p>
+        <div id="compChart"></div>
+      </div>
+      <div class="card" style="margin-top:16px">
         <h3>Historial de medidas</h3>
         <div class="table-wrap"><div id="measTable"></div></div>
       </div>
@@ -961,6 +967,14 @@ nav button{min-height:46px;justify-content:center}
     <button class="modal-close" onclick="closeModal('mealDashModal')">×</button>
     <h3 id="mealDashTitle">Comida</h3>
     <div id="mealDashBody"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="routineAnalysisModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('routineAnalysisModal')">×</button>
+    <h3 id="routineAnalysisTitle">Análisis de rutina</h3>
+    <div id="routineAnalysisBody" style="margin-top:8px"></div>
   </div>
 </div>
 
@@ -1485,6 +1499,7 @@ function renderHoy(){
       <div class="hero-rings">${miniRings}</div>${microLine}${goalCta}
     </div>
     ${streakCardHTML()}
+    ${objectiveCardHTML()}
     ${waterCardHTML()}
     <div class="section-eyebrow">COMIDAS DE HOY</div>${copyDayBtn}${meals}`;
 }
@@ -2292,6 +2307,7 @@ function renderGoalsTab(){
     if(g.weighDay) set("gWeighDay",g.weighDay);
     set("mProtein",g.protein||""); set("mCarbs",g.carbs||""); set("mFat",g.fat||""); set("mFiber",g.fiber||"");
   }
+  renderBodyComp();
   const el=document.getElementById("goalResult");
   if(!g||!g.calories){ el.innerHTML=`<div class="empty">Calcula tu meta para ver el resultado.</div>`; return; }
   const warnHTML = g.warn ? `<div style="background:#FFF4E5;border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12.5px;color:#9a5b00;line-height:1.45">⚠️ ${g.warn}</div>` : "";
@@ -2973,6 +2989,7 @@ function tplCard(t){
       <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
       <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.exercises.length} ej · ${groups||"—"}</div>
     </div>
+    <button class="icon-btn" style="flex:0 0 auto" title="Analizar rutina" onclick="openRoutineAnalysis('${t.id}')">📊</button>
     <button class="icon-btn" style="flex:0 0 auto" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">${folderIcon(15)}</button>
     <button class="btn-ghost btn-sm" style="flex:0 0 auto" onclick="editTemplate('${t.id}')">Editar</button>
     <button class="icon-btn" style="flex:0 0 auto;color:var(--bad)" title="Eliminar" onclick="deleteTemplate('${t.id}')">×</button>
@@ -3530,6 +3547,104 @@ function bodyFatMethods(m){
   return out;
 }
 function confColor(c){ return c==="Alta"?"var(--ok)":(/Media/.test(c)?"var(--warn)":"var(--bad)"); }
+/* ===== composición corporal: masa magra (FFM), masa grasa y simulador por %grasa ===== */
+function latestMeasure(){ return (state.measurements&&state.measurements.length)?state.measurements[state.measurements.length-1]:null; }
+function bestBF(m){ const methods=bodyFatMethods(m); if(!methods.length) return null;
+  const navy=methods.find(x=>x.name==="US Navy"); return navy?navy.pct:(methods.reduce((a,x)=>a+x.pct,0)/methods.length); }
+function curWeight(){ const m=latestMeasure(); return (m&&m.peso)||(state.goals&&state.goals.weight)||null; }
+function ffmOf(weight,bfPct){ return weight*(1-bfPct/100); }   // masa libre de grasa
+function targetWeightForBF(targetBF){ const w=curWeight(), bf=bestBF(latestMeasure()); if(!w||bf==null||!(targetBF>0&&targetBF<60)) return null; return ffmOf(w,bf)/(1-targetBF/100); }
+function renderBodyComp(){
+  const el=document.getElementById("bodyCompCard"); if(!el) return;
+  const w=curWeight(), m=latestMeasure(), bf=bestBF(m);
+  if(!w||bf==null){ el.innerHTML=`<h3>Composición corporal</h3><p class="card-sub" style="margin:0">Calcula tu meta (peso, altura, edad) o registra <b>cuello + cintura</b> en Medidas para estimar tu grasa y masa magra.</p>`; return; }
+  const lean=ffmOf(w,bf), fat=w-lean, tBF=(state.goals&&state.goals.targetBF)||"";
+  el.innerHTML=`<h3>Composición corporal</h3>
+    <div class="kv"><span>Peso actual</span><b>${r1(w)} kg</b></div>
+    <div class="kv"><span>Grasa estimada</span><b style="color:var(--accent)">${r1(bf)}%</b></div>
+    <div class="kv"><span><span class="mdot" style="background:var(--protein)"></span>Masa magra (FFM)</span><b style="color:var(--protein)">${r1(lean)} kg</b></div>
+    <div class="kv"><span><span class="mdot" style="background:var(--fat)"></span>Masa grasa</span><b style="color:var(--fat)">${r1(fat)} kg</b></div>
+    <div class="divider"></div>
+    <div style="font-weight:700;margin-bottom:4px">🎯 Simulador de peso por % de grasa</div>
+    <p class="card-sub" style="margin-bottom:8px">Si conservas tu masa magra (${r1(lean)} kg), ¿a qué peso llegarías?</p>
+    <div class="field" style="margin:0"><label>% de grasa objetivo</label><input type="number" id="simBF" inputmode="decimal" step="0.5" value="${tBF}" placeholder="Ej. 12" oninput="simulateBF()"></div>
+    <div id="simBFResult" style="margin-top:10px"></div>`;
+  simulateBF();
+}
+function simulateBF(){
+  const out=document.getElementById("simBFResult"); if(!out) return;
+  const t=num("simBF"), w=curWeight(), bf=bestBF(latestMeasure());
+  if(!(t>0&&t<60)||!w||bf==null){ out.innerHTML=`<div class="card-sub" style="margin:0">Escribe un % de grasa válido (1–59).</div>`; return; }
+  const lean=ffmOf(w,bf), tw=lean/(1-t/100), diff=w-tw;
+  out.innerHTML=`<div class="kv"><span>Peso estimado a ${r1(t)}% de grasa</span><b style="color:var(--accent2)">${r1(tw)} kg</b></div>
+    <div class="kv"><span>${diff>=0?"Tendrías que perder":"Podrías ganar"}</span><b style="color:${diff>=0?'var(--ok)':'var(--warn)'}">${r1(Math.abs(diff))} kg ${diff>=0?"de grasa":""}</b></div>
+    <button class="btn-ghost btn-sm" style="margin-top:8px" onclick="setBFTarget()">Fijar como peso objetivo</button>`;
+}
+function setBFTarget(){ const t=num("simBF"), tw=targetWeightForBF(t); if(!tw) return toast("Datos insuficientes");
+  if(!state.goals) state.goals={}; state.goals.targetBF=Math.round(t*10)/10; state.goals.goalWeight=Math.round(tw*10)/10;
+  save(); renderGoalsTab(); if(currentView==="hoy")renderHoy(); toast(`Objetivo: ${r1(tw)} kg @ ${r1(t)}%`); }
+/* tarjeta de objetivo para el Dashboard Hoy */
+function objectiveCardHTML(){
+  const g=state.goals; if(!g) return ""; const w=curWeight(); if(!w||(!g.goalWeight&&!g.targetBF)) return "";
+  const bf=bestBF(latestMeasure()); let rows="";
+  if(g.goalWeight){ const diff=w-g.goalWeight, near=Math.abs(diff)<0.1;
+    rows+=`<div class="flex-between" style="font-size:13px;margin-bottom:4px"><span style="color:var(--muted)">Peso objetivo</span><b>${r1(g.goalWeight)} kg</b></div>
+      <div class="flex-between" style="font-size:13px"><span style="color:var(--muted)">Actual</span><b>${r1(w)} kg ${near?'<span style="color:var(--ok);font-size:11px">¡en meta! ✓</span>':`<span style="color:${diff>0?'var(--accent)':'var(--warn)'};font-size:11px">(${diff>0?'bajar':'subir'} ${r1(Math.abs(diff))})</span>`}</b></div>`; }
+  if(g.targetBF&&bf!=null){ const d=bf-g.targetBF;
+    rows+=`<div class="flex-between" style="font-size:13px;margin-top:4px"><span style="color:var(--muted)">Grasa (meta ${r1(g.targetBF)}%)</span><b style="color:var(--accent)">${r1(bf)}% ${Math.abs(d)<0.5?'✓':`<span style="font-size:11px;color:var(--muted)">(${d>0?'-':'+'}${r1(Math.abs(d))} pts)</span>`}</b></div>`; }
+  return rows?`<div class="card" style="margin-top:14px;padding:14px 16px"><div style="font-weight:700;margin-bottom:8px">🎯 Tu objetivo</div>${rows}</div>`:"";
+}
+/* gráfica de masa magra vs grasa en el tiempo */
+function renderCompChart(){
+  const el=document.getElementById("compChart"); if(!el) return;
+  const series=(state.measurements||[]).map(m=>{ if(m.peso==null) return null; const b=bodyFat(m); if(!b) return null; const fat=m.peso*b.pct/100; return {date:m.date, lean:m.peso-fat, fat}; }).filter(Boolean);
+  if(series.length<1){ el.innerHTML=`<div class="empty">Registra tu peso (y cuello + cintura para más precisión) para ver tu composición a lo largo del tiempo.</div>`; return; }
+  const W=Math.max(series.length*54,300), H=200, pad=26, slot=(W-pad*2)/series.length, bw=Math.min(28,slot-8);
+  const maxT=Math.max(...series.map(p=>p.lean+p.fat),1); let bars="";
+  series.forEach((p,i)=>{ const x=pad+i*slot+(slot-bw)/2;
+    const hLean=(p.lean/maxT)*(H-pad*2), hFat=(p.fat/maxT)*(H-pad*2), yLean=H-pad-hLean, yFat=yLean-hFat;
+    bars+=`<rect x="${x}" y="${yLean}" width="${bw}" height="${hLean}" fill="var(--protein)"><title>${p.date} · magra ${r1(p.lean)} kg</title></rect>`;
+    bars+=`<rect x="${x}" y="${yFat}" width="${bw}" height="${hFat}" rx="2" fill="var(--fat)"><title>${p.date} · grasa ${r1(p.fat)} kg</title></rect>`;
+    bars+=`<text x="${x+bw/2}" y="${H-8}" fill="var(--muted)" font-size="8" text-anchor="middle">${p.date.slice(5)}</text>`;
+  });
+  el.innerHTML=`<div class="table-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;min-width:${W}px">${bars}</svg></div>
+    <div class="macro-legend"><span style="color:var(--protein)">● Masa magra</span><span style="color:var(--fat)">● Masa grasa</span></div>`;
+}
+/* ===== analizador de rutina (volumen efectivo planeado por músculo) ===== */
+function plannedVolByTemplate(t){ const map={};
+  (t.exercises||[]).forEach(te=>{ const ex=exById(te.exId)||{id:te.exId}; const inv=exMuscles(ex); const eff=effFactor(te.rir)*(te.sets||0);
+    for(const mk in inv) map[mk]=(map[mk]||0)+eff*inv[mk]; });
+  return map;
+}
+function openRoutineAnalysis(templateId){
+  const t=tplById(templateId); if(!t) return;
+  const ev=plannedVolByTemplate(t);
+  const worked=SUBMUSCLES.filter(([k])=>(ev[k]||0)>0).sort((a,b)=>(ev[b[0]]||0)-(ev[a[0]]||0));
+  document.getElementById("routineAnalysisTitle").textContent="Análisis · "+t.name;
+  const body=document.getElementById("routineAnalysisBody");
+  if(!worked.length){ body.innerHTML=`<div class="empty">Añade ejercicios con series para analizar esta rutina.</div>`; openModal("routineAnalysisModal"); return; }
+  const tbl=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Series efectivas por músculo (esta sesión)</div>
+    <div class="table-wrap"><table><tbody>${worked.map(([k,lbl])=>`<tr><td><span class="pill">${lbl}</span></td><td class="r num">${r1(ev[k])}</td></tr>`).join("")}</tbody></table></div>`;
+  const pairs=[
+    {lbl:"Empuje vs Jale", a:sumKeys(ev,["pecho","deltAnt","triceps"]), b:sumKeys(ev,["dorsal","espaldaAlta","biceps","deltPost"]), an:"Empuje", bn:"Jale"},
+    {lbl:"Pecho vs Espalda", a:ev.pecho||0, b:sumKeys(ev,["dorsal","espaldaAlta"]), an:"Pecho", bn:"Espalda"},
+    {lbl:"Cuádriceps vs Femoral", a:ev.cuadriceps||0, b:ev.femoral||0, an:"Cuád.", bn:"Fem."},
+    {lbl:"Hombro ant. vs post.", a:ev.deltAnt||0, b:ev.deltPost||0, an:"Ant.", bn:"Post."}
+  ];
+  const imb=pairs.map(p=>{ const tot=p.a+p.b; if(tot<=0) return ""; const aPct=Math.round(p.a/tot*100);
+    const ratio=p.b>0?p.a/p.b:(p.a>0?99:1), off=ratio>1.6||ratio<0.625, col=off?"var(--warn)":"var(--ok)", note=off?(ratio>1?`+ ${p.an}`:`+ ${p.bn}`):"equilibrado";
+    return `<div style="margin-bottom:11px"><div class="flex-between" style="font-size:13px"><span>${p.lbl}</span><span style="color:${col};font-weight:600">${note}</span></div>
+      <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:3px;background:var(--bg2)"><div style="width:${aPct}%;background:var(--accent)"></div><div style="width:${100-aPct}%;background:var(--accent2)"></div></div></div>`;
+  }).join("");
+  // avisos: grupos grandes no trabajados + desbalances
+  const q=[]; const big={pecho:"pecho",dorsal:"espalda",cuadriceps:"cuádriceps",femoral:"femoral",deltLat:"hombro lateral",gluteo:"glúteo"};
+  Object.keys(big).forEach(k=>{ if(!(ev[k]>0)) q.push(`No trabajas ${big[k]} en esta rutina.`); });
+  const push=sumKeys(ev,["pecho","deltAnt","triceps"]), pull=sumKeys(ev,["dorsal","espaldaAlta","biceps","deltPost"]);
+  if(push>0&&pull>0){ const rr=push/pull; if(rr>1.6) q.push("Empujas mucho más de lo que jalas — agrega remos/jalones."); else if(rr<0.62) q.push("Jalas mucho más de lo que empujas."); }
+  const alerts=q.length?`<div class="divider"></div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Avisos</div>`+q.map(m=>`<div style="border-left:3px solid var(--warn);background:var(--bg2);border-radius:0 10px 10px 0;padding:9px 12px;margin-bottom:8px;font-size:13px">${m}</div>`).join(""):`<div class="divider"></div><div style="color:var(--ok);font-size:13px;font-weight:600">✓ Rutina equilibrada, sin huecos evidentes.</div>`;
+  body.innerHTML=`${tbl}<div class="divider"></div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Equilibrio</div>${imb}${alerts}<p class="card-sub" style="margin-top:8px">Volumen de <b>una sesión</b>. Multiplícalo por las veces/semana que haces este día. Los rangos MEV/MRV son semanales.</p>`;
+  openModal("routineAnalysisModal");
+}
 function saveMeasurement(){
   const date=val("meDate")||todayStr();
   const m={date};
@@ -3573,6 +3688,7 @@ function renderMedidas(){
     }
   }
   renderMeasChart();
+  renderCompChart();
   // tabla
   const t=document.getElementById("measTable");
   t.innerHTML = state.measurements.length ? `<table><thead><tr><th>Fecha</th>${MEAS_FIELDS.map(([k,l])=>`<th class="r">${l.replace(" (kg)","")}</th>`).join("")}<th></th></tr></thead><tbody>
