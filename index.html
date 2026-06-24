@@ -670,11 +670,6 @@ nav button{min-height:46px;justify-content:center}
         </div>
       </div>
     </div>
-    <div class="card" style="margin-top:16px">
-      <h3>💧 Agua y 👟 pasos</h3>
-      <p class="card-sub">¿Se te olvidó registrarlos? Edita hoy y los 2 días anteriores.</p>
-      <div id="recentLogEdit"></div>
-    </div>
   </section>
 
   <!-- ============ ENTRENO ============ -->
@@ -950,6 +945,15 @@ nav button{min-height:46px;justify-content:center}
   </div>
 </div>
 
+<div class="modal-bg" id="logEditModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('logEditModal')">×</button>
+    <h3>💧 Agua y 👟 pasos</h3>
+    <p class="card-sub" style="margin-bottom:12px">¿Se te olvidó registrarlos? Edita hoy y los 2 días anteriores.</p>
+    <div id="recentLogEdit"></div>
+  </div>
+</div>
+
 <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importData(this)">
 <div id="toast"></div>
 
@@ -1209,8 +1213,8 @@ function addWater(ml){ ensureWater(); state.water.ml=Math.max(0,state.water.ml+m
 /* agua/pasos por fecha (para historial y edición de días recientes) */
 function waterFor(d){ if(d===todayStr()){ ensureWater(); return state.water.ml; } return (state.waterLog&&state.waterLog[d]!=null)?state.waterLog[d]:0; }
 function stepsFor(d){ return (state.steps&&state.steps[d]!=null)?state.steps[d]:0; }
-function setWaterFor(d,L){ const ml=Math.max(0,Math.round((parseFloat(L)||0)*1000)); if(!state.waterLog)state.waterLog={}; state.waterLog[d]=ml; if(d===todayStr()){ ensureWater(); state.water.ml=ml; } save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderRecentLogEditor(); toast("Agua guardada"); }
-function setStepsFor(d,n){ const v=Math.max(0,parseInt(n)||0); if(!state.steps)state.steps={}; state.steps[d]=v; save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderRecentLogEditor(); toast("Pasos guardados"); }
+function setWaterFor(d,L){ const ml=Math.max(0,Math.round((parseFloat(L)||0)*1000)); if(!state.waterLog)state.waterLog={}; state.waterLog[d]=ml; if(d===todayStr()){ ensureWater(); state.water.ml=ml; } save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderHistory(); renderRecentLogEditor(); toast("Agua guardada"); }
+function setStepsFor(d,n){ const v=Math.max(0,parseInt(n)||0); if(!state.steps)state.steps={}; state.steps[d]=v; save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderHistory(); renderRecentLogEditor(); toast("Pasos guardados"); }
 function editWaterGoal(){ const cur=(waterGoalMl()/1000); const v=prompt("Meta de agua en litros:", cur); if(v==null) return; const L=parseFloat(v); if(L>0){ state.prefs.waterGoal=Math.round(L*1000); save(); if(currentView==="hoy") renderHoy(); toast("Meta de agua actualizada"); } }
 function saveLocal(){ localStorage.setItem(LS, JSON.stringify(state)); }
 function save(){ state._updatedAt=Date.now(); saveLocal(); if(typeof fbUser!=="undefined" && fbUser && !cloudApplying) cloudPush(false); }
@@ -2504,7 +2508,8 @@ function renderHistory(){
     if(state.steps&&state.steps[dd]!=null&&state.steps[dd]>0){ ssum+=state.steps[dd]; sd++; } }
   const waterRow=wd?`<div class="kv"><span>💧 Agua promedio</span><b style="color:#34C7FF">${(wsum/wd/1000).toFixed(2)} L</b></div>`:"";
   const stepsRow=sd?`<div class="kv"><span>👟 Pasos promedio</span><b>${nfmt(ssum/sd)}</b></div>`:"";
-  if(!week.length){ ws.innerHTML = (waterRow||stepsRow) ? (waterRow+stepsRow) : `<div class="empty">Sin datos de la semana.</div>`; }
+  const logEditBtn=`<button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openLogEdit()">✎ Editar agua / pasos</button>`;
+  if(!week.length){ ws.innerHTML = ((waterRow||stepsRow) ? (waterRow+stepsRow) : `<div class="empty" style="margin-bottom:4px">Sin datos de la semana.</div>`) + logEditBtn; }
   else{
     const avg=k=>r0(week.reduce((a,d)=>a+(d[k]||0),0)/week.length);
     // adherencia
@@ -2540,9 +2545,8 @@ function renderHistory(){
       <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${avg("protein")} g</b></div>
       <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${avg("carbs")} g</b></div>
       <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${avg("fat")} g</b></div>
-      ${waterRow}${stepsRow}${pesoRow}${tonRow}${prRow}`;
+      ${waterRow}${stepsRow}${pesoRow}${tonRow}${prRow}${logEditBtn}`;
   }
-  renderRecentLogEditor();
   // tabla
   const tb=document.getElementById("historyTable");
   tb.innerHTML = data.length ? data.map(d=>`
@@ -2551,7 +2555,8 @@ function renderHistory(){
     : `<tr><td colspan="5"><div class="empty">Sin registros.</div></td></tr>`;
 }
 
-/* editor de agua/pasos de los últimos 3 días (hoy + 2 anteriores) */
+/* editor de agua/pasos de los últimos 3 días (hoy + 2 anteriores) — se abre desde "Tu semana" */
+function openLogEdit(){ renderRecentLogEditor(); openModal("logEditModal"); }
 function renderRecentLogEditor(){
   const el=document.getElementById("recentLogEdit"); if(!el) return;
   const t=todayStr(); const labels=["Hoy","Ayer","Antier"];
