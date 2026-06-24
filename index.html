@@ -920,14 +920,14 @@ nav button{min-height:46px;justify-content:center}
 <div class="modal-bg" id="tplExModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('tplExModal')">×</button>
-    <h3>Añadir ejercicio al día</h3>
+    <h3 id="tplExModalTitle">Añadir ejercicio al día</h3>
     <div class="field"><label>Ejercicio</label><select id="tplExSelect"></select></div>
     <div class="row">
       <div class="field"><label>Series objetivo</label><input type="number" id="tplExSets" value="3" min="1"></div>
       <div class="field"><label>Rango de reps</label><input id="tplExReps" value="8-12"></div>
       <div class="field"><label>RIR</label><input id="tplExRir" value="0-1"></div>
     </div>
-    <button class="btn-primary" onclick="addExerciseToTemplate()">Añadir</button>
+    <button class="btn-primary" id="tplExModalBtn" onclick="addExerciseToTemplate()">Añadir</button>
   </div>
 </div>
 
@@ -1034,6 +1034,28 @@ nav button{min-height:46px;justify-content:center}
       <button class="btn-primary" onclick="saveMealGoal()">Guardar objetivo</button>
       <button class="btn-ghost btn-sm" style="flex:0" onclick="clearMealGoal()">Quitar</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="shareLinkModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('shareLinkModal')">×</button>
+    <h3 id="shareLinkTitle">Compartir rutina</h3>
+    <p class="card-sub" style="margin-bottom:8px">Envía este link. Quien lo abra en su VEXX podrá <b>guardar</b> la rutina con un toque.</p>
+    <input id="shareLinkUrl" readonly style="font-size:12px" onclick="this.select()">
+    <div class="row" style="margin-top:10px;gap:8px">
+      <button class="btn-primary" onclick="copyShareLink()">Copiar link</button>
+      <button class="btn-ghost btn-sm" id="shareNativeBtn" onclick="shareNative()">Compartir…</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="importRoutineModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('importRoutineModal')">×</button>
+    <h3>Guardar rutina compartida</h3>
+    <div id="importRoutineBody"></div>
+    <button class="btn-primary" style="width:100%;margin-top:12px" onclick="confirmImportRoutine()">Guardar en mis plantillas</button>
   </div>
 </div>
 
@@ -1663,6 +1685,7 @@ function renderComidas(){
   el.innerHTML=state.meals.map((m,i)=>{
     const count=(state.plan.slots[m.id]||[]).length;
     return `<div class="list-row" style="align-items:flex-start">
+      <span class="drag-h" style="cursor:grab;color:var(--muted);font-size:16px;margin-top:6px;touch-action:none">⠿</span>
       <span style="font-size:18px;margin-top:6px">${m.icon||"🍴"}</span>
       <div class="lr-main"><input value="${(m.name||'').replace(/"/g,'&quot;')}" onchange="renameMeal(${i},this.value)" style="font-weight:600;background:transparent;padding:6px 0;border-radius:0">
         <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy${m.goal?` · 🎯 ${goalSummary(m.goal)}`:''}</div>
@@ -1672,6 +1695,7 @@ function renderComidas(){
       <button class="icon-btn" style="color:var(--bad)" onclick="deleteMeal(${i})" aria-label="Eliminar">×</button>
     </div>`;
   }).join("");
+  enableSort("mealsList", (from,to)=>{ arrMove(state.meals,from,to); save(); renderComidas(); });
 }
 let editingMealGoal=null;
 function openMealGoal(i){ editingMealGoal=i; const m=state.meals[i]; if(!m) return; const g=m.goal||{};
@@ -2899,6 +2923,7 @@ function startSession(){
 }
 function cancelSession(){ if(confirm(sessionDraft&&sessionDraft.editingId?"¿Descartar los cambios?":"¿Descartar la sesión en curso?")){ sessionDraft=null; renderSesion(); } }
 function moveSessionEx(i,dir){ const a=sessionDraft.entries; const j=i+dir; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; renderSesion(); }
+function toggleSuperset(i){ if(!sessionDraft||!sessionDraft.entries[i]) return; sessionDraft.entries[i].superWithNext=!sessionDraft.entries[i].superWithNext; renderSesion(); }
 function editWorkout(id){
   if(sessionDraft){ if(!confirm("Tienes una sesión en el editor. ¿Reemplazarla por esta?")) return; }
   const w=state.workouts.find(x=>x.id===id); if(!w) return;
@@ -3001,17 +3026,18 @@ function renderSesion(){
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
       const sug=progressionSuggest(e.exId,e.repRange,e.group);
-      return `<div class="ex-block">
+      const inSuper = e.superWithNext || (i>0 && d.entries[i-1] && d.entries[i-1].superWithNext);
+      return `<div class="ex-block" style="${inSuper?'border-left:3px solid var(--accent);':''}">
         <div class="exh">
-          <div><div class="exname">${e.name}</div>
+          <div><div class="exname">${e.name}${inSuper?' <span class="pill" style="background:var(--accent-soft);color:var(--accent);font-size:10px;padding:1px 7px">🔗 superserie</span>':''}</div>
             <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div>
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
         <div class="set-head"><span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span></div>
-        ${e.sets.map((s,j)=>{const tg=SET_TAGS[s.type||"n"];return `
-          <div class="set-row">
-            <button class="sidx" title="${tg.title} · toca para cambiar" style="cursor:pointer;border:none;background:${tg.bg};color:${tg.fg};font-weight:700" onclick="cycleSetType(${i},${j})">${tg.short||(j+1)}</button>
+        ${e.sets.map((s,j)=>{const tg=SET_TAGS[s.type||"n"]; const isDrop=s.type==="d";return `
+          <div class="set-row" style="${isDrop?'border-left:3px solid #FF9F0A;background:rgba(255,159,10,.06);border-radius:8px':''}">
+            <button class="sidx" title="${tg.title} · toca para cambiar (D = dropset)" style="cursor:pointer;border:none;background:${tg.bg};color:${tg.fg};font-weight:700" onclick="cycleSetType(${i},${j})">${tg.short||(j+1)}</button>
             <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
             <input type="number" inputmode="numeric" value="${s.reps||""}" placeholder="0" onchange="updateSetReps(${i},${j},this.value)">
             <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)" ${(s.type==="f"||s.type==="d")?'disabled title="Al fallo / dropset = RIR 0"':''}>
@@ -3021,6 +3047,7 @@ function renderSesion(){
           <button class="btn-ghost btn-sm" onclick="addSet(${i})">+ Serie</button>
           <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},-1)" ${i===0?"disabled":""}>↑</button>
           <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},1)" ${i===d.entries.length-1?"disabled":""}>↓</button>
+          ${i<d.entries.length-1?`<button class="btn-ghost btn-sm" style="flex:0;${e.superWithNext?'color:var(--accent);font-weight:700':''}" title="Superserie con el siguiente ejercicio" onclick="toggleSuperset(${i})">🔗</button>`:''}
           <button class="btn-ghost btn-sm" style="flex:0" onclick="removeExEntry(${i})">Quitar</button>
         </div>
       </div>`;
@@ -3094,6 +3121,59 @@ let movingTplId=null;
 function openMoveFolder(id){ movingTplId=id; const t=tplById(id); renderFolderSelect("moveFolderSelect", t?t.folder:null); openModal("moveFolderModal"); }
 function confirmMoveFolder(){ const t=tplById(movingTplId); if(t){ const v=val("moveFolderSelect"); t.folder=(v&&v!=="__new")?v:null; save(); renderTemplateList(); } closeModal("moveFolderModal"); }
 
+/* ----- compartir rutina / carpeta por link + importar ----- */
+function b64e(s){ return btoa(unescape(encodeURIComponent(s))); }
+function b64d(s){ return decodeURIComponent(escape(atob(s))); }
+function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.forEach(x=>ids.add(x.exId)));
+  const defIds=new Set(DEFAULT_EXERCISES.map(e=>e.id)); const out=[];
+  ids.forEach(id=>{ if(!defIds.has(id)){ const e=exById(id); if(e){ const o={id:e.id,name:e.name,group:e.group,repRange:e.repRange,rir:e.rir,custom:true}; if(e.muscles)o.muscles=e.muscles; out.push(o); } } });
+  return out; }
+function shareURL(payload){ return location.origin+location.pathname+"#r="+b64e(JSON.stringify(payload)); }
+function showShareLink(payload, name){ const url=shareURL(payload); window.__shareUrl=url; window.__shareName=name;
+  set("shareLinkUrl",url); document.getElementById("shareLinkTitle").textContent="Compartir: "+name;
+  const sb=document.getElementById("shareNativeBtn"); if(sb) sb.style.display=navigator.share?"":"none";
+  openModal("shareLinkModal"); }
+function shareTemplate(id){ const t=tplById(id); if(!t) return;
+  const payload={v:1,type:"tpl",name:t.name,templates:[{name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))}],exercises:customExsFor([t])};
+  showShareLink(payload, t.name); }
+function shareFolder(fid){ const f=(state.folders||[]).find(x=>x.id===fid); const tpls=state.templates.filter(t=>(t.folder||null)===fid);
+  if(!tpls.length) return toast("La carpeta está vacía");
+  const payload={v:1,type:"folder",name:(f?f.name:"Carpeta"),templates:tpls.map(t=>({name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))})),exercises:customExsFor(tpls)};
+  showShareLink(payload, (f?f.name:"Carpeta")); }
+function copyShareLink(){ const u=val("shareLinkUrl");
+  if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(()=>toast("Link copiado ✓")).catch(()=>fallbackCopy()); } else fallbackCopy();
+  function fallbackCopy(){ const i=document.getElementById("shareLinkUrl"); i.select(); try{document.execCommand("copy");toast("Link copiado ✓");}catch(e){toast("Copia el link a mano");} } }
+function shareNative(){ if(navigator.share) navigator.share({title:"VEXX · "+(window.__shareName||"rutina"), url:window.__shareUrl}).catch(()=>{}); }
+let pendingImport=null;
+function importRoutineFromHash(){
+  const m=(location.hash||"").match(/^#r=(.+)$/); if(!m) return;
+  try{ const payload=JSON.parse(b64d(m[1]));
+    if(payload&&Array.isArray(payload.templates)&&payload.templates.length){ pendingImport=payload;
+      const n=payload.templates.length;
+      document.getElementById("importRoutineBody").innerHTML=
+        `<p class="card-sub" style="margin-bottom:10px">Te compartieron ${payload.type==="folder"?`la carpeta <b>${payload.name}</b> (${n} rutina${n>1?'s':''})`:`la rutina <b>${payload.name}</b>`}. ¿Guardarla en tus plantillas?</p>`+
+        payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("");
+      openModal("importRoutineModal");
+    }
+  }catch(e){}
+  history.replaceState(null,"",location.pathname);
+}
+function confirmImportRoutine(){
+  const p=pendingImport; if(!p) return;
+  (p.exercises||[]).forEach(ex=>{ if(ex&&ex.id&&!exById(ex.id)) state.exercises.push({...ex}); });
+  let folderId=null;
+  if(p.type==="folder"){ if(!state.folders)state.folders=[]; folderId="f_"+Date.now(); state.folders.push({id:folderId,name:(p.name||"Carpeta importada")}); }
+  (p.templates||[]).forEach((t,k)=>{ state.templates.push({id:"t_"+Date.now()+"_"+k+"_"+Math.floor(Math.random()*1e4), name:t.name, exercises:(t.exercises||[]).map(x=>({...x})), folder:folderId}); });
+  save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno"); subEntreno("plantillas"); toast("Guardado en tus plantillas ✓");
+}
+/* ----- importar pasos desde la URL (Atajo de Apple Salud / Health Connect) ----- */
+function importStepsFromURL(){
+  try{ const sp=new URLSearchParams(location.search); const st=sp.get("steps");
+    if(st!=null && /^\d{1,6}$/.test(st)){ const d=sp.get("date")||todayStr(); if(!state.steps)state.steps={}; state.steps[d]=parseInt(st); save(); setTimeout(()=>toast("👟 Pasos importados: "+nfmt(parseInt(st))),500); }
+    if(location.search) history.replaceState(null,"",location.pathname+location.hash);
+  }catch(e){}
+}
+
 /* --- lista de días (agrupada por carpeta) --- */
 function folderIcon(s,color){ s=s||16; color=color||"var(--accent)";
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true" style="vertical-align:-3px"><path d="M3 6a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.4.6L11.4 6H19a2 2 0 0 1 2 2v1.4H7.2a2 2 0 0 0-1.9 1.3L3 17.6z"/><path d="M6.4 11h15.2a1 1 0 0 1 .95 1.3l-2 6.3A2 2 0 0 1 18.6 20H4.1a1 1 0 0 1-.95-1.3l2.3-7A1 1 0 0 1 6.4 11z"/></svg>`; }
@@ -3105,6 +3185,7 @@ function tplCard(t){
       <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.exercises.length} ej · ${groups||"—"}</div>
     </div>
     <button class="icon-btn" style="flex:0 0 auto" title="Analizar rutina" onclick="openRoutineAnalysis('${t.id}')">📊</button>
+    <button class="icon-btn" style="flex:0 0 auto" title="Compartir por link" onclick="shareTemplate('${t.id}')">📤</button>
     <button class="icon-btn" style="flex:0 0 auto" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">${folderIcon(15)}</button>
     <button class="btn-ghost btn-sm" style="flex:0 0 auto" onclick="editTemplate('${t.id}')">Editar</button>
     <button class="icon-btn" style="flex:0 0 auto;color:var(--bad)" title="Eliminar" onclick="deleteTemplate('${t.id}')">×</button>
@@ -3122,6 +3203,7 @@ function renderTemplateList(){
     html+=`<div style="display:flex;align-items:center;gap:8px;margin:8px 2px 6px">
       <span style="cursor:pointer;font-weight:700;font-size:14px;flex:1;min-width:0" onclick="toggleFolder('${f.id}')">${col?'▸':'▾'} ${folderIcon(15)} ${f.name} <span style="color:var(--muted);font-weight:400;font-size:12px">(${items.length})</span></span>
       <span title="Analizar carpeta" style="cursor:pointer;font-size:13px" onclick="analyzeFolder('${f.id}')">📊</span>
+      <span title="Compartir carpeta por link" style="cursor:pointer;font-size:13px" onclick="shareFolder('${f.id}')">📤</span>
       <span style="color:var(--muted);cursor:pointer" onclick="renameFolder('${f.id}')">✎</span>
       <span style="color:var(--bad);cursor:pointer" onclick="deleteFolder('${f.id}')">×</span></div>`;
     if(!col) html += items.length ? items.map(tplCard).join("") : `<div class="empty" style="margin:0 0 10px">Carpeta vacía · usa 📁 en un día para moverlo aquí.</div>`;
@@ -3155,36 +3237,59 @@ function renderTemplateEditor(){
     <div id="tplExList">${
       d.exercises.length ? d.exercises.map((x,i)=>`
         <div class="tpl-ex-row">
-          <span class="tname">${exName(x.exId)}</span>
-          <span class="tmeta">${x.sets}×${x.repRange} · RIR ${x.rir}</span>
-          <button class="btn-ghost btn-sm" style="padding:3px 7px" onclick="moveTplEx(${i},-1)">↑</button>
-          <button class="btn-ghost btn-sm" style="padding:3px 7px" onclick="moveTplEx(${i},1)">↓</button>
-          <button class="btn-danger btn-sm" style="padding:3px 7px" onclick="removeTplEx(${i})">×</button>
+          <span class="drag-h" style="cursor:grab;color:var(--muted);font-size:16px;touch-action:none">⠿</span>
+          <span class="tname" style="cursor:pointer" onclick="editTplEx(${i})">${exName(x.exId)}<br><span class="tmeta">${x.sets}×${x.repRange} · RIR ${x.rir}</span></span>
+          <button class="btn-ghost btn-sm" style="padding:3px 8px" title="Editar" onclick="editTplEx(${i})">✎</button>
+          <button class="btn-danger btn-sm" style="padding:3px 8px" onclick="removeTplEx(${i})">×</button>
         </div>`).join("") : `<div class="empty">Añade ejercicios al día.</div>`
     }</div>
     <button class="btn-ghost btn-sm" style="margin-top:8px" onclick="openTplExModal()">+ Añadir ejercicio</button>
+    <small class="hint" style="display:block;margin-top:6px">Arrastra con ⠿ para reordenar · toca un ejercicio para editar sus series.</small>
     <div class="divider"></div>
     <div class="row"><button class="btn-primary" onclick="saveTemplate()">Guardar día</button></div>`;
+  enableSort("tplExList", (from,to)=>{ arrMove(templateDraft.exercises,from,to); renderTemplateEditor(); });
 }
+let editingTplEx=null;
+function editTplEx(i){ editingTplEx=i; openTplExModal(i); }
 function closeTemplateEditor(){ editingTemplateId=null; templateDraft=null; renderTemplateEditor(); }
 function moveTplEx(i,dir){
   const a=templateDraft.exercises; const j=i+dir; if(j<0||j>=a.length) return;
   [a[i],a[j]]=[a[j],a[i]]; renderTemplateEditor();
 }
 function removeTplEx(i){ templateDraft.exercises.splice(i,1); renderTemplateEditor(); }
-function openTplExModal(){
+function openTplExModal(editIdx){
+  if(typeof editIdx!=="number") editingTplEx=null;
   if(templateDraft) templateDraft.name = val("tplName"); // conservar nombre escrito
   const sel=document.getElementById("tplExSelect");
   sel.innerHTML = EX_GROUPS.map(g=>{
     const opts=state.exercises.filter(e=>e.group===g).map(e=>`<option value="${e.id}">${e.name}</option>`).join("");
     return `<optgroup label="${g}">${opts}</optgroup>`;
   }).join("");
+  const editing = editingTplEx!=null && templateDraft && templateDraft.exercises[editingTplEx];
+  document.getElementById("tplExModalTitle").textContent = editing?"Editar ejercicio":"Añadir ejercicio al día";
+  document.getElementById("tplExModalBtn").textContent = editing?"Guardar cambios":"Añadir";
+  if(editing){ const x=templateDraft.exercises[editingTplEx]; set("tplExSelect",x.exId); set("tplExSets",x.sets); set("tplExReps",x.repRange); set("tplExRir",x.rir); }
+  else { set("tplExSets",3); set("tplExReps","8-12"); set("tplExRir","0-1"); }
   openModal("tplExModal");
 }
 function addExerciseToTemplate(){
   const exId=val("tplExSelect"); const ex=exById(exId); if(!ex) return;
-  templateDraft.exercises.push({exId, sets:Math.max(1,parseInt(val("tplExSets"))||3), repRange:val("tplExReps")||ex.repRange, rir:val("tplExRir")||ex.rir});
+  const item={exId, sets:Math.max(1,parseInt(val("tplExSets"))||3), repRange:val("tplExReps")||ex.repRange, rir:val("tplExRir")||ex.rir};
+  if(editingTplEx!=null && templateDraft.exercises[editingTplEx]){ templateDraft.exercises[editingTplEx]=item; editingTplEx=null; }
+  else templateDraft.exercises.push(item);
   closeModal("tplExModal"); renderTemplateEditor();
+}
+/* ----- reordenar por arrastre (SortableJS lazy + utilidades) ----- */
+function arrMove(a,from,to){ if(from===to||from<0||to<0||from>=a.length||to>=a.length) return; const x=a.splice(from,1)[0]; a.splice(to,0,x); }
+function loadSortable(){ return new Promise(res=>{ if(window.Sortable) return res(); const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"; s.onload=res; s.onerror=res; document.head.appendChild(s); }); }
+function enableSort(elId, onReorder){
+  const el=document.getElementById(elId); if(!el) return;
+  loadSortable().then(()=>{
+    if(!window.Sortable) return;
+    if(el._sortable){ try{ el._sortable.destroy(); }catch(e){} el._sortable=null; }
+    el._sortable=new Sortable(el,{ animation:150, handle:".drag-h", delay:140, delayOnTouchOnly:true,
+      onEnd:e=>{ if(e.oldIndex!==e.newIndex) onReorder(e.oldIndex,e.newIndex); } });
+  });
 }
 function saveTemplate(){
   const name=val("tplName").trim();
@@ -3914,8 +4019,10 @@ function setDeload(){ const cur=(state.prefs&&state.prefs.deloadWeeks)||0; const
 function init(){
   load();
   applyTheme();
+  importStepsFromURL();
   checkRollover();
   nav("hoy");
+  importRoutineFromHash();
   requestPersistentStorage();
   registerSW();
   initFirebase();
