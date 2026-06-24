@@ -670,6 +670,11 @@ nav button{min-height:46px;justify-content:center}
         </div>
       </div>
     </div>
+    <div class="card" style="margin-top:16px">
+      <h3>💧 Agua y 👟 pasos</h3>
+      <p class="card-sub">¿Se te olvidó registrarlos? Edita hoy y los 2 días anteriores.</p>
+      <div id="recentLogEdit"></div>
+    </div>
   </section>
 
   <!-- ============ ENTRENO ============ -->
@@ -917,6 +922,34 @@ nav button{min-height:46px;justify-content:center}
   </div>
 </div>
 
+<div class="modal-bg" id="saveTplModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('saveTplModal')">×</button>
+    <h3>Guardar como plantilla</h3>
+    <div class="field"><label>Nombre</label><input id="saveTplName" placeholder="Ej. Push pesado"></div>
+    <div class="field"><label>¿Crear nueva o reemplazar?</label><select id="saveTplReplace"></select></div>
+    <div class="field"><label>Carpeta (opcional)</label><select id="saveTplFolder" onchange="folderSelectChange(this)"></select></div>
+    <button class="btn-primary" onclick="saveSessAsTpl()">Guardar plantilla</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="moveFolderModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('moveFolderModal')">×</button>
+    <h3>Mover a carpeta</h3>
+    <div class="field"><label>Carpeta</label><select id="moveFolderSelect" onchange="folderSelectChange(this)"></select></div>
+    <button class="btn-primary" onclick="confirmMoveFolder()">Mover</button>
+  </div>
+</div>
+
+<div class="modal-bg" id="mealDashModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('mealDashModal')">×</button>
+    <h3 id="mealDashTitle">Comida</h3>
+    <div id="mealDashBody"></div>
+  </div>
+</div>
+
 <input type="file" id="importFile" accept="application/json,.json" style="display:none" onchange="importData(this)">
 <div id="toast"></div>
 
@@ -1151,6 +1184,10 @@ function load(){
   if(!state.prefs) state.prefs = { unit:"kg" };
   if(!state.manualPRs) state.manualPRs = {};
   if(!state.steps) state.steps = {};   // pasos por día {date:n}
+  if(!state.waterLog) state.waterLog = {};   // agua por día {date:ml}
+  if(!Array.isArray(state.folders)) state.folders = [];   // carpetas de plantillas
+  // migración: el agua de hoy también vive en waterLog
+  if(state.water && state.water.date && state.waterLog[state.water.date]==null) state.waterLog[state.water.date]=state.water.ml||0;
   // comidas personalizables (sembrado en el primer arranque)
   if(!Array.isArray(state.meals) || !state.meals.length) state.meals = DEFAULT_MEALS.map(m=>({...m}));
   ensureSlots(); ensureWater();
@@ -1161,9 +1198,19 @@ function ensureSlots(){
   if(!state.plan.slots) state.plan.slots = {};
   state.meals.forEach(m=>{ if(!Array.isArray(state.plan.slots[m.id])) state.plan.slots[m.id]=[]; });
 }
-function ensureWater(){ if(!state.water || state.water.date!==todayStr()) state.water={date:todayStr(),ml:0}; }
+function ensureWater(){
+  const t=todayStr();
+  if(!state.water || state.water.date!==t){ state.water={date:t, ml:(state.waterLog&&state.waterLog[t])||0}; }
+  if(!state.waterLog) state.waterLog={};
+  if(state.waterLog[t]==null) state.waterLog[t]=state.water.ml||0;
+}
 function waterGoalMl(){ if(state.prefs&&state.prefs.waterGoal>0) return state.prefs.waterGoal; const w=state.goals&&state.goals.weight; return w?Math.round(w*35/250)*250:2500; }
-function addWater(ml){ ensureWater(); state.water.ml=Math.max(0,state.water.ml+ml); save(); if(currentView==="hoy") renderHoy(); }
+function addWater(ml){ ensureWater(); state.water.ml=Math.max(0,state.water.ml+ml); state.waterLog[todayStr()]=state.water.ml; save(); if(currentView==="hoy") renderHoy(); }
+/* agua/pasos por fecha (para historial y edición de días recientes) */
+function waterFor(d){ if(d===todayStr()){ ensureWater(); return state.water.ml; } return (state.waterLog&&state.waterLog[d]!=null)?state.waterLog[d]:0; }
+function stepsFor(d){ return (state.steps&&state.steps[d]!=null)?state.steps[d]:0; }
+function setWaterFor(d,L){ const ml=Math.max(0,Math.round((parseFloat(L)||0)*1000)); if(!state.waterLog)state.waterLog={}; state.waterLog[d]=ml; if(d===todayStr()){ ensureWater(); state.water.ml=ml; } save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderRecentLogEditor(); toast("Agua guardada"); }
+function setStepsFor(d,n){ const v=Math.max(0,parseInt(n)||0); if(!state.steps)state.steps={}; state.steps[d]=v; save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderRecentLogEditor(); toast("Pasos guardados"); }
 function editWaterGoal(){ const cur=(waterGoalMl()/1000); const v=prompt("Meta de agua en litros:", cur); if(v==null) return; const L=parseFloat(v); if(L>0){ state.prefs.waterGoal=Math.round(L*1000); save(); if(currentView==="hoy") renderHoy(); toast("Meta de agua actualizada"); } }
 function saveLocal(){ localStorage.setItem(LS, JSON.stringify(state)); }
 function save(){ state._updatedAt=Date.now(); saveLocal(); if(typeof fbUser!=="undefined" && fbUser && !cloudApplying) cloudPush(false); }
@@ -1378,7 +1425,7 @@ function renderHoy(){
     return `<div class="meal-group">
       <button class="meal-row" onclick="openAdd('${key}')">
         <div class="meal-ic">${m.icon||"🍴"}</div>
-        <div class="meal-main"><div class="meal-name">${label}</div>
+        <div class="meal-main"><div class="meal-name"${items.length?` style="cursor:pointer" onclick="event.stopPropagation();openMealDash('${key}')"`:''}>${label}${items.length?' <span style="font-size:13px;color:var(--accent)">📊</span>':''}</div>
           <div class="meal-sub">${sub}</div></div>
         <div class="meal-kcal">${r0(st.cal)}</div><div class="meal-add">+</div>
       </button>${itemsHtml}</div>`;
@@ -1891,6 +1938,63 @@ function confirmAddToPlan(){
   }
 }
 
+/* ---- mini-dashboard de una comida: dona de macros + guardar como platillo ---- */
+function donutSVG(segs, centerTop, centerBot, size){
+  size=size||160; const sw=20, r=size/2-sw/2-2, cx=size/2, cy=size/2, C=2*Math.PI*r;
+  const total=segs.reduce((a,s)=>a+s.val,0)||1; let off=0;
+  let arcs=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surface3)" stroke-width="${sw}"/>`;
+  segs.forEach(s=>{ const frac=s.val/total, len=frac*C;
+    arcs+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.color}" stroke-width="${sw}" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})"><title>${s.name}: ${Math.round(frac*100)}%</title></circle>`;
+    off+=len; });
+  return `<svg viewBox="0 0 ${size} ${size}" width="${size}" height="${size}">${arcs}
+    <text x="${cx}" y="${cy-1}" text-anchor="middle" font-size="26" font-weight="800" fill="var(--text)">${centerTop}</text>
+    <text x="${cx}" y="${cy+17}" text-anchor="middle" font-size="11" fill="var(--muted)">${centerBot}</text></svg>`;
+}
+function openMealDash(key){
+  const meal=state.meals.find(m=>m.id===key); const items=state.plan.slots[key]||[];
+  const t=sumMacros(items);
+  const kcalP=t.protein*4, kcalC=t.carbs*4, kcalF=t.fat*9, totCal=kcalP+kcalC+kcalF||1;
+  const pct=v=>Math.round(v/totCal*100);
+  const segs=[{name:"Proteína",val:kcalP,color:"var(--protein)"},{name:"Carbos",val:kcalC,color:"var(--carbs)"},{name:"Grasa",val:kcalF,color:"var(--fat)"}];
+  document.getElementById("mealDashTitle").textContent = meal?meal.name:"Comida";
+  document.getElementById("mealDashBody").innerHTML = items.length ? `
+    <div style="display:flex;justify-content:center;margin:4px 0 14px">${donutSVG(segs, r0(t.cal), "kcal", 168)}</div>
+    <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${r1(t.protein)} g · ${pct(kcalP)}%</b></div>
+    <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${r1(t.carbs)} g · ${pct(kcalC)}%</b></div>
+    <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${r1(t.fat)} g · ${pct(kcalF)}%</b></div>
+    <div class="kv"><span>Fibra</span><b>${r1(t.fiber)} g</b></div>
+    ${(t.sugar>0||t.sodium>0)?`<div class="kv"><span>Azúcar · Sodio</span><b>${r1(t.sugar)} g · ${nfmt(t.sodium)} mg</b></div>`:""}
+    <div class="divider"></div>
+    <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Ingredientes (${items.length})</div>
+    ${items.map(it=>`<div class="kv"><span>${it.name} <span style="color:var(--muted);font-size:11px">${it.label||""}</span></span><b>${r0(it.macros.cal)} kcal</b></div>`).join("")}
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveMealAsDish('${key}')">💾 Guardar como platillo</button>
+  ` : `<div class="empty">Esta comida no tiene elementos todavía.</div>`;
+  openModal("mealDashModal");
+}
+function mealToIngredients(items){
+  const merged={};
+  items.forEach(it=>{
+    if(it.type==="food"){ const f=foodById(it.refId); if(!f) return;
+      const grams = it.unit==="pza" ? (it.qty||0)*(f.piece||0) : (it.qty||0);
+      if(grams>0) merged[it.refId]=(merged[it.refId]||0)+grams;
+    } else if(it.type==="dish"){ const d=dishById(it.refId); if(!d) return; const sc=(it.qty||100)/100;
+      d.ingredients.forEach(ing=>{ if(ing.foodId) merged[ing.foodId]=(merged[ing.foodId]||0)+(ing.grams||0)*sc; });
+    }
+  });
+  return Object.keys(merged).map(fid=>({foodId:fid, grams:r1(merged[fid])}));
+}
+function saveMealAsDish(key){
+  const items=state.plan.slots[key]||[]; if(!items.length) return toast("La comida está vacía");
+  const ings=mealToIngredients(items);
+  if(!ings.length) return toast("No se pudo convertir (alimentos no encontrados)");
+  const meal=state.meals.find(m=>m.id===key);
+  const name=prompt("Nombre del platillo:", (meal?meal.name:"Platillo"));
+  if(name===null) return;
+  state.dishes.push({id:"d_"+Date.now(), name:(name.trim()||(meal?meal.name:"Platillo")), ingredients:ings});
+  save(); closeModal("mealDashModal"); toast("Platillo guardado ✓");
+  if(currentView==="platillos") renderDishes();
+}
+
 /* ====================================================================
    METAS — TDEE (Mifflin-St Jeor) + split de macros
    ==================================================================== */
@@ -2391,10 +2495,18 @@ function renderHistory(){
   // resumen semanal (7 días)
   const week=data.slice(0,7);
   const ws=document.getElementById("weeklySummary");
-  if(!week.length){ ws.innerHTML=`<div class="empty">Sin datos de la semana.</div>`; }
+  const today=todayStr(), within7=dd=>(new Date(today)-new Date(dd))/86400000<7;
+  // agua y pasos promedio (independientes del historial de calorías)
+  let wsum=0,wd=0,ssum=0,sd=0;
+  for(let i=0;i<7;i++){ const dd=dayShift(today,-i);
+    const ml=(dd===today)?(state.water?state.water.ml:null):((state.waterLog&&state.waterLog[dd]!=null)?state.waterLog[dd]:null);
+    if(ml!=null&&ml>0){ wsum+=ml; wd++; }
+    if(state.steps&&state.steps[dd]!=null&&state.steps[dd]>0){ ssum+=state.steps[dd]; sd++; } }
+  const waterRow=wd?`<div class="kv"><span>💧 Agua promedio</span><b style="color:#34C7FF">${(wsum/wd/1000).toFixed(2)} L</b></div>`:"";
+  const stepsRow=sd?`<div class="kv"><span>👟 Pasos promedio</span><b>${nfmt(ssum/sd)}</b></div>`:"";
+  if(!week.length){ ws.innerHTML = (waterRow||stepsRow) ? (waterRow+stepsRow) : `<div class="empty">Sin datos de la semana.</div>`; }
   else{
     const avg=k=>r0(week.reduce((a,d)=>a+(d[k]||0),0)/week.length);
-    const today=todayStr(), within7=dd=>(new Date(today)-new Date(dd))/86400000<7;
     // adherencia
     let adher="";
     if(state.goals&&state.goals.calories){
@@ -2428,14 +2540,28 @@ function renderHistory(){
       <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${avg("protein")} g</b></div>
       <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${avg("carbs")} g</b></div>
       <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${avg("fat")} g</b></div>
-      ${pesoRow}${tonRow}${prRow}`;
+      ${waterRow}${stepsRow}${pesoRow}${tonRow}${prRow}`;
   }
+  renderRecentLogEditor();
   // tabla
   const tb=document.getElementById("historyTable");
   tb.innerHTML = data.length ? data.map(d=>`
     <tr><td>${d.date}</td><td class="r num" style="color:var(--accent2)">${d.calories}</td>
       <td class="r num m-p">${d.protein}</td><td class="r num m-c">${d.carbs}</td><td class="r num m-f">${d.fat}</td></tr>`).join("")
     : `<tr><td colspan="5"><div class="empty">Sin registros.</div></td></tr>`;
+}
+
+/* editor de agua/pasos de los últimos 3 días (hoy + 2 anteriores) */
+function renderRecentLogEditor(){
+  const el=document.getElementById("recentLogEdit"); if(!el) return;
+  const t=todayStr(); const labels=["Hoy","Ayer","Antier"];
+  el.innerHTML = [0,1,2].map(i=>{ const d=dayShift(t,-i);
+    return `<div class="row" style="align-items:flex-end;gap:8px;margin-bottom:10px">
+      <div style="flex:0 0 58px"><div style="font-weight:600;font-size:13px">${labels[i]}</div><div style="font-size:10px;color:var(--muted)">${d.slice(5)}</div></div>
+      <div class="field" style="margin:0"><label>💧 Litros</label><input type="number" step="0.25" min="0" inputmode="decimal" value="${waterFor(d)?(waterFor(d)/1000):""}" placeholder="0" onchange="setWaterFor('${d}',this.value)"></div>
+      <div class="field" style="margin:0"><label>👟 Pasos</label><input type="number" min="0" inputmode="numeric" value="${stepsFor(d)||""}" placeholder="0" onchange="setStepsFor('${d}',this.value)"></div>
+    </div>`;
+  }).join("");
 }
 
 /* ====================================================================
@@ -2524,7 +2650,36 @@ function startSession(){
   };
   closeModal("startModal"); renderSesion();
 }
-function cancelSession(){ if(confirm("¿Descartar la sesión en curso?")){ sessionDraft=null; renderSesion(); } }
+function cancelSession(){ if(confirm(sessionDraft&&sessionDraft.editingId?"¿Descartar los cambios?":"¿Descartar la sesión en curso?")){ sessionDraft=null; renderSesion(); } }
+function moveSessionEx(i,dir){ const a=sessionDraft.entries; const j=i+dir; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; renderSesion(); }
+function editWorkout(id){
+  if(sessionDraft){ if(!confirm("Tienes una sesión en el editor. ¿Reemplazarla por esta?")) return; }
+  const w=state.workouts.find(x=>x.id===id); if(!w) return;
+  sessionDraft = JSON.parse(JSON.stringify(w)); sessionDraft.editingId = id;
+  sessionDraft.entries.forEach(e=>{ if(!e.sets||!e.sets.length) e.sets=[{weight:0,reps:0,rir:e.rir||""}]; });
+  renderSesion(); window.scrollTo(0,0); toast("Editando sesión guardada");
+}
+/* guardar la sesión actual como plantilla (nueva o reemplazando una) */
+function openSaveSessTpl(){
+  if(!sessionDraft||!sessionDraft.entries.length) return toast("No hay ejercicios en la sesión");
+  set("saveTplName", sessionDraft.name||"");
+  document.getElementById("saveTplReplace").innerHTML =
+    `<option value="">➕ Crear plantilla nueva</option>` + state.templates.map(t=>`<option value="${t.id}">Reemplazar: ${t.name}</option>`).join("");
+  renderFolderSelect("saveTplFolder", null);
+  openModal("saveTplModal");
+}
+function saveSessAsTpl(){
+  const d=sessionDraft; if(!d) return;
+  const name=val("saveTplName").trim()||d.name||"Mi rutina";
+  const exercises=d.entries.map(e=>({exId:e.exId, sets:Math.max(1,(e.sets||[]).length||1),
+    repRange:e.repRange||(exById(e.exId)||{}).repRange||"8-12", rir:e.rir||(exById(e.exId)||{}).rir||"0-1"}));
+  if(!exercises.length) return toast("No hay ejercicios");
+  const repId=val("saveTplReplace"); const folderV=val("saveTplFolder"); const folder=(folderV&&folderV!=="__new")?folderV:null;
+  if(repId){ const t=tplById(repId); if(t){ t.name=name; t.exercises=exercises; t.folder=folder; } }
+  else { state.templates.push({id:"t_"+Date.now(), name, exercises, folder}); }
+  save(); closeModal("saveTplModal"); toast(repId?"Plantilla reemplazada ✓":"Plantilla guardada ✓");
+  if(entrenoSub==="plantillas") renderPlantillas();
+}
 
 function updateSetWeight(i,j,v){ sessionDraft.entries[i].sets[j].weight = toKg(Math.max(0,parseFloat(v)||0)); renderSesion(); }
 function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); renderSesion(); }
@@ -2556,6 +2711,7 @@ function renderSesion(){
           <div class="plan-item">
             <div class="pi-name">${w.name} <span style="color:var(--muted);font-size:11px">· Sem ${w.week} · ${w.date}</span>
               <div class="pi-macros">Tonelaje ${fmtTon(workoutTonnage(w))} · ${w.entries.length} ejercicios</div></div>
+            <button class="btn-ghost btn-sm" style="flex:0" onclick="editWorkout('${w.id}')">Editar</button>
             <button class="btn-danger btn-sm" onclick="deleteWorkout('${w.id}')">×</button>
           </div>`).join("") : `<div class="empty">Aún no registras sesiones.</div>`}
       </div>`;
@@ -2573,8 +2729,12 @@ function renderSesion(){
       <div class="flex-between">
         <div><span class="bebas" style="font-size:24px">${d.name}</span>
           <span class="pill" style="margin-left:8px">Sem ${d.week}</span>
-          <span style="color:var(--muted);font-size:12px;margin-left:6px">${d.date}</span></div>
-        <button class="btn-ghost btn-sm" onclick="cancelSession()">Cancelar</button>
+          <span style="color:var(--muted);font-size:12px;margin-left:6px">${d.date}</span>
+          ${d.editingId?'<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px">✎ Editando sesión guardada</div>':''}</div>
+        <button class="btn-ghost btn-sm" onclick="cancelSession()">${d.editingId?"Descartar":"Cancelar"}</button>
+      </div>
+      <div class="row" style="margin-top:10px;gap:6px">
+        <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">💾 Guardar como plantilla</button>
       </div>
     </div>
     ${d.entries.map((e,i)=>{
@@ -2596,9 +2756,11 @@ function renderSesion(){
             <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)">
             <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
           </div>`).join("")}
-        <div class="row" style="margin-top:8px">
+        <div class="row" style="margin-top:8px;gap:6px">
           <button class="btn-ghost btn-sm" onclick="addSet(${i})">+ Serie</button>
-          <button class="btn-ghost btn-sm" style="flex:0" onclick="removeExEntry(${i})">Quitar ejercicio</button>
+          <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},-1)" ${i===0?"disabled":""}>↑</button>
+          <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},1)" ${i===d.entries.length-1?"disabled":""}>↓</button>
+          <button class="btn-ghost btn-sm" style="flex:0" onclick="removeExEntry(${i})">Quitar</button>
         </div>
       </div>`;
     }).join("")}
@@ -2632,9 +2794,12 @@ function saveSession(){
   // limpiar series vacías
   d.entries.forEach(e=>{ e.sets=e.sets.filter(s=>(s.weight||0)>0 && (s.reps||0)>0); });
   d.entries = d.entries.filter(e=>e.sets.length);
-  state.workouts.push(JSON.parse(JSON.stringify(d)));
+  const editingId=d.editingId;
+  const clean=JSON.parse(JSON.stringify(d)); delete clean.editingId;
+  if(editingId){ const idx=state.workouts.findIndex(w=>w.id===editingId); if(idx>=0) state.workouts[idx]=clean; else state.workouts.push(clean); }
+  else state.workouts.push(clean);
   sessionDraft=null; save(); renderSesion();
-  toast(prHits.length ? "¡Nuevo PR! "+prHits.slice(0,2).join(", ") : "Sesión guardada");
+  toast(editingId ? "Sesión actualizada ✓" : (prHits.length ? "¡Nuevo PR! "+prHits.slice(0,2).join(", ") : "Sesión guardada"));
 }
 function deleteWorkout(id){
   if(!confirm("¿Eliminar esta sesión?")) return;
@@ -2646,22 +2811,62 @@ function deleteWorkout(id){
    ==================================================================== */
 function renderPlantillas(){ renderTemplateList(); renderTemplateEditor(); renderExGroupFilters(); renderExTable(); }
 
-/* --- lista de días --- */
+/* --- carpetas de plantillas --- */
+let collapsedFolders={};
+function toggleFolder(fid){ collapsedFolders[fid]=!collapsedFolders[fid]; renderTemplateList(); }
+function renderFolderSelect(id, current){
+  const sel=document.getElementById(id); if(!sel) return;
+  const fs=state.folders||[];
+  sel.innerHTML = `<option value="">(sin carpeta)</option>` +
+    fs.map(f=>`<option value="${f.id}" ${current===f.id?"selected":""}>${f.name}</option>`).join("") +
+    `<option value="__new">➕ Nueva carpeta…</option>`;
+}
+function folderSelectChange(sel){
+  if(sel.value==="__new"){ const n=prompt("Nombre de la carpeta:");
+    if(n&&n.trim()){ if(!state.folders)state.folders=[]; const f={id:"f_"+Date.now(),name:n.trim()}; state.folders.push(f); save(); renderFolderSelect(sel.id, f.id); }
+    else { sel.value=""; } }
+}
+function newFolder(){ const n=prompt("Nombre de la carpeta:"); if(!n||!n.trim())return; if(!state.folders)state.folders=[]; state.folders.push({id:"f_"+Date.now(),name:n.trim()}); save(); renderTemplateList(); }
+function renameFolder(fid){ const f=(state.folders||[]).find(x=>x.id===fid); if(!f)return; const n=prompt("Nuevo nombre:",f.name); if(n&&n.trim()){f.name=n.trim();save();renderTemplateList();} }
+function deleteFolder(fid){ if(!confirm("¿Eliminar la carpeta? Los días pasan a 'Sin carpeta' (no se borran)."))return; state.folders=(state.folders||[]).filter(x=>x.id!==fid); state.templates.forEach(t=>{ if(t.folder===fid) t.folder=null; }); save(); renderTemplateList(); }
+let movingTplId=null;
+function openMoveFolder(id){ movingTplId=id; const t=tplById(id); renderFolderSelect("moveFolderSelect", t?t.folder:null); openModal("moveFolderModal"); }
+function confirmMoveFolder(){ const t=tplById(movingTplId); if(t){ const v=val("moveFolderSelect"); t.folder=(v&&v!=="__new")?v:null; save(); renderTemplateList(); } closeModal("moveFolderModal"); }
+
+/* --- lista de días (agrupada por carpeta) --- */
+function tplCard(t){
+  const groups=[...new Set(t.exercises.map(x=>exGroupOf(x.exId)))].join(", ");
+  return `<div class="card" style="background:var(--surface2);padding:12px;margin-bottom:10px">
+    <div class="flex-between">
+      <div><b style="font-family:'Bebas Neue';font-size:18px;letter-spacing:.5px">${t.name}</b>
+        <div style="font-size:11px;color:var(--muted)">${t.exercises.length} ejercicios · ${groups||"—"}</div></div>
+      <div class="row" style="flex:0;gap:6px">
+        <button class="btn-ghost btn-sm" style="flex:0" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">📁</button>
+        <button class="btn-ghost btn-sm" onclick="editTemplate('${t.id}')">Editar</button>
+        <button class="btn-danger btn-sm" onclick="deleteTemplate('${t.id}')">×</button>
+      </div>
+    </div>
+  </div>`;
+}
 function renderTemplateList(){
   const el=document.getElementById("templateList");
-  el.innerHTML = state.templates.length ? state.templates.map(t=>{
-    const groups=[...new Set(t.exercises.map(x=>exGroupOf(x.exId)))].join(", ");
-    return `<div class="card" style="background:var(--surface2);padding:12px;margin-bottom:10px">
-      <div class="flex-between">
-        <div><b style="font-family:'Bebas Neue';font-size:18px;letter-spacing:.5px">${t.name}</b>
-          <div style="font-size:11px;color:var(--muted)">${t.exercises.length} ejercicios · ${groups||"—"}</div></div>
-        <div class="row" style="flex:0;gap:6px">
-          <button class="btn-ghost btn-sm" onclick="editTemplate('${t.id}')">Editar</button>
-          <button class="btn-danger btn-sm" onclick="deleteTemplate('${t.id}')">×</button>
-        </div>
-      </div>
-    </div>`;
-  }).join("") : `<div class="empty">Sin días. Crea uno o restaura los del Excel.</div>`;
+  const fs=state.folders||[];
+  const inFolder=fid=>state.templates.filter(t=>(t.folder||null)===fid);
+  const newFolderBtn=`<div class="row" style="margin-bottom:10px;gap:6px"><button class="btn-ghost btn-sm" onclick="newFolder()">📁 Nueva carpeta</button></div>`;
+  if(!state.templates.length){ el.innerHTML=newFolderBtn+`<div class="empty">Sin días. Crea uno o restaura los del Excel.</div>`; return; }
+  let html=newFolderBtn;
+  fs.forEach(f=>{
+    const items=inFolder(f.id), col=collapsedFolders[f.id];
+    html+=`<div style="display:flex;align-items:center;gap:8px;margin:8px 2px 6px">
+      <span style="cursor:pointer;font-weight:700;font-size:14px" onclick="toggleFolder('${f.id}')">${col?'▸':'▾'} 📁 ${f.name} <span style="color:var(--muted);font-weight:400;font-size:12px">(${items.length})</span></span>
+      <span style="color:var(--muted);cursor:pointer" onclick="renameFolder('${f.id}')">✎</span>
+      <span style="color:var(--bad);cursor:pointer" onclick="deleteFolder('${f.id}')">×</span></div>`;
+    if(!col) html += items.length ? items.map(tplCard).join("") : `<div class="empty" style="margin:0 0 10px">Carpeta vacía · usa 📁 en un día para moverlo aquí.</div>`;
+  });
+  const none=inFolder(null);
+  if(fs.length) html+=`<div style="font-weight:700;font-size:14px;color:var(--muted);margin:8px 2px 6px">Sin carpeta <span style="font-weight:400;font-size:12px">(${none.length})</span></div>`;
+  html += none.length ? none.map(tplCard).join("") : (fs.length?`<div class="empty" style="margin:0">Todos tus días están en carpetas.</div>`:"");
+  el.innerHTML=html;
 }
 function newTemplate(){
   editingTemplateId="new"; templateDraft={id:"t_"+Date.now(), name:"", exercises:[]};
