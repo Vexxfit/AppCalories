@@ -394,15 +394,17 @@ small.hint{color:var(--muted)}
    ==================================================================== */
 *{-webkit-tap-highlight-color:transparent}
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
-html,body{overscroll-behavior-y:contain}
+html,body{overscroll-behavior-y:contain;overflow-x:clip;max-width:100%}
 body{min-height:100dvh;padding-bottom:calc(108px + env(safe-area-inset-bottom))}
 button,a,.meal-row,.settings-row,.pill.cat,nav button,.subnav button,.add-fab,.icon-btn,.modal-close,.list-row .icon-btn{touch-action:manipulation;user-select:none;-webkit-user-select:none}
 /* evitar el zoom automático de iOS al enfocar un input (mínimo 16px) */
 input,select,textarea{font-size:16px}
 .set-row input{font-size:16px}
 /* mobile-first: una sola columna siempre (la app es una columna estilo teléfono) */
-.grid{grid-template-columns:1fr!important;gap:14px}
-.dash-top{grid-template-columns:1fr!important}
+/* minmax(0,1fr) evita que el track de grid se infle al min-content y desborde la pantalla */
+.grid{grid-template-columns:minmax(0,1fr)!important;gap:14px}
+.dash-top{grid-template-columns:minmax(0,1fr)!important}
+.grid>*,.dash-top>*{min-width:0}
 .row{flex-wrap:wrap}
 main{max-width:520px;padding:16px 16px 0}
 /* scroll táctil suave */
