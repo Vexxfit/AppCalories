@@ -233,6 +233,19 @@ small.hint{display:block;color:var(--muted);font-size:11px;margin-top:4px;line-h
   --shadow-sm:0 1px 2px rgba(0,0,0,.05);
   --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Inter","Segoe UI",system-ui,sans-serif;
 }
+/* ---- modo oscuro (opt-in; el claro es el predeterminado) ---- */
+html[data-theme="dark"]{
+  --bg:#15121E; --bg2:#1E1A2B;
+  --surface:#1F1A2E; --surface2:#272036; --surface3:#352c4c;
+  --accent:#9B6CF0; --accent2:#B79CF0; --accent-soft:#2A2140;
+  --text:#F2F0F7; --muted:#9C93B6;
+  --protein:#2DD4BF; --carbs:#FBBF24; --fat:#F472B6; --fiber:#A78BFA;
+  --border:rgba(255,255,255,.10); --border-soft:rgba(255,255,255,.07);
+  --grad:linear-gradient(135deg,#9B6CF0,#B79CF0);
+  --ok:#34C759; --warn:#FF9F0A; --bad:#FF6B6B;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.55);
+  --shadow-sm:0 1px 2px rgba(0,0,0,.4);
+}
 html,body{background:var(--bg);color:var(--text);font-family:var(--font);-webkit-font-smoothing:antialiased;letter-spacing:-.01em}
 body{padding-bottom:120px}
 /* tipografía: nada de mayúsculas forzadas ni fuente display; Inter/SF para todo */
@@ -669,6 +682,10 @@ nav button{min-height:46px;justify-content:center}
           </table>
         </div>
       </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <div class="flex-between"><h3 style="margin:0">Resumen mensual</h3><span id="monthLabel" style="font-size:12px;color:var(--muted)"></span></div>
+      <div id="monthlySummary" style="margin-top:10px"></div>
     </div>
   </section>
 
@@ -1424,8 +1441,9 @@ function renderHoy(){
       <div class="meal-item"><span class="mi-name" style="cursor:pointer" onclick="event.stopPropagation();editPlanItem('${key}',${i})">${it.name} <span style="color:var(--muted)">· ${it.label} ✎</span></span>
         <span class="mi-kcal">${r0(it.macros.cal)} kcal</span>
         <span class="mi-del" onclick="event.stopPropagation();removePlanItem('${key}',${i})">×</span></div>`).join("")}</div>`:"";
-    const sub = items.length ? `${items.length} ${items.length===1?'elemento':'elementos'} · P ${r0(st.protein)} · C ${r0(st.carbs)} · G ${r0(st.fat)}`
-      : (prevHas ? `Toca para agregar · <span style="color:var(--accent)" onclick="event.stopPropagation();copyMealFromPrev('${key}')">copiar de ayer</span>` : 'Toca para agregar');
+    const goalLab=mealGoalLabel(m, st);
+    const sub = items.length ? `${items.length} ${items.length===1?'elemento':'elementos'} · P ${r0(st.protein)} · C ${r0(st.carbs)} · G ${r0(st.fat)}${goalLab}`
+      : (prevHas ? `Toca para agregar · <span style="color:var(--accent)" onclick="event.stopPropagation();copyMealFromPrev('${key}')">copiar de ayer</span>${goalLab}` : 'Toca para agregar'+goalLab);
     return `<div class="meal-group">
       <button class="meal-row" onclick="openAdd('${key}')">
         <div class="meal-ic">${m.icon||"🍴"}</div>
@@ -1513,6 +1531,7 @@ function streakCardHTML(){
    ==================================================================== */
 function renderAjustes(){
   const g=state.goals;
+  const dark=state.prefs&&state.prefs.theme==="dark";
   const rows=[
     {ic:"🎯",label:"Metas y calorías",val:(g&&g.calories)?`${nfmt(g.calories)} kcal`:"Definir",act:"nav('metas')"},
     {ic:"🥑",label:"Base de alimentos",val:`${allFoods().length}`,act:"nav('alimentos')"},
@@ -1520,6 +1539,7 @@ function renderAjustes(){
     {ic:"🍽️",label:"Comidas del día",val:`${state.meals.length}`,act:"nav('comidas')"},
     {ic:"🔄",label:"Sustituciones",val:"",act:"nav('sustituciones')"},
     {ic:"⚖️",label:"Unidades de peso",val:unit(),act:"toggleUnitAndRefresh()"},
+    {ic:dark?"🌙":"☀️",label:"Tema",val:dark?"Oscuro":"Claro",act:"toggleTheme()"},
     {ic:"⬇️",label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
     {ic:"⬆️",label:"Importar respaldo",val:"",act:"triggerImport()"}
   ];
@@ -1573,16 +1593,28 @@ function renderComidas(){
   const el=document.getElementById("mealsList");
   el.innerHTML=state.meals.map((m,i)=>{
     const count=(state.plan.slots[m.id]||[]).length;
-    return `<div class="list-row">
-      <span style="font-size:18px">${m.icon||"🍴"}</span>
+    return `<div class="list-row" style="align-items:flex-start">
+      <span style="font-size:18px;margin-top:6px">${m.icon||"🍴"}</span>
       <div class="lr-main"><input value="${(m.name||'').replace(/"/g,'&quot;')}" onchange="renameMeal(${i},this.value)" style="font-weight:600;background:transparent;padding:6px 0;border-radius:0">
-        <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy</div></div>
+        <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy</div>
+        <div class="row" style="gap:6px;margin-top:6px">
+          <input type="number" inputmode="numeric" placeholder="🎯 kcal" value="${(m.goal&&m.goal.cal)||''}" onchange="setMealGoal(${i},'cal',this.value)" style="font-size:12px;padding:6px 8px">
+          <input type="number" inputmode="numeric" placeholder="🎯 prot (g)" value="${(m.goal&&m.goal.protein)||''}" onchange="setMealGoal(${i},'protein',this.value)" style="font-size:12px;padding:6px 8px">
+        </div></div>
       <button class="icon-btn" onclick="moveMeal(${i},-1)" aria-label="Subir">↑</button>
       <button class="icon-btn" onclick="moveMeal(${i},1)" aria-label="Bajar">↓</button>
       <button class="icon-btn" style="color:var(--bad)" onclick="deleteMeal(${i})" aria-label="Eliminar">×</button>
     </div>`;
   }).join("");
 }
+function setMealGoal(i,field,v){ const m=state.meals[i]; if(!m) return; if(!m.goal)m.goal={}; const n=parseFloat(v);
+  if(n>0) m.goal[field]=Math.round(n); else delete m.goal[field];
+  if(m.goal && m.goal.cal==null && m.goal.protein==null) delete m.goal;
+  save(); if(currentView==="hoy")renderHoy(); }
+function mealGoalLabel(m, st){ if(!m||!m.goal) return ""; const p=[];
+  if(m.goal.cal){ const ok=st.cal>=m.goal.cal*0.9&&st.cal<=m.goal.cal*1.1; p.push(`<span style="color:${ok?'var(--ok)':'var(--muted)'}">${r0(st.cal)}/${m.goal.cal} kcal</span>`); }
+  if(m.goal.protein){ const ok=st.protein>=m.goal.protein*0.9; p.push(`<span style="color:${ok?'var(--ok)':'var(--muted)'}">P ${r0(st.protein)}/${m.goal.protein}</span>`); }
+  return p.length?` · 🎯 ${p.join(" · ")}`:""; }
 function addMeal(){
   const name=val("newMealName").trim();
   if(!name) return toast("Escribe un nombre");
@@ -1963,6 +1995,7 @@ function openMealDash(key){
   document.getElementById("mealDashTitle").textContent = meal?meal.name:"Comida";
   document.getElementById("mealDashBody").innerHTML = items.length ? `
     <div style="display:flex;justify-content:center;margin:4px 0 14px">${donutSVG(segs, r0(t.cal), "kcal", 168)}</div>
+    ${(meal&&meal.goal)?`<div class="kv" style="background:var(--accent-soft);border-radius:8px;padding:7px 10px"><span>🎯 Meta</span><b>${meal.goal.cal?`${r0(t.cal)}/${meal.goal.cal} kcal`:""}${(meal.goal.cal&&meal.goal.protein)?" · ":""}${meal.goal.protein?`P ${r0(t.protein)}/${meal.goal.protein} g`:""}</b></div>`:""}
     <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${r1(t.protein)} g · ${pct(kcalP)}%</b></div>
     <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${r1(t.carbs)} g · ${pct(kcalC)}%</b></div>
     <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${r1(t.fat)} g · ${pct(kcalF)}%</b></div>
@@ -2553,6 +2586,46 @@ function renderHistory(){
     <tr><td>${d.date}</td><td class="r num" style="color:var(--accent2)">${d.calories}</td>
       <td class="r num m-p">${d.protein}</td><td class="r num m-c">${d.carbs}</td><td class="r num m-f">${d.fat}</td></tr>`).join("")
     : `<tr><td colspan="5"><div class="empty">Sin registros.</div></td></tr>`;
+  renderMonthly();
+}
+
+/* ---- resumen mensual + comparación con mes anterior ---- */
+function ymOf(d){ return (d||"").slice(0,7); }
+function prevYm(ym){ let [y,m]=ym.split("-").map(Number); m--; if(m<1){m=12;y--;} return y+"-"+String(m).padStart(2,"0"); }
+function monthName(ym){ const [y,m]=ym.split("-").map(Number); return (MESES_ABBR[m-1]||"")+" "+y; }
+function monthAgg(ym){
+  const hist=(state.history||[]).filter(h=>ymOf(h.date)===ym);
+  const calArr=hist.filter(h=>h.calories>0).map(h=>h.calories), pArr=hist.map(h=>h.protein||0), cArr=hist.map(h=>h.carbs||0), fArr=hist.map(h=>h.fat||0);
+  const today=todayStr();
+  if(ymOf(today)===ym){ const t=dayTotals(); if(t.cal>0 && !hist.some(h=>h.date===today)){ calArr.push(r0(t.cal)); pArr.push(r0(t.protein)); cArr.push(r0(t.carbs)); fArr.push(r0(t.fat)); } }
+  const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
+  const wts=(state.workouts||[]).filter(w=>ymOf(w.date)===ym);
+  const ton=wts.reduce((a,w)=>a+workoutTonnage(w),0);
+  const st=Object.keys(state.steps||{}).filter(d=>ymOf(d)===ym).map(d=>state.steps[d]).filter(v=>v>0);
+  const wl=Object.keys(state.waterLog||{}).filter(d=>ymOf(d)===ym).map(d=>state.waterLog[d]).filter(v=>v>0);
+  const wm=(state.measurements||[]).filter(m=>m.peso!=null&&ymOf(m.date)===ym).sort((a,b)=>a.date<b.date?-1:1);
+  const wDelta = wm.length>=2 ? (wm[wm.length-1].peso-wm[0].peso) : null;
+  return { cal:avg(calArr), protein:avg(pArr), days:calArr.length, sessions:wts.length, ton, steps:avg(st), water:avg(wl), wDelta };
+}
+function renderMonthly(){
+  const el=document.getElementById("monthlySummary"); if(!el) return;
+  const tm=ymOf(todayStr()), lm=prevYm(tm), A=monthAgg(tm), B=monthAgg(lm);
+  const ml=document.getElementById("monthLabel"); if(ml) ml.textContent = monthName(tm);
+  if(!A.days && !A.sessions){ el.innerHTML=`<div class="empty">Aún no hay datos de este mes.</div>`; return; }
+  const cmp=(cur,prev,o)=>{ o=o||{}; if(prev==null||prev===0||cur==null||!cur) return ""; const d=cur-prev;
+    if(Math.abs(d)<(o.eps||0.5)) return ` <span style="color:var(--muted);font-size:11px">→</span>`;
+    const col=o.neutral?"var(--muted)":((o.lowerBetter?d<0:d>0)?"var(--ok)":"var(--bad)");
+    return ` <span style="color:${col};font-size:11px">${d>0?"▲":"▼"} ${o.fmt?o.fmt(Math.abs(d)):r0(Math.abs(d))}</span>`; };
+  const row=(lbl,cur,prev,o)=>`<div class="kv"><span>${lbl}</span><b>${(o&&o.fmt)?o.fmt(cur):r0(cur)}${cmp(cur,prev,o)}</b></div>`;
+  el.innerHTML =
+    row("Calorías prom.", A.cal, B.cal, {neutral:true, fmt:v=>nfmt(v)+" kcal"})+
+    row("Proteína prom.", A.protein, B.protein, {fmt:v=>r0(v)+" g"})+
+    row("Entrenos", A.sessions, B.sessions, {fmt:v=>r0(v)})+
+    row("Tonelaje", A.ton, B.ton, {fmt:v=>nfmt(fromKg(v))+" "+unit()})+
+    (A.steps?row("Pasos prom.", A.steps, B.steps, {fmt:v=>nfmt(v)}):"")+
+    (A.water?row("Agua prom.", A.water, B.water, {fmt:v=>(v/1000).toFixed(2)+" L"}):"")+
+    (A.wDelta!=null?`<div class="kv"><span>Δ Peso (mes)</span><b style="color:${A.wDelta<0?'var(--ok)':(A.wDelta>0?'var(--bad)':'var(--muted)')}">${A.wDelta>0?'+':''}${r1(A.wDelta)} kg</b></div>`:"")+
+    `<div style="font-size:11px;color:var(--muted);margin-top:8px">${A.days} días con registro · comparado con ${monthName(lm)}</div>`;
 }
 
 /* editor de agua/pasos de los últimos 3 días (hoy + 2 anteriores) — se abre desde "Tu semana" */
@@ -2599,9 +2672,17 @@ function tplById(id){ return state.templates.find(t=>t.id===id); }
 
 /* ----- cálculos (idénticos al Excel) ----- */
 function epley(wKg, reps){ return reps>0 ? wKg*(1+reps/30) : wKg; }   // 1RM ≈ peso×(1+reps/30)
-function entryTonnage(e){ return e.sets.reduce((a,s)=>a+(s.weight||0)*(s.reps||0),0); }   // peso×reps
-function entryBest1RM(e){ return e.sets.reduce((m,s)=>Math.max(m, epley(s.weight||0, s.reps||0)),0); }
-function entryTopWeight(e){ return e.sets.reduce((m,s)=>Math.max(m, s.weight||0),0); }
+function isWarmup(s){ return s && s.type==="w"; }   // el calentamiento no cuenta para nada
+function entryTonnage(e){ return e.sets.reduce((a,s)=>a+(isWarmup(s)?0:(s.weight||0)*(s.reps||0)),0); }   // peso×reps (sin calentamiento)
+function entryBest1RM(e){ return e.sets.reduce((m,s)=>isWarmup(s)?m:Math.max(m, epley(s.weight||0, s.reps||0)),0); }
+function entryTopWeight(e){ return e.sets.reduce((m,s)=>isWarmup(s)?m:Math.max(m, s.weight||0),0); }
+/* factor de serie efectiva con fatiga por técnica: calentamiento=0, fallo/dropset≈máx, superserie+15% */
+function setEffFactor(s){
+  if(isWarmup(s)) return 0;
+  const base=(s.type==="f"||s.type==="d") ? 1 : effFactor(s.rir);
+  const mult=s.type==="f"?1.15 : s.type==="d"?1.3 : s.type==="s"?1.15 : 1;   // dropset/superserie/fallo suman fatiga
+  return base*mult;
+}
 function workoutTonnage(w){ return w.entries.reduce((a,e)=>a+entryTonnage(e),0); }
 
 /* ====================================================================
@@ -2689,6 +2770,16 @@ function saveSessAsTpl(){
 function updateSetWeight(i,j,v){ sessionDraft.entries[i].sets[j].weight = toKg(Math.max(0,parseFloat(v)||0)); renderSesion(); }
 function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); renderSesion(); }
 function updateSetRir(i,j,v){ sessionDraft.entries[i].sets[j].rir = v; persistDraft(); }
+const SET_TAGS={
+  n:{title:"Serie normal",bg:"var(--surface3)",fg:"var(--muted)",short:""},
+  w:{title:"Calentamiento (no cuenta)",bg:"#C7CDD6",fg:"#28303B",short:"C"},
+  f:{title:"Al fallo",bg:"#FF453A",fg:"#fff",short:"F"},
+  d:{title:"Dropset (más fatiga)",bg:"#FF9F0A",fg:"#3a2600",short:"D"},
+  s:{title:"Superserie (más fatiga)",bg:"#7C3AED",fg:"#fff",short:"S"}
+};
+function cycleSetType(i,j){ const order=["n","w","f","d","s"]; const s=sessionDraft.entries[i].sets[j];
+  const next=order[(order.indexOf(s.type||"n")+1)%order.length]; s.type = next==="n"?undefined:next; renderSesion(); }
+function updateSessionNote(v){ if(sessionDraft){ sessionDraft.note=v; persistDraft(); } }
 function addSet(i){ const s=sessionDraft.entries[i].sets; const last=s[s.length-1]; s.push({weight:last?last.weight:0,reps:0,rir:last?last.rir:""}); renderSesion(); }
 function removeSet(i,j){ const s=sessionDraft.entries[i].sets; if(s.length>1) s.splice(j,1); renderSesion(); }
 function removeExEntry(i){ sessionDraft.entries.splice(i,1); renderSesion(); }
@@ -2715,7 +2806,8 @@ function renderSesion(){
         ${recent.length? recent.map(w=>`
           <div class="plan-item">
             <div class="pi-name">${w.name} <span style="color:var(--muted);font-size:11px">· Sem ${w.week} · ${w.date}</span>
-              <div class="pi-macros">Tonelaje ${fmtTon(workoutTonnage(w))} · ${w.entries.length} ejercicios</div></div>
+              <div class="pi-macros">Tonelaje ${fmtTon(workoutTonnage(w))} · ${w.entries.length} ejercicios</div>
+              ${w.note?`<div class="pi-macros" style="font-style:italic">📝 ${w.note}</div>`:""}</div>
             <button class="btn-ghost btn-sm" style="flex:0" onclick="editWorkout('${w.id}')">Editar</button>
             <button class="btn-danger btn-sm" onclick="deleteWorkout('${w.id}')">×</button>
           </div>`).join("") : `<div class="empty">Aún no registras sesiones.</div>`}
@@ -2741,26 +2833,29 @@ function renderSesion(){
       <div class="row" style="margin-top:10px;gap:6px">
         <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">💾 Guardar como plantilla</button>
       </div>
+      <textarea id="sessNote" placeholder="📝 Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
+      <small class="hint" style="display:block;margin-top:8px">Toca el número de serie para marcar: <b style="color:#28303B;background:#C7CDD6;padding:0 5px;border-radius:4px">C</b> calentamiento (no cuenta) · <b style="color:#fff;background:#FF453A;padding:0 5px;border-radius:4px">F</b> fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 5px;border-radius:4px">D</b> dropset · <b style="color:#fff;background:#7C3AED;padding:0 5px;border-radius:4px">S</b> superserie</small>
+      ${(d.week>0 && d.week%5===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">🪫 Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
     </div>
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
-      const rec=nextWeightRec(e.exId,e.repRange,e.group);
+      const sug=progressionSuggest(e.exId,e.repRange,e.group);
       return `<div class="ex-block">
         <div class="exh">
           <div><div class="exname">${e.name}</div>
             <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div>
-            ${rec?`<div class="exmeta" style="color:var(--ok);font-weight:600">💡 La última vez llegaste al tope — sube a ${fmtW(rec.newWeight)}</div>`:''}</div>
+            ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
         <div class="set-head"><span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span></div>
-        ${e.sets.map((s,j)=>`
+        ${e.sets.map((s,j)=>{const tg=SET_TAGS[s.type||"n"];return `
           <div class="set-row">
-            <span class="sidx">${j+1}</span>
+            <button class="sidx" title="${tg.title} · toca para cambiar" style="cursor:pointer;border:none;background:${tg.bg};color:${tg.fg};font-weight:700" onclick="cycleSetType(${i},${j})">${tg.short||(j+1)}</button>
             <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
             <input type="number" inputmode="numeric" value="${s.reps||""}" placeholder="0" onchange="updateSetReps(${i},${j},this.value)">
-            <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)">
+            <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)" ${(s.type==="f"||s.type==="d")?'disabled title="Al fallo / dropset = RIR 0"':''}>
             <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
-          </div>`).join("")}
+          </div>`;}).join("")}
         <div class="row" style="margin-top:8px;gap:6px">
           <button class="btn-ghost btn-sm" onclick="addSet(${i})">+ Serie</button>
           <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},-1)" ${i===0?"disabled":""}>↑</button>
@@ -3117,7 +3212,7 @@ function effVolByMuscle(wk){
   const map={};
   state.workouts.filter(w=>w.week===wk).forEach(w=>w.entries.forEach(e=>{
     const inv=exMuscles(exById(e.exId)||{id:e.exId,group:e.group});
-    e.sets.forEach(s=>{ if(!((s.weight||0)>0&&(s.reps||0)>0)) return; const eff=effFactor(s.rir); for(const mk in inv) map[mk]=(map[mk]||0)+eff*inv[mk]; });
+    e.sets.forEach(s=>{ if(!((s.weight||0)>0&&(s.reps||0)>0)) return; const eff=setEffFactor(s); if(eff<=0) return; for(const mk in inv) map[mk]=(map[mk]||0)+eff*inv[mk]; });
   }));
   return map;
 }
@@ -3290,16 +3385,35 @@ function parseTopRep(rr){ if(!rr) return null; const m=String(rr).match(/(\d+)\s
 function nextWeightRec(exId, repRange, group){
   const last=lastSetsFor(exId); if(!last||!last.length) return null;
   const top=parseTopRep(repRange); if(!top) return null;
-  const valid=last.filter(s=>(s.weight||0)>0); if(!valid.length) return null;
+  const valid=last.filter(s=>(s.weight||0)>0 && !isWarmup(s)); if(!valid.length) return null;
   if(!valid.every(s=>(s.reps||0)>=top)) return null;     // solo si llegaste al tope en todas
-  const lower=/Cuádriceps|Femoral|Glúteo|Aductor/i.test(group||"");
+  const lower=/Cuádriceps|Femoral|Glúteo|Aductor|Pantorrilla/i.test(group||"");
   const base=Math.max(...valid.map(s=>s.weight||0));
   return {newWeight: base+(lower?5:2.5)};
+}
+/* progresión sugerida automática según historial del ejercicio */
+function progressionSuggest(exId, repRange, group){
+  const top=parseTopRep(repRange);
+  const sessions=state.workouts.filter(w=>w.entries.some(e=>e.exId===exId)).sort((a,b)=>a.date<b.date?1:-1); // recientes primero
+  if(!sessions.length) return null;
+  const workingOf=w=>{ const e=w.entries.find(x=>x.exId===exId); return e?(e.sets||[]).filter(s=>!isWarmup(s)&&(s.weight||0)>0):[]; };
+  const last=workingOf(sessions[0]); if(!last.length) return null;
+  const lower=/Cuádriceps|Femoral|Glúteo|Aductor|Pantorrilla/i.test(group||"");
+  const inc=lower?5:2.5;
+  const base=Math.max(...last.map(s=>s.weight||0));
+  const lastReps=Math.max(...last.map(s=>s.reps||0));
+  if(top && last.every(s=>(s.reps||0)>=top)) return {text:`💡 Llegaste al tope (${top} reps) — sube a ${fmtW(base+inc)}`, color:"var(--ok)"};
+  if(sessions.length>=2){
+    const prev=workingOf(sessions[1]);
+    if(prev.length){ const prevBase=Math.max(...prev.map(s=>s.weight||0)), prevReps=Math.max(...prev.map(s=>s.reps||0));
+      if(prevBase===base && lastReps<=prevReps) return {text:`⚠️ Estancado en ${fmtW(base)} — suma 1 rep/serie o baja el RIR; si sigue, descarga`, color:"var(--warn)"}; }
+  }
+  return {text:`Sigue en ${fmtW(base)} y suma reps hasta ${top||"el tope"} antes de subir peso`, color:"var(--muted)"};
 }
 function exerciseSeries(exId){
   return state.workouts.filter(w=>w.entries.some(e=>e.exId===exId))
     .sort((a,b)=>a.date<b.date?-1:1)
-    .map(w=>{const e=w.entries.find(x=>x.exId===exId);return {date:w.date, orm:entryBest1RM(e), tw:entryTopWeight(e)};});
+    .map(w=>{const e=w.entries.find(x=>x.exId===exId);return {date:w.date, week:w.week, orm:entryBest1RM(e), tw:entryTopWeight(e), ton:entryTonnage(e), note:w.note||""};});
 }
 function renderExerciseChart(){
   const exId=val("exChartSelect"); const el=document.getElementById("exerciseChart");
@@ -3315,9 +3429,15 @@ function renderExerciseChart(){
     return `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>${dots}`;
   };
   const labels=s.map((p,i)=>`<text x="${xOf(i)}" y="${H-9}" fill="var(--muted)" font-size="8" text-anchor="middle">${p.date.slice(5)}</text>`).join("");
+  const tbl=`<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Fecha</th><th class="r">Top set</th><th class="r">1RM est.</th><th class="r">Tonelaje</th></tr></thead><tbody>
+    ${s.slice().reverse().map(p=>`<tr><td>${p.date}${p.week?` <span style="color:var(--muted);font-size:10px">S${p.week}</span>`:""}${p.note?`<br><span style="font-size:10px;color:var(--muted);font-style:italic">📝 ${p.note}</span>`:""}</td>
+      <td class="r num">${p.tw?fmtW(p.tw):"—"}</td>
+      <td class="r num" style="color:var(--accent2)">${p.orm?fmtW(p.orm):"—"}</td>
+      <td class="r num">${fmtTon(p.ton)}</td></tr>`).join("")}
+    </tbody></table></div>`;
   el.innerHTML=`<div class="table-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;min-width:${W}px">
     <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--border)" stroke-width="1"/>
-    ${line("orm","#9147FF")}${line("tw","#4ECDC4")}${labels}</svg></div>`;
+    ${line("orm","#9147FF")}${line("tw","#4ECDC4")}${labels}</svg></div>${tbl}`;
 }
 
 /* ====================================================================
@@ -3491,8 +3611,11 @@ function registerSW(){
     navigator.serviceWorker.register("sw.js").catch(()=>{});
   }
 }
+function applyTheme(){ document.documentElement.setAttribute("data-theme", (state.prefs&&state.prefs.theme==="dark")?"dark":"light"); }
+function toggleTheme(){ if(!state.prefs)state.prefs={}; state.prefs.theme=(state.prefs.theme==="dark")?"light":"dark"; save(); applyTheme(); renderAjustes(); toast(state.prefs.theme==="dark"?"Modo oscuro":"Modo claro"); }
 function init(){
   load();
+  applyTheme();
   checkRollover();
   nav("hoy");
   requestPersistentStorage();
