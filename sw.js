@@ -6,14 +6,15 @@
    - No toca localStorage: tus datos están a salvo.
    Lo único que NO funciona sin internet es el escáner de código de barras
    (consulta Open Food Facts) y la sincronización en la nube. */
-const CACHE = "vexx-cache-v2";
+const CACHE = "vexx-cache-v3";
 const SHELL = ["./", "./index.html", "./icon.png"];
 /* recursos externos que conviene tener en caché para abrir sin internet */
 const EXTRA = [
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
   "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js",
   "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js",
-  "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"
+  "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js",
+  "https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"
 ];
 
 self.addEventListener("install", e => {

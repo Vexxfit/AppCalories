@@ -1079,6 +1079,7 @@ nav button{min-height:46px;justify-content:center}
     <h3 id="shareLinkTitle">Compartir rutina</h3>
     <p class="card-sub" style="margin-bottom:8px">Envía este link. Quien lo abra en su VEXX podrá <b>guardar</b> la rutina con un toque.</p>
     <input id="shareLinkUrl" readonly style="font-size:12px" onclick="this.select()">
+    <div id="shareLinkNote" style="font-size:11px;color:var(--muted);margin-top:6px"></div>
     <div class="row" style="margin-top:10px;gap:8px">
       <button class="btn-primary" onclick="copyShareLink()">Copiar link</button>
       <button class="btn-ghost btn-sm" id="shareNativeBtn" onclick="shareNative()">Compartir…</button>
@@ -3224,34 +3225,56 @@ function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.fo
   const defIds=new Set(DEFAULT_EXERCISES.map(e=>e.id)); const out=[];
   ids.forEach(id=>{ if(!defIds.has(id)){ const e=exById(id); if(e){ const o={id:e.id,name:e.name,group:e.group,repRange:e.repRange,rir:e.rir,custom:true}; if(e.muscles)o.muscles=e.muscles; out.push(o); } } });
   return out; }
-function shareURL(payload){ return location.origin+location.pathname+"#r="+b64e(JSON.stringify(payload)); }
-function showShareLink(payload, name){ const url=shareURL(payload); window.__shareUrl=url; window.__shareName=name;
+/* esquema compacto (arrays) para acortar al máximo el link */
+function compactShare(p){ const ex=e=>[e.exId,e.sets,e.repRange,e.rir], ce=x=>[x.id,x.name,x.group,x.repRange,x.rir];
+  if(p.type==="folder") return [2,p.name,p.templates.map(t=>[t.name,t.exercises.map(ex)]),(p.exercises||[]).map(ce)];
+  return [1,p.name,p.templates[0].exercises.map(ex),(p.exercises||[]).map(ce)]; }
+function expandShare(a){ const ex=t=>({exId:t[0],sets:t[1],repRange:t[2],rir:t[3]}), ce=c=>({id:c[0],name:c[1],group:c[2],repRange:c[3],rir:c[4],custom:true});
+  if(a[0]===2) return {type:"folder",name:a[1],templates:(a[2]||[]).map(t=>({name:t[0],exercises:(t[1]||[]).map(ex)})),exercises:(a[3]||[]).map(ce)};
+  return {type:"tpl",name:a[1],templates:[{name:a[1],exercises:(a[2]||[]).map(ex)}],exercises:(a[3]||[]).map(ce)}; }
+function loadLZ(){ return new Promise(res=>{ if(window.LZString) return res(); const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"; s.onload=res; s.onerror=res; document.head.appendChild(s); }); }
+function shortId(){ const c="abcdefghijkmnpqrstuvwxyz23456789"; let s=""; for(let i=0;i<7;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
+function shareBase(){ return location.origin+location.pathname; }
+function showShareLink(url, name, cloud){ window.__shareUrl=url; window.__shareName=name;
   set("shareLinkUrl",url); document.getElementById("shareLinkTitle").textContent="Compartir: "+name;
   const sb=document.getElementById("shareNativeBtn"); if(sb) sb.style.display=navigator.share?"":"none";
+  const note=document.getElementById("shareLinkNote"); if(note){ note.textContent = cloud? "✓ Link corto (guardado en la nube)." : "Link largo (sin nube). Inicia sesión en la nube en Ajustes para links cortos."; note.style.color = cloud?"var(--ok)":"var(--muted)"; }
   openModal("shareLinkModal"); }
+async function buildAndShare(payload, name){
+  if(typeof fbReady!=="undefined" && fbReady && fbDb){
+    try{ const id=shortId(); await fbDb.collection("shared").doc(id).set({p:compactShare(payload), at:Date.now()});
+      return showShareLink(shareBase()+"#s="+id, name, true); }catch(e){ console.warn("share cloud",e); }
+  }
+  await loadLZ();
+  const url = window.LZString ? (shareBase()+"#c="+LZString.compressToEncodedURIComponent(JSON.stringify(compactShare(payload))))
+                              : (shareBase()+"#r="+b64e(JSON.stringify(payload)));
+  showShareLink(url, name, false);
+}
 function shareTemplate(id){ const t=tplById(id); if(!t) return;
-  const payload={v:1,type:"tpl",name:t.name,templates:[{name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))}],exercises:customExsFor([t])};
-  showShareLink(payload, t.name); }
+  buildAndShare({v:1,type:"tpl",name:t.name,templates:[{name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))}],exercises:customExsFor([t])}, t.name); }
 function shareFolder(fid){ const f=(state.folders||[]).find(x=>x.id===fid); const tpls=state.templates.filter(t=>(t.folder||null)===fid);
   if(!tpls.length) return toast("La carpeta está vacía");
-  const payload={v:1,type:"folder",name:(f?f.name:"Carpeta"),templates:tpls.map(t=>({name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))})),exercises:customExsFor(tpls)};
-  showShareLink(payload, (f?f.name:"Carpeta")); }
+  buildAndShare({v:1,type:"folder",name:(f?f.name:"Carpeta"),templates:tpls.map(t=>({name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))})),exercises:customExsFor(tpls)}, (f?f.name:"Carpeta")); }
 function copyShareLink(){ const u=val("shareLinkUrl");
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(()=>toast("Link copiado ✓")).catch(()=>fallbackCopy()); } else fallbackCopy();
   function fallbackCopy(){ const i=document.getElementById("shareLinkUrl"); i.select(); try{document.execCommand("copy");toast("Link copiado ✓");}catch(e){toast("Copia el link a mano");} } }
 function shareNative(){ if(navigator.share) navigator.share({title:"VEXX · "+(window.__shareName||"rutina"), url:window.__shareUrl}).catch(()=>{}); }
 let pendingImport=null;
-function importRoutineFromHash(){
-  const m=(location.hash||"").match(/^#r=(.+)$/); if(!m) return;
-  try{ const payload=JSON.parse(b64d(m[1]));
-    if(payload&&Array.isArray(payload.templates)&&payload.templates.length){ pendingImport=payload;
-      const n=payload.templates.length;
-      document.getElementById("importRoutineBody").innerHTML=
-        `<p class="card-sub" style="margin-bottom:10px">Te compartieron ${payload.type==="folder"?`la carpeta <b>${payload.name}</b> (${n} rutina${n>1?'s':''})`:`la rutina <b>${payload.name}</b>`}. ¿Guardarla en tus plantillas?</p>`+
-        payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("");
-      openModal("importRoutineModal");
-    }
-  }catch(e){}
+async function importRoutineFromHash(){
+  const h=location.hash||""; let payload=null, m;
+  if(m=h.match(/^#s=([A-Za-z0-9]+)$/)){
+    if(typeof fbDb!=="undefined" && fbDb){ try{ const snap=await fbDb.collection("shared").doc(m[1]).get();
+      if(snap.exists){ const d=snap.data()||{}; payload = d.p?expandShare(d.p):(d.payload||null); } }catch(e){ console.warn("import cloud",e); } }
+    if(!payload) toast("No pude cargar el link (revisa tu internet)");
+  } else if(m=h.match(/^#c=(.+)$/)){ await loadLZ();
+    try{ const j=window.LZString&&LZString.decompressFromEncodedURIComponent(m[1]); if(j) payload=expandShare(JSON.parse(j)); }catch(e){}
+  } else if(m=h.match(/^#r=(.+)$/)){ try{ payload=JSON.parse(b64d(m[1])); }catch(e){} }
+  if(!payload||!Array.isArray(payload.templates)||!payload.templates.length){ if(/^#[scr]=/.test(h)) history.replaceState(null,"",location.pathname); return; }
+  pendingImport=payload; const n=payload.templates.length;
+  document.getElementById("importRoutineBody").innerHTML=
+    `<p class="card-sub" style="margin-bottom:10px">Te compartieron ${payload.type==="folder"?`la carpeta <b>${payload.name}</b> (${n} rutina${n>1?'s':''})`:`la rutina <b>${payload.name}</b>`}. ¿Guardarla en tus plantillas?</p>`+
+    payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("");
+  openModal("importRoutineModal");
   history.replaceState(null,"",location.pathname);
 }
 function confirmImportRoutine(){
@@ -4162,11 +4185,11 @@ function init(){
   importStepsFromURL();
   checkRollover();
   nav("hoy");
+  initFirebase();                  // antes de importar, para que los links #s= (nube) funcionen
   importRoutineFromHash();
   window.addEventListener("hashchange", importRoutineFromHash);   // importar aunque la app ya esté abierta
   requestPersistentStorage();
   registerSW();
-  initFirebase();
 }
 init();
 </script>
