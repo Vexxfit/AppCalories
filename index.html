@@ -3122,8 +3122,8 @@ function openMoveFolder(id){ movingTplId=id; const t=tplById(id); renderFolderSe
 function confirmMoveFolder(){ const t=tplById(movingTplId); if(t){ const v=val("moveFolderSelect"); t.folder=(v&&v!=="__new")?v:null; save(); renderTemplateList(); } closeModal("moveFolderModal"); }
 
 /* ----- compartir rutina / carpeta por link + importar ----- */
-function b64e(s){ return btoa(unescape(encodeURIComponent(s))); }
-function b64d(s){ return decodeURIComponent(escape(atob(s))); }
+function b64e(s){ return btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64d(s){ s=String(s); try{ s=decodeURIComponent(s); }catch(e){} s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4) s+='='; return decodeURIComponent(escape(atob(s))); }
 function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.forEach(x=>ids.add(x.exId)));
   const defIds=new Set(DEFAULT_EXERCISES.map(e=>e.id)); const out=[];
   ids.forEach(id=>{ if(!defIds.has(id)){ const e=exById(id); if(e){ const o={id:e.id,name:e.name,group:e.group,repRange:e.repRange,rir:e.rir,custom:true}; if(e.muscles)o.muscles=e.muscles; out.push(o); } } });
@@ -4023,6 +4023,7 @@ function init(){
   checkRollover();
   nav("hoy");
   importRoutineFromHash();
+  window.addEventListener("hashchange", importRoutineFromHash);   // importar aunque la app ya esté abierta
   requestPersistentStorage();
   registerSW();
   initFirebase();
