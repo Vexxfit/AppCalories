@@ -636,6 +636,7 @@ nav button{min-height:46px;justify-content:center}
       </div>
     </div>
     <div class="card" style="margin-top:16px" id="bodyCompCard"></div>
+    <div class="card" style="margin-top:16px" id="cycleCard"></div>
   </section>
 
   <!-- ============ SUSTITUCIONES ============ -->
@@ -869,6 +870,14 @@ nav button{min-height:46px;justify-content:center}
       <div class="field"><label>Azúcar (g) <span style="font-weight:400;text-transform:none">(opc.)</span></label><input type="number" id="nfSugar" inputmode="decimal"></div>
       <div class="field"><label>Sodio (mg) <span style="font-weight:400;text-transform:none">(opc.)</span></label><input type="number" id="nfSodium" inputmode="decimal"></div>
     </div>
+    <div class="row">
+      <div class="field"><label>Grasa sat. (g) <span style="font-weight:400;text-transform:none">(opc.)</span></label><input type="number" id="nfSatfat" inputmode="decimal"></div>
+      <div class="field"><label>Potasio (mg) <span style="font-weight:400;text-transform:none">(opc.)</span></label><input type="number" id="nfPotassium" inputmode="decimal"></div>
+    </div>
+    <div class="row">
+      <div class="field"><label>Calcio (mg) <span style="font-weight:400;text-transform:none">(opc.)</span></label><input type="number" id="nfCalcium" inputmode="decimal"></div>
+      <div class="field"><label>Hierro (mg) <span style="font-weight:400;text-transform:none">(opc.)</span></label><input type="number" id="nfIron" inputmode="decimal"></div>
+    </div>
     <button class="btn-primary" onclick="saveCustomFood()">Guardar alimento</button>
   </div>
 </div>
@@ -1038,6 +1047,15 @@ nav button{min-height:46px;justify-content:center}
       <button class="btn-primary" onclick="saveMealGoal()">Guardar objetivo</button>
       <button class="btn-ghost btn-sm" style="flex:0" onclick="clearMealGoal()">Quitar</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="closeMacrosModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('closeMacrosModal')">×</button>
+    <h3>🎯 Cerrar mis macros</h3>
+    <div id="closeMacrosBody"></div>
+    <p class="card-sub" style="margin-top:10px">Sugerencias según lo que te falta hoy, priorizando proteína sin pasarte de calorías.</p>
   </div>
 </div>
 
@@ -1293,12 +1311,24 @@ const MICROS={
   x_aguacate:[0.7,7],x_almendra:[4,1],x_nuez:[2.6,2],x_cacah:[4,18],x_crcacah:[9,17],x_aceite:[0,2],
   s_whey:[8,130],s_creatina:[0,0]
 };
+/* micros extra por 100 g (valores de referencia USDA, alimentos comunes): [grasa sat. g, potasio mg, calcio mg, hierro mg] */
+const MICROS2={
+  p_pollo:[1,256,15,1], p_huevo:[3.3,138,56,1.8], p_claras:[0,163,7,0.1], p_atun:[0.2,237,11,1.3], p_salmon:[3,363,9,0.3],
+  p_resmol:[6,270,18,2.2], p_bistec:[6,330,18,2.6], p_tilapia:[1,302,10,0.7], p_camaron:[0.3,259,70,0.5], p_pavo:[1,239,12,1.4], p_cerdo:[3,400,19,0.9],
+  l_leche:[1.9,150,113,0], l_lechede:[0.1,156,125,0], l_lechelala:[1.9,150,120,0], l_yogur:[0.7,141,110,0.1], l_yogurtnat:[0,234,150,0.1], l_yoplaitgr:[0,180,110,0],
+  c_arroz:[0.1,35,10,0.2], c_avena:[1.2,429,54,4.7], c_papa:[0,421,12,0.8], c_pasta:[0.1,44,7,0.5], c_panint:[0.6,250,160,2.5],
+  f_platano:[0.1,358,5,0.3], f_manzana:[0,107,6,0.1], f_naranja:[0,181,40,0.1], f_mango:[0.1,168,11,0.2], f_fresa:[0,153,16,0.4], f_papaya:[0,182,20,0.3],
+  v_espinaca:[0.1,558,99,2.7], v_brocoli:[0,316,47,0.7], v_jitomate:[0,237,10,0.3], v_zanahoria:[0,320,33,0.3], v_nopal:[0,257,164,1.6],
+  g_frijol:[0.1,355,35,2.1], g_lenteja:[0,369,19,3.3], g_garbanzo:[0.7,291,49,2.9],
+  x_aguacate:[2.1,485,12,0.6], x_almendra:[3.8,733,269,3.7], x_nuez:[6,441,98,2.9], x_cacah:[7,705,92,4.6], x_crcacah:[7,649,49,1.7], x_aceite:[14,0,0,0.6],
+  s_whey:[1,400,500,0.5]
+};
 function load(){
   try{
     const raw = localStorage.getItem(LS);
     if(raw){ const p = JSON.parse(raw); state = Object.assign(state, p); }
   }catch(e){ console.warn("No se pudo cargar", e); }
-  PREDEFINED.forEach(f=>{ if(MICROS[f.id]){ f.sugar=MICROS[f.id][0]; f.sodium=MICROS[f.id][1]; } });
+  PREDEFINED.forEach(f=>{ if(MICROS[f.id]){ f.sugar=MICROS[f.id][0]; f.sodium=MICROS[f.id][1]; } const m2=MICROS2[f.id]; if(m2){ f.satfat=m2[0]; f.potassium=m2[1]; f.calcium=m2[2]; f.iron=m2[3]; } });
   if(!state.plan) state.plan = { date: todayStr(), slots:{desayuno:[],comida:[],cena:[],snack:[]} };
   if(!state.plan.slots) state.plan.slots = {desayuno:[],comida:[],cena:[],snack:[]};
   // sembrado de entrenamiento en el primer arranque
@@ -1430,18 +1460,20 @@ const r0 = n => Math.round(n);           // entero
 function foodMacros(food, grams){
   const k = grams/100;
   return { cal:food.cal*k, protein:food.protein*k, carbs:food.carbs*k, fat:food.fat*k, fiber:food.fiber*k,
-           sugar:(food.sugar||0)*k, sodium:(food.sodium||0)*k };
+           sugar:(food.sugar||0)*k, sodium:(food.sodium||0)*k,
+           satfat:(food.satfat||0)*k, potassium:(food.potassium||0)*k, calcium:(food.calcium||0)*k, iron:(food.iron||0)*k };
 }
 /* totales de un platillo (suma de ingredientes) */
 function dishMacros(dish, scale){
   scale = scale==null?1:scale;
-  let t = {cal:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,grams:0};
+  let t = {cal:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,satfat:0,potassium:0,calcium:0,iron:0,grams:0};
   dish.ingredients.forEach(ing=>{
     const f = foodById(ing.foodId); if(!f) return;
     const m = foodMacros(f, ing.grams);
-    t.cal+=m.cal; t.protein+=m.protein; t.carbs+=m.carbs; t.fat+=m.fat; t.fiber+=m.fiber; t.sugar+=m.sugar; t.sodium+=m.sodium; t.grams+=ing.grams;
+    t.cal+=m.cal; t.protein+=m.protein; t.carbs+=m.carbs; t.fat+=m.fat; t.fiber+=m.fiber; t.sugar+=m.sugar; t.sodium+=m.sodium;
+    t.satfat+=m.satfat; t.potassium+=m.potassium; t.calcium+=m.calcium; t.iron+=m.iron; t.grams+=ing.grams;
   });
-  if(scale!==1){ ["cal","protein","carbs","fat","fiber","sugar","sodium","grams"].forEach(k=>t[k]*=scale); }
+  if(scale!==1){ ["cal","protein","carbs","fat","fiber","sugar","sodium","satfat","potassium","calcium","iron","grams"].forEach(k=>t[k]*=scale); }
   return t;
 }
 /* perfil por 100 g de un platillo (para sustituciones / comparación) */
@@ -1457,8 +1489,10 @@ function sumMacros(items){
   return items.reduce((a,it)=>({
     cal:a.cal+it.macros.cal, protein:a.protein+it.macros.protein,
     carbs:a.carbs+it.macros.carbs, fat:a.fat+it.macros.fat, fiber:a.fiber+it.macros.fiber,
-    sugar:a.sugar+(it.macros.sugar||0), sodium:a.sodium+(it.macros.sodium||0)
-  }),{cal:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0});
+    sugar:a.sugar+(it.macros.sugar||0), sodium:a.sodium+(it.macros.sodium||0),
+    satfat:a.satfat+(it.macros.satfat||0), potassium:a.potassium+(it.macros.potassium||0),
+    calcium:a.calcium+(it.macros.calcium||0), iron:a.iron+(it.macros.iron||0)
+  }),{cal:0,protein:0,carbs:0,fat:0,fiber:0,sugar:0,sodium:0,satfat:0,potassium:0,calcium:0,iron:0});
 }
 function dayTotals(){
   let all=[]; Object.values(state.plan.slots).forEach(s=>all=all.concat(s)); return sumMacros(all);
@@ -1518,7 +1552,8 @@ function goBack(){ const m=VIEW_META[currentView]||{}; nav(m.parent||"hoy"); }
    ==================================================================== */
 function renderHoy(){
   const g=state.goals, t=dayTotals();
-  const goalCal=g&&g.calories?g.calories:0;
+  const eg=(g&&g.calories)?goalsForDay(todayStr()):null;
+  const goalCal=eg?eg.cal:0;
   const consumed=Math.round(t.cal);
   const remaining=goalCal?Math.max(0,goalCal-consumed):null;
   const calPct=goalCal?consumed/goalCal:0;
@@ -1527,7 +1562,7 @@ function renderHoy(){
   const meses=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
   const dias=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
   const fecha=`${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]}`;
-  const macros=[["Proteína",t.protein,g?g.protein:0,"var(--protein)"],["Carbos",t.carbs,g?g.carbs:0,"var(--carbs)"],["Grasa",t.fat,g?g.fat:0,"var(--fat)"]];
+  const macros=[["Proteína",t.protein,eg?eg.protein:0,"var(--protein)"],["Carbos",t.carbs,eg?eg.carbs:0,"var(--carbs)"],["Grasa",t.fat,eg?eg.fat:0,"var(--fat)"]];
   const miniRings=macros.map(([n,cv,gv,col])=>{
     const pct=gv?cv/gv:0;
     return `<div class="macro-mini"><div style="position:relative;width:74px;height:74px">${ringSVG(pct,col,74,9,false)}
@@ -1558,7 +1593,8 @@ function renderHoy(){
         <div class="meal-kcal">${r0(st.cal)}</div><div class="meal-add">+</div>
       </button>${itemsHtml}</div>`;
   }).join("");
-  const goalCta=goalCal?"":`<button class="btn-primary" style="width:100%;margin-top:4px" onclick="nav('metas')">Calcular mi meta diaria</button>`;
+  const goalCta=goalCal?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="openCloseMacros()">🎯 Cerrar mis macros</button>`:`<button class="btn-primary" style="width:100%;margin-top:4px" onclick="nav('metas')">Calcular mi meta diaria</button>`;
+  const cycleLine = (eg&&eg.cycled)?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:600;margin-top:8px">🔁 Hoy es día ciclado: ${nfmt(eg.cal)} kcal</div>`:"";
   const microLine = (t.sugar>0||t.sodium>0)?`<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">Azúcar ${r1(t.sugar)} g · Sodio ${nfmt(t.sodium)} mg</div>`:"";
   const copyDayBtn = prev ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">↻ Copiar mi día de ayer</button>` : "";
   document.getElementById("hoyContent").innerHTML=`
@@ -1566,7 +1602,7 @@ function renderHoy(){
     <div class="card hero">
       <div style="position:relative;width:200px;height:200px">${ringSVG(calPct,"",200,16,true)}
         <div class="cal-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">${center}</div></div>
-      <div class="hero-rings">${miniRings}</div>${microLine}${goalCta}
+      <div class="hero-rings">${miniRings}</div>${cycleLine}${microLine}${goalCta}
     </div>
     ${streakCardHTML()}
     ${objectiveCardHTML()}
@@ -1843,7 +1879,7 @@ document.addEventListener("input", e=>{ if(e.target.id==="foodSearch"){ foodFilt
 function openFoodModal(){
   const sel = document.getElementById("nfCat");
   sel.innerHTML = CATS.map(c=>`<option>${c}</option>`).join("");
-  ["nfName","nfCal","nfProtein","nfCarbs","nfFat","nfPiece","nfSugar","nfSodium"].forEach(id=>document.getElementById(id).value="");
+  ["nfName","nfCal","nfProtein","nfCarbs","nfFat","nfPiece","nfSugar","nfSodium","nfSatfat","nfPotassium","nfCalcium","nfIron"].forEach(id=>{const e=document.getElementById(id); if(e)e.value="";});
   document.getElementById("nfFiber").value="0";
   openModal("foodModal");
 }
@@ -1855,6 +1891,10 @@ function saveCustomFood(){
   const piece=num("nfPiece"); if(piece>0){ f.piece=piece; f.pieceName="pza"; }
   const sug=num("nfSugar"); if(sug>0) f.sugar=sug;
   const sod=num("nfSodium"); if(sod>0) f.sodium=sod;
+  const sf=num("nfSatfat"); if(sf>0) f.satfat=sf;
+  const pot=num("nfPotassium"); if(pot>0) f.potassium=pot;
+  const cal2=num("nfCalcium"); if(cal2>0) f.calcium=cal2;
+  const fe=num("nfIron"); if(fe>0) f.iron=fe;
   state.customFoods.push(f); save(); closeModal("foodModal"); renderFoods(); toast("Alimento agregado");
 }
 function deleteFood(id){
@@ -2239,6 +2279,8 @@ function openMealDash(key){
     <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${r1(t.fat)} g · ${pct(kcalF)}%</b></div>
     <div class="kv"><span>Fibra</span><b>${r1(t.fiber)} g</b></div>
     ${(t.sugar>0||t.sodium>0)?`<div class="kv"><span>Azúcar · Sodio</span><b>${r1(t.sugar)} g · ${nfmt(t.sodium)} mg</b></div>`:""}
+    ${(t.satfat>0)?`<div class="kv"><span>Grasa saturada</span><b>${r1(t.satfat)} g</b></div>`:""}
+    ${(t.potassium>0||t.calcium>0||t.iron>0)?`<div class="kv"><span>Potasio · Calcio · Hierro</span><b>${nfmt(t.potassium)} · ${nfmt(t.calcium)} mg · ${r1(t.iron)} mg</b></div>`:""}
     <div class="divider"></div>
     <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Ingredientes (${items.length})</div>
     ${items.map(it=>`<div class="kv"><span>${it.name} <span style="color:var(--muted);font-size:11px">${it.label||""}</span></span><b>${r0(it.macros.cal)} kcal</b></div>`).join("")}
@@ -2500,7 +2542,7 @@ function renderGoalsTab(){
     if(g.weighDay) set("gWeighDay",g.weighDay);
     set("mProtein",g.protein||""); set("mCarbs",g.carbs||""); set("mFat",g.fat||""); set("mFiber",g.fiber||"");
   }
-  renderBodyComp();
+  renderBodyComp(); renderCycleCard();
   const el=document.getElementById("goalResult");
   if(!g||!g.calories){ el.innerHTML=`<div class="empty">Calcula tu meta para ver el resultado.</div>`; return; }
   const warnHTML = g.warn ? `<div style="background:#FFF4E5;border-radius:12px;padding:11px 13px;margin-bottom:12px;font-size:12.5px;color:#9a5b00;line-height:1.45">⚠️ ${g.warn}</div>` : "";
@@ -3858,6 +3900,50 @@ function simulateBF(){
 function setBFTarget(){ const t=num("simBF"), tw=targetWeightForBF(t); if(!tw) return toast("Datos insuficientes");
   if(!state.goals) state.goals={}; state.goals.targetBF=Math.round(t*10)/10; state.goals.goalWeight=Math.round(tw*10)/10;
   save(); renderGoalsTab(); if(currentView==="hoy")renderHoy(); toast(`Objetivo: ${r1(tw)} kg @ ${r1(t)}%`); }
+/* ===== L9: ciclado de calorías (meta por día de la semana) ===== */
+function goalsForDay(date){ const g=state.goals; if(!g||!g.calories) return null;
+  const base={cal:g.calories,protein:g.protein,carbs:g.carbs,fat:g.fat,fiber:g.fiber,cycled:false};
+  if(g.cycle){ const wd=new Date((date||todayStr())+"T00:00:00").getDay(); const c=+g.cycle[wd];
+    if(c>0 && c!==g.calories){ const protein=g.protein, fat=g.fat; let carbs=Math.round((c-protein*4-fat*9)/4); if(carbs<0)carbs=0;
+      return {cal:c, protein, carbs, fat, fiber:g.fiber, cycled:true}; } }
+  return base; }
+function renderCycleCard(){ const el=document.getElementById("cycleCard"); if(!el) return; const g=state.goals;
+  if(!g||!g.calories){ el.innerHTML=`<h3>🔁 Ciclado de calorías</h3><p class="card-sub" style="margin:0">Calcula tu meta primero para poder ciclar por día.</p>`; return; }
+  const days=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"], cyc=g.cycle||{};
+  el.innerHTML=`<h3>🔁 Ciclado de calorías</h3>
+    <p class="card-sub" style="margin-bottom:10px">Metas distintas por día (entreno/descanso/refeed). Vacío = tu meta base (<b>${nfmt(g.calories)} kcal</b>). Se mantienen proteína y grasa; se ajustan los carbos.</p>
+    ${days.map((d,wd)=>`<div class="row" style="align-items:center;gap:10px;margin-bottom:6px"><div style="flex:0 0 80px;font-weight:600;font-size:13px">${d}</div>
+      <div class="field" style="margin:0;flex:1"><input type="number" inputmode="numeric" placeholder="${nfmt(g.calories)} kcal" value="${(cyc[wd]&&cyc[wd]!=g.calories)?cyc[wd]:''}" onchange="setCycleDay(${wd},this.value)"></div></div>`).join("")}
+    ${g.cycle?`<button class="btn-ghost btn-sm" style="margin-top:6px" onclick="clearCycle()">Quitar ciclado</button>`:""}`;
+}
+function setCycleDay(wd,v){ const g=state.goals; if(!g)return; if(!g.cycle)g.cycle={}; const n=parseInt(v)||0;
+  if(n>0&&n!==g.calories) g.cycle[wd]=n; else delete g.cycle[wd];
+  if(!Object.keys(g.cycle).length) delete g.cycle; save(); if(currentView==="hoy")renderHoy(); toast("Ciclado actualizado"); }
+function clearCycle(){ const g=state.goals; if(g) delete g.cycle; save(); renderGoalsTab(); if(currentView==="hoy")renderHoy(); toast("Ciclado quitado"); }
+/* ===== L10: cierra tus macros (sugeridor) ===== */
+function openCloseMacros(){
+  const eg=goalsForDay(todayStr()); if(!eg) return toast("Define tu meta primero");
+  const t=dayTotals();
+  const remCal=Math.round(eg.cal-t.cal), remP=Math.round(eg.protein-t.protein), remC=Math.round(eg.carbs-t.carbs), remF=Math.round(eg.fat-t.fat);
+  const pos=x=>x>0?x:0;
+  let body=`<div class="kv"><span>Te falta hoy</span><b>${pos(remCal)} kcal</b></div>
+    <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${pos(remP)} g</b></div>
+    <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${pos(remC)} g</b></div>
+    <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${pos(remF)} g</b></div><div class="divider"></div>`;
+  if(remP<=2 && remCal<=25){ body+=`<div style="color:var(--ok);font-weight:600">✓ ¡Ya cerraste tus macros de hoy! 🎉</div>`; }
+  else{
+    const cands=allFoods().filter(f=>f.protein>0&&f.cal>0).map(f=>({f,dens:f.protein/f.cal})).sort((a,b)=>b.dens-a.dens).slice(0,10);
+    const sugg=cands.map(({f})=>{ let grams = remP>0 ? remP/(f.protein/100) : 0;
+        if(remCal>0){ grams=Math.min(grams, remCal/(f.cal/100)); }
+        grams=Math.round(grams/5)*5; if(grams<=0) return null;
+        return {f,grams,m:foodMacros(f,grams)}; }).filter(Boolean).slice(0,6);
+    body+=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Opciones para cubrir tu proteína sin pasarte de kcal</div>`+
+      (sugg.length? sugg.map(s=>`<div class="kv"><span>${s.f.name} · <b>${s.grams} g</b></span><b style="color:var(--protein)">+${r0(s.m.protein)} P · ${r0(s.m.cal)} kcal</b></div>`).join("")
+        : `<div class="empty">Agrega alimentos con proteína a tu base para sugerencias.</div>`);
+  }
+  document.getElementById("closeMacrosBody").innerHTML=body;
+  openModal("closeMacrosModal");
+}
 /* tarjeta de objetivo para el Dashboard Hoy */
 function objectiveCardHTML(){
   const g=state.goals; if(!g) return ""; const w=curWeight(); if(!w||(!g.goalWeight&&!g.targetBF)) return "";
