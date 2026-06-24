@@ -881,6 +881,15 @@ nav button{min-height:46px;justify-content:center}
   </div>
 </div>
 
+<div class="modal-bg" id="prPickerModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('prPickerModal')">×</button>
+    <h3>Elegir ejercicio</h3>
+    <div class="field"><input id="prPickerSearch" placeholder="Buscar ejercicio…" autocomplete="off"></div>
+    <div id="prPickerList" style="max-height:48vh;overflow-y:auto;margin-top:4px"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="tplExModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('tplExModal')">×</button>
@@ -2767,7 +2776,7 @@ function deleteExercise(id){
   if(!confirm("¿Eliminar este ejercicio personalizado?")) return;
   state.exercises=state.exercises.filter(e=>e.id!==id); save(); renderExTable();
 }
-document.addEventListener("input", e=>{ if(e.target.id==="exSearch"){ exFilter.q=e.target.value; renderExTable(); } });
+document.addEventListener("input", e=>{ if(e.target.id==="exSearch"){ exFilter.q=e.target.value; renderExTable(); } if(e.target.id==="prPickerSearch"){ renderPRPicker(e.target.value); } });
 
 /* ====================================================================
    PROGRESO semanal + volumen por grupo
@@ -2917,35 +2926,59 @@ function renderGroupVolume(wk){
     ${worked.map(([k,lbl])=>{const s=ev[k]||0,v=volStatus(k,s);return `<tr><td><span class="pill">${lbl}</span></td><td class="r num">${r1(s)}</td><td class="r"><span style="color:${v.color};font-weight:700;font-size:12px">${v.label}</span>${v.range?`<br><span style="font-size:10px;color:var(--muted)">${v.range}</span>`:""}</td></tr>`;}).join("")}
     </tbody></table><small class="hint">Volumen <b>efectivo</b> = series ponderadas por cercanía al fallo (RIR). El hombro se divide en 3 cabezas según el ejercicio.</small>` : `<div class="empty">Sin datos en esta semana.</div>`;
 }
-function muscleColor(s){ if(!s) return "#E9E7EF"; if(s<=4) return "#D9CCF7"; if(s<=8) return "#B79CF0"; if(s<=12) return "#9466E8"; if(s<=16) return "#7C3AED"; return "#5B21B6"; }
+function muscleColor(s){ if(!s) return "#E2DBF1"; if(s<=4) return "#D2C2F4"; if(s<=8) return "#B79CF0"; if(s<=12) return "#9466E8"; if(s<=16) return "#7C3AED"; return "#5B21B6"; }
 function bodyMapSVG(ev){
-  ev=ev||{}; const skin="#E9E7EF";
-  const F=(k,shape)=>`<g fill="${muscleColor(ev[k]||0)}">${shape}<title>${SUBLABEL[k]||k}: ${r1(ev[k]||0)} series efect.</title></g>`;
-  const front=`
-    <circle cx="80" cy="22" r="14" fill="${skin}"/><rect x="74" y="34" width="12" height="9" fill="${skin}"/>
-    ${F("deltLat",'<ellipse cx="46" cy="56" rx="6" ry="9"/><ellipse cx="114" cy="56" rx="6" ry="9"/>')}
-    ${F("deltAnt",'<ellipse cx="58" cy="54" rx="9" ry="9"/><ellipse cx="102" cy="54" rx="9" ry="9"/>')}
-    ${F("pecho",'<rect x="60" y="60" width="40" height="24" rx="9"/>')}
-    ${F("biceps",'<ellipse cx="45" cy="82" rx="6" ry="15"/><ellipse cx="115" cy="82" rx="6" ry="15"/>')}
-    ${F("antebrazo",'<ellipse cx="39" cy="108" rx="5" ry="14"/><ellipse cx="121" cy="108" rx="5" ry="14"/>')}
-    ${F("core",'<rect x="66" y="86" width="28" height="42" rx="7"/>')}
-    ${F("cuadriceps",'<rect x="61" y="136" width="17" height="56" rx="8"/><rect x="82" y="136" width="17" height="56" rx="8"/>')}
-    <rect x="63" y="198" width="14" height="46" rx="6" fill="${skin}"/><rect x="83" y="198" width="14" height="46" rx="6" fill="${skin}"/>
-    <text x="80" y="262" text-anchor="middle" font-size="11" fill="#86868B" font-weight="600">Frente</text>`;
-  const back=`
-    <circle cx="250" cy="22" r="14" fill="${skin}"/><rect x="244" y="34" width="12" height="9" fill="${skin}"/>
-    ${F("deltLat",'<ellipse cx="216" cy="56" rx="6" ry="9"/><ellipse cx="284" cy="56" rx="6" ry="9"/>')}
-    ${F("deltPost",'<ellipse cx="228" cy="54" rx="9" ry="9"/><ellipse cx="272" cy="54" rx="9" ry="9"/>')}
-    ${F("espaldaAlta",'<rect x="230" y="58" width="40" height="18" rx="6"/>')}
-    ${F("dorsal",'<rect x="231" y="77" width="38" height="30" rx="6"/>')}
-    ${F("triceps",'<ellipse cx="215" cy="82" rx="6" ry="15"/><ellipse cx="285" cy="82" rx="6" ry="15"/>')}
-    ${F("gluteo",'<rect x="230" y="110" width="40" height="22" rx="11"/>')}
-    ${F("femoral",'<rect x="231" y="135" width="17" height="50" rx="8"/><rect x="252" y="135" width="17" height="50" rx="8"/>')}
-    ${F("pantorrilla",'<rect x="233" y="192" width="14" height="48" rx="6"/><rect x="253" y="192" width="14" height="48" rx="6"/>')}
-    <text x="250" y="262" text-anchor="middle" font-size="11" fill="#86868B" font-weight="600">Espalda</text>`;
-  const cols=["#E9E7EF","#D9CCF7","#B79CF0","#9466E8","#7C3AED","#5B21B6"], labs=["0","≤4","≤8","≤12","≤16","17+"];
-  const legend=`<g transform="translate(8,278)">${labs.map((lab,i)=>{const x=i*54;return `<rect x="${x}" y="0" width="13" height="13" rx="3" fill="${cols[i]}"/><text x="${x+17}" y="11" font-size="10" fill="#86868B">${lab}</text>`;}).join("")}</g>`;
-  return `<div class="table-wrap"><svg viewBox="0 0 340 298" width="100%" style="max-width:340px;display:block;margin:0 auto">${front}${back}${legend}</svg></div>`;
+  ev=ev||{}; const skin="#ECE9F3", line="#D8D3E6";
+  const F=(k,shape)=>`<g fill="${muscleColor(ev[k]||0)}" stroke="#fff" stroke-width=".7" stroke-linejoin="round">${shape}<title>${SUBLABEL[k]||k}: ${r1(ev[k]||0)} series efect.</title></g>`;
+  // ---- silueta (piel) ----
+  const skinFront=`<g fill="${skin}" stroke="${line}" stroke-width=".8">
+    <circle cx="86" cy="22" r="15"/>
+    <path d="M79,34 L93,34 L93,41 Q93,45 86,45 Q79,45 79,41 Z"/>
+    <path d="M59,54 Q56,45 86,45 Q116,45 113,54 L107,116 Q106,150 86,151 Q66,150 65,116 Z"/>
+    <rect x="42" y="52" width="15" height="56" rx="7"/><rect x="40" y="106" width="13" height="50" rx="6"/>
+    <rect x="115" y="52" width="15" height="56" rx="7"/><rect x="119" y="106" width="13" height="50" rx="6"/>
+    <circle cx="46" cy="160" r="6"/><circle cx="126" cy="160" r="6"/>
+    <rect x="64" y="150" width="21" height="66" rx="10"/><rect x="87" y="150" width="21" height="66" rx="10"/>
+    <rect x="66" y="216" width="17" height="58" rx="8"/><rect x="89" y="216" width="17" height="58" rx="8"/>
+    <ellipse cx="74" cy="277" rx="9" ry="5"/><ellipse cx="98" cy="277" rx="9" ry="5"/></g>`;
+  const skinBack=`<g fill="${skin}" stroke="${line}" stroke-width=".8">
+    <circle cx="258" cy="22" r="15"/>
+    <path d="M251,34 L265,34 L265,41 Q265,45 258,45 Q251,45 251,41 Z"/>
+    <path d="M231,54 Q228,45 258,45 Q288,45 285,54 L279,116 Q278,150 258,151 Q238,150 237,116 Z"/>
+    <rect x="214" y="52" width="15" height="56" rx="7"/><rect x="212" y="106" width="13" height="50" rx="6"/>
+    <rect x="287" y="52" width="15" height="56" rx="7"/><rect x="291" y="106" width="13" height="50" rx="6"/>
+    <circle cx="218" cy="160" r="6"/><circle cx="298" cy="160" r="6"/>
+    <rect x="236" y="150" width="21" height="66" rx="10"/><rect x="259" y="150" width="21" height="66" rx="10"/>
+    <rect x="238" y="216" width="17" height="58" rx="8"/><rect x="261" y="216" width="17" height="58" rx="8"/>
+    <ellipse cx="246" cy="277" rx="9" ry="5"/><ellipse cx="270" cy="277" rx="9" ry="5"/></g>`;
+  // ---- músculos: FRENTE ----
+  const front=skinFront+`
+    ${F("espaldaAlta",'<path d="M79,40 L64,53 L84,50 Z"/><path d="M93,40 L108,53 L88,50 Z"/>')}
+    ${F("deltLat",'<ellipse cx="57" cy="56" rx="8" ry="10"/><ellipse cx="115" cy="56" rx="8" ry="10"/>')}
+    ${F("deltAnt",'<ellipse cx="64" cy="55" rx="8" ry="9"/><ellipse cx="108" cy="55" rx="8" ry="9"/>')}
+    ${F("pecho",'<path d="M85,58 L67,58 Q64,59 65,66 Q67,78 80,80 Q85,80 85,74 Z"/><path d="M87,58 L105,58 Q108,59 107,66 Q105,78 92,80 Q87,80 87,74 Z"/>')}
+    ${F("biceps",'<ellipse cx="50" cy="82" rx="7" ry="17"/><ellipse cx="122" cy="82" rx="7" ry="17"/>')}
+    ${F("antebrazo",'<ellipse cx="47" cy="128" rx="6" ry="19"/><ellipse cx="125" cy="128" rx="6" ry="19"/>')}
+    ${F("core",'<path d="M74,84 L98,84 Q99,86 98,108 Q96,126 86,128 Q76,126 74,108 Q73,86 74,84 Z"/><path d="M73,90 Q69,98 71,112 L74,110 Q72,98 74,92 Z"/><path d="M99,90 Q103,98 101,112 L98,110 Q100,98 98,92 Z"/>')}
+    <g stroke="${skin}" stroke-width="2" fill="none" stroke-linecap="round"><line x1="86" y1="87" x2="86" y2="125"/><line x1="76" y1="97" x2="96" y2="97"/><line x1="75" y1="107" x2="97" y2="107"/><line x1="76" y1="117" x2="96" y2="117"/></g>
+    ${F("cuadriceps",'<path d="M66,154 Q75,152 83,155 L81,206 Q75,212 68,206 Z"/><path d="M106,154 Q97,152 89,155 L91,206 Q97,212 104,206 Z"/>')}
+    ${F("aductor",'<path d="M84,156 L84,200 Q79,198 79,172 Q79,160 84,156 Z"/><path d="M88,156 L88,200 Q93,198 93,172 Q93,160 88,156 Z"/>')}
+    <text x="86" y="296" text-anchor="middle" font-size="11" fill="#86868B" font-weight="600">Frente</text>`;
+  // ---- músculos: ESPALDA ----
+  const back=skinBack+`
+    ${F("espaldaAlta",'<path d="M258,42 L242,56 L238,74 L258,90 L278,74 L274,56 Z"/>')}
+    ${F("deltLat",'<ellipse cx="229" cy="56" rx="8" ry="10"/><ellipse cx="287" cy="56" rx="8" ry="10"/>')}
+    ${F("deltPost",'<ellipse cx="236" cy="55" rx="8" ry="9"/><ellipse cx="280" cy="55" rx="8" ry="9"/>')}
+    ${F("dorsal",'<path d="M239,76 L255,78 L255,118 Q248,120 241,112 Q237,96 239,76 Z"/><path d="M277,76 L261,78 L261,118 Q268,120 275,112 Q279,96 277,76 Z"/>')}
+    ${F("triceps",'<ellipse cx="222" cy="82" rx="7" ry="17"/><ellipse cx="294" cy="82" rx="7" ry="17"/>')}
+    ${F("antebrazo",'<ellipse cx="219" cy="128" rx="6" ry="19"/><ellipse cx="297" cy="128" rx="6" ry="19"/>')}
+    ${F("gluteo",'<path d="M256,122 Q238,120 238,136 Q239,150 255,150 Q256,150 256,140 Z"/><path d="M260,122 Q278,120 278,136 Q277,150 261,150 Q260,150 260,140 Z"/>')}
+    ${F("femoral",'<path d="M238,154 Q247,152 255,154 L254,208 Q247,212 240,208 Z"/><path d="M278,154 Q269,152 261,154 L262,208 Q269,212 276,208 Z"/>')}
+    ${F("pantorrilla",'<ellipse cx="246" cy="238" rx="8" ry="20"/><ellipse cx="250" cy="249" rx="5" ry="11"/><ellipse cx="270" cy="238" rx="8" ry="20"/><ellipse cx="266" cy="249" rx="5" ry="11"/>')}
+    <text x="258" y="296" text-anchor="middle" font-size="11" fill="#86868B" font-weight="600">Espalda</text>`;
+  const cols=["#E2DBF1","#D2C2F4","#B79CF0","#9466E8","#7C3AED","#5B21B6"], labs=["0","≤4","≤8","≤12","≤16","17+"];
+  const legend=`<g transform="translate(10,312)">${labs.map((lab,i)=>{const x=i*54;return `<rect x="${x}" y="0" width="13" height="13" rx="3" fill="${cols[i]}"/><text x="${x+17}" y="11" font-size="10" fill="#86868B">${lab}</text>`;}).join("")}</g>`;
+  return `<div class="table-wrap"><svg viewBox="0 0 344 332" width="100%" style="max-width:360px;display:block;margin:0 auto">${front}${back}${legend}</svg></div>`;
 }
 
 /* ====================================================================
@@ -2989,36 +3022,58 @@ function renderRecords(){
     sel.innerHTML = usedIds.map(id=>`<option value="${id}" ${id===cur?"selected":""}>${exName(id)}</option>`).join("");
     renderExerciseChart();
   }else{ sel.innerHTML=""; document.getElementById("exerciseChart").innerHTML=`<div class="empty">Sin datos.</div>`; }
-  // tabla de PRs (auto + PR real manual)
+  // tabla de PRs (sólo los ejercicios que tú agregas)
   const pr=computeExercisePRs(state.workouts);
-  const allIds=[...new Set([...Object.keys(pr), ...Object.keys(state.manualPRs||{})])]
-    .sort((a,b)=>((pr[b]&&pr[b].orm.val)||0)-((pr[a]&&pr[a].orm.val)||0));
+  const ids=Object.keys(state.manualPRs||{})
+    .sort((a,b)=>{const ma=(state.manualPRs[a].weight||0),mb=(state.manualPRs[b].weight||0); if(mb!==ma) return mb-ma; return ((pr[b]&&pr[b].orm.val)||0)-((pr[a]&&pr[a].orm.val)||0);});
   const prt=document.getElementById("prTable");
-  prt.innerHTML = `<button class="btn-ghost btn-sm" style="margin-bottom:10px" onclick="addManualPRFlow()">+ Registrar PR real</button>` +
-    (allIds.length ? `<table><thead><tr><th>Ejercicio</th><th class="r">Mejor (auto)</th><th class="r">1RM est.</th><th class="r">PR real</th></tr></thead><tbody>
-    ${allIds.map(id=>{const p=pr[id]||{name:exName(id),weight:{val:0,date:""},orm:{val:0,date:""}}; const m=(state.manualPRs||{})[id];
-      return `<tr><td>${p.name||exName(id)}</td>
-      <td class="r num">${p.weight.val?fmtW(p.weight.val):"—"}</td>
+  prt.innerHTML = `<button class="btn-ghost btn-sm" style="margin-bottom:10px" onclick="addManualPRFlow()">+ Añadir ejercicio / PR</button>` +
+    (ids.length ? `<table><thead><tr><th>Ejercicio</th><th class="r">Tu PR</th><th class="r">1RM est.</th><th class="r"></th></tr></thead><tbody>
+    ${ids.map(id=>{const p=pr[id]||{weight:{val:0,date:""},orm:{val:0,date:""}}; const m=state.manualPRs[id]||{};
+      const realPR = (m.weight>0) ? `<span class="num">${fmtW(m.weight)}${m.reps?" ×"+m.reps:""}</span>${m.date?`<br><span style="font-size:9px;color:var(--muted)">${m.date}</span>`:""}` : `<span style="color:var(--muted);font-size:11px">sin PR aún</span>`;
+      return `<tr><td>${exName(id)}</td>
+      <td class="r">${realPR}</td>
       <td class="r num" style="color:var(--accent2)">${p.orm.val?fmtW(p.orm.val):"—"}</td>
-      <td class="r">${m?`<span class="num">${fmtW(m.weight)}${m.reps?" ×"+m.reps:""}</span><br><span style="font-size:9px;color:var(--muted)">${m.date||""}</span> `:""}<span style="color:var(--accent);cursor:pointer;font-size:13px" onclick="setManualPR('${id}')">✎</span></td></tr>`;}).join("")}
-    </tbody></table>` : `<div class="empty">Aún no hay records. Usa "Registrar PR real" para añadir el tuyo.</div>`);
+      <td class="r" style="white-space:nowrap"><span title="Editar PR" style="color:var(--accent);cursor:pointer;font-size:14px" onclick="setManualPR('${id}')">✎</span> <span title="Quitar" style="color:var(--bad);cursor:pointer;font-size:14px" onclick="removeManualPR('${id}')">✕</span></td></tr>`;}).join("")}
+    </tbody></table><small class="hint">El 1RM estimado se calcula solo con tus sesiones registradas. Tu PR es el que registras a mano.</small>` : `<div class="empty">Aún no sigues ningún ejercicio. Toca "Añadir ejercicio / PR" para elegir uno (con o sin PR real todavía).</div>`);
 }
 /* ----- PR manual ----- */
 function setManualPR(exId){
   const ex=exById(exId); const cur=(state.manualPRs||{})[exId]||{};
-  const w=parseFloat(prompt(`PR real de "${ex?ex.name:exId}" — peso (${unit()}):`, cur.weight!=null?uw(cur.weight):""));
-  if(!(w>0)) return;
+  if(!state.manualPRs) state.manualPRs={};
+  const wStr=prompt(`PR real de "${ex?ex.name:exId}" — peso (${unit()}). Déjalo vacío para sólo seguirlo:`, cur.weight?uw(cur.weight):"");
+  if(wStr===null){ if(!state.manualPRs[exId]) { state.manualPRs[exId]={weight:0,reps:0,date:""}; save(); renderRecords(); } return; } // cancelar: lo deja en seguimiento
+  const w=parseFloat(wStr);
+  if(!(w>0)){ state.manualPRs[exId]={weight:0,reps:0,date:""}; save(); renderRecords(); toast("Ejercicio en seguimiento"); return; }
   const reps=parseInt(prompt("Repeticiones (opcional):", cur.reps||"")||"0")||0;
   const date=prompt("Fecha (AAAA-MM-DD):", cur.date||todayStr())||todayStr();
-  if(!state.manualPRs) state.manualPRs={};
   state.manualPRs[exId]={weight:toKg(w), reps, date};
   save(); renderRecords(); toast("PR real guardado");
 }
+function removeManualPR(exId){
+  if(!confirm(`¿Quitar "${exName(exId)}" de tus records?`)) return;
+  if(state.manualPRs) delete state.manualPRs[exId];
+  save(); renderRecords();
+}
+/* ----- elegir ejercicio con buscador ----- */
 function addManualPRFlow(){
-  const q=prompt("¿Para qué ejercicio? (escribe parte del nombre)"); if(!q) return;
-  const ex=state.exercises.find(e=>e.name.toLowerCase().includes(q.toLowerCase()));
-  if(!ex) return toast("No encontré ese ejercicio");
-  setManualPR(ex.id);
+  set("prPickerSearch",""); renderPRPicker(""); openModal("prPickerModal");
+  setTimeout(()=>{const i=document.getElementById("prPickerSearch"); if(i) i.focus();},80);
+}
+function renderPRPicker(q){
+  q=(q||"").toLowerCase().trim();
+  const list=[...state.exercises].filter(e=>!q || e.name.toLowerCase().includes(q) || (e.group||"").toLowerCase().includes(q))
+    .sort((a,b)=>a.name.localeCompare(b.name,'es'));
+  const el=document.getElementById("prPickerList"); if(!el) return;
+  const rowStyle="display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:11px 13px;margin-bottom:7px;font:inherit;color:var(--text);cursor:pointer;min-height:44px";
+  el.innerHTML = list.length ? list.map(e=>{
+    const has=(state.manualPRs||{})[e.id];
+    return `<button style="${rowStyle}" onclick="pickPRExercise('${e.id}')"><span><b style="font-weight:600">${e.name}</b><br><span style="font-size:11px;color:var(--muted)">${e.group||""}</span></span>${has?'<span style="color:var(--ok);font-size:12px;font-weight:600">✓ en lista</span>':'<span style="color:var(--accent);font-size:18px">＋</span>'}</button>`;
+  }).join("") : `<div class="empty">Sin resultados para "${q}".</div>`;
+}
+function pickPRExercise(exId){
+  closeModal("prPickerModal");
+  setManualPR(exId);
 }
 /* ----- recomendación de peso para la próxima sesión ----- */
 function parseTopRep(rr){ if(!rr) return null; const m=String(rr).match(/(\d+)\s*-\s*(\d+)/); if(m) return parseInt(m[2]); const s=String(rr).match(/^(\d+)/); return s?parseInt(s[1]):null; }
