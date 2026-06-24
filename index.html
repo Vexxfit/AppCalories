@@ -513,6 +513,7 @@ nav button{min-height:46px;justify-content:center}
       <div class="cat-filters" id="catFilters"></div>
       <button class="btn-primary btn-sm" onclick="openFoodModal()">+ Agregar alimento</button>
       <button class="btn-ghost btn-sm" onclick="openScanner()">📷 Escanear</button>
+      <button class="btn-ghost btn-sm" onclick="openFoodSearch()">🌐 Buscar online</button>
     </div>
     <div id="foodList"></div>
   </section>
@@ -884,7 +885,10 @@ nav button{min-height:46px;justify-content:center}
     </div>
     <div class="field" style="margin-bottom:6px"><label>Buscar</label>
       <input id="apSearch" placeholder="Escribe para buscar…" oninput="renderAddResults()" autocomplete="off"></div>
-    <button class="btn-ghost btn-sm" style="width:100%;margin-bottom:8px" onclick="openScanner()">📷 Escanear código de barras</button>
+    <div class="row" style="gap:8px;margin-bottom:8px">
+      <button class="btn-ghost btn-sm" onclick="openScanner()">📷 Escanear</button>
+      <button class="btn-ghost btn-sm" onclick="openFoodSearch()">🌐 Buscar online</button>
+    </div>
     <div id="apResults" class="add-results"></div>
     <div id="apQty"></div>
     <button class="btn-primary" id="apConfirmBtn" style="width:100%;margin-top:6px" onclick="confirmAddToPlan()">Agregar</button>
@@ -1034,6 +1038,20 @@ nav button{min-height:46px;justify-content:center}
       <button class="btn-primary" onclick="saveMealGoal()">Guardar objetivo</button>
       <button class="btn-ghost btn-sm" style="flex:0" onclick="clearMealGoal()">Quitar</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="foodSearchModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('foodSearchModal')">×</button>
+    <h3>🌐 Buscar alimento online</h3>
+    <div class="row" style="gap:8px">
+      <div class="field" style="margin:0;flex:1"><input id="foodSearchQuery" placeholder="Ej. yogurt griego, atún en agua…" autocomplete="off" onkeydown="if(event.key==='Enter')runFoodSearch()"></div>
+      <button class="btn-primary btn-sm" style="flex:0" onclick="runFoodSearch()">Buscar</button>
+    </div>
+    <div id="foodSearchStatus" style="font-size:12px;color:var(--muted);margin:8px 0"></div>
+    <div id="foodSearchResults" style="max-height:46vh;overflow-y:auto"></div>
+    <p class="card-sub" style="margin-top:6px">Datos de Open Food Facts (base abierta). Requiere internet · verifica los valores.</p>
   </div>
 </div>
 
@@ -1886,32 +1904,62 @@ async function startScan(){
   }catch(e){ st.textContent="No pude abrir la cámara (¿permiso denegado?). Escribe el código abajo 👇"; }
 }
 function manualBarcode(){ const c=(val("scanManual")||"").trim(); if(!/^\d{6,14}$/.test(c)) return toast("Escribe un código válido (6–14 dígitos)"); stopScan(); lookupBarcode(c); }
+/* construye un alimento (por 100 g) desde un producto de Open Food Facts, con micros */
+function foodFromOFF(p, code){
+  const n=p.nutriments||{};
+  let cal=n["energy-kcal_100g"]; if(cal==null&&n["energy_100g"]!=null) cal=n["energy_100g"]/4.184;
+  const brand=p.brands?` (${String(p.brands).split(",")[0].trim()})`:"";
+  const food={ id:"of_"+(code||p.code||""), barcode:(code||p.code||""), custom:true,
+    name:(p.product_name_es||p.product_name||"Producto")+brand,
+    cat:(typeof CATS!=="undefined"&&CATS.length)?CATS[CATS.length-1]:"Otros",
+    cal:Math.round(cal||0), protein:r1(n["proteins_100g"]||0), carbs:r1(n["carbohydrates_100g"]||0), fat:r1(n["fat_100g"]||0), fiber:r1(n["fiber_100g"]||0) };
+  if(n["sugars_100g"]!=null) food.sugar=r1(n["sugars_100g"]);
+  if(n["sodium_100g"]!=null) food.sodium=Math.round(n["sodium_100g"]*1000); else if(n["salt_100g"]!=null) food.sodium=Math.round(n["salt_100g"]*400);
+  if(n["saturated-fat_100g"]!=null) food.satfat=r1(n["saturated-fat_100g"]);
+  if(n["potassium_100g"]!=null) food.potassium=Math.round(n["potassium_100g"]*1000);
+  if(n["calcium_100g"]!=null) food.calcium=Math.round(n["calcium_100g"]*1000);
+  if(n["iron_100g"]!=null) food.iron=r1(n["iron_100g"]*1000);
+  return food;
+}
+function offFoodCardHTML(food){
+  return `<div class="card" style="background:var(--surface2);margin-top:10px;padding:14px">
+    <div style="font-weight:700;font-size:15px">${food.name}</div>
+    <div class="kv" style="margin-top:6px"><span>Calorías / 100 g</span><b style="color:var(--accent)">${food.cal} kcal</b></div>
+    <div class="macro-legend"><span class="m-p">●&nbsp;P ${food.protein}</span><span class="m-c">●&nbsp;C ${food.carbs}</span><span class="m-f">●&nbsp;G ${food.fat}</span><span class="m-fib">●&nbsp;Fib ${food.fiber}</span></div>
+    ${(food.sugar!=null||food.sodium!=null)?`<div class="kv"><span>Azúcar / Sodio</span><b>${food.sugar!=null?food.sugar+" g":"—"} · ${food.sodium!=null?food.sodium+" mg":"—"}</b></div>`:""}
+    <div class="row" style="margin-top:10px;gap:8px"><button class="btn-primary" onclick="scanAddToPlan()">➕ Añadir al plan</button><button class="btn-ghost btn-sm" style="flex:0" onclick="scanSaveFood(true)">💾 Solo guardar</button></div>
+  </div>`;
+}
 async function lookupBarcode(code){
   const st=document.getElementById("scanStatus"), rs=document.getElementById("scanResult");
   st.textContent="Buscando "+code+"…"; rs.innerHTML="";
   try{
-    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_es,brands,nutriments`);
+    const r=await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=code,product_name,product_name_es,brands,nutriments`);
     const j=await r.json();
     if(j.status!==1||!j.product){ st.textContent=`No encontré "${code}" en Open Food Facts. Puedes crearlo a mano en "Agregar alimento".`; return; }
-    const p=j.product, n=p.nutriments||{};
-    let cal=n["energy-kcal_100g"]; if(cal==null&&n["energy_100g"]!=null) cal=n["energy_100g"]/4.184;
-    const brand=p.brands?` (${String(p.brands).split(",")[0].trim()})`:"";
-    const food={ id:"of_"+code, barcode:code, custom:true,
-      name:(p.product_name_es||p.product_name||"Producto "+code)+brand,
-      cat:(typeof CATS!=="undefined"&&CATS.length)?CATS[CATS.length-1]:"Otros",
-      cal:Math.round(cal||0), protein:r1(n["proteins_100g"]||0), carbs:r1(n["carbohydrates_100g"]||0), fat:r1(n["fat_100g"]||0), fiber:r1(n["fiber_100g"]||0) };
-    if(n["sugars_100g"]!=null) food.sugar=r1(n["sugars_100g"]);
-    if(n["sodium_100g"]!=null) food.sodium=Math.round(n["sodium_100g"]*1000); else if(n["salt_100g"]!=null) food.sodium=Math.round(n["salt_100g"]*400);
-    scanFood=food; st.textContent="¡Encontrado! Revisa y úsalo:";
-    rs.innerHTML=`<div class="card" style="background:var(--surface2);margin-top:10px;padding:14px">
-      <div style="font-weight:700;font-size:15px">${food.name}</div>
-      <div class="kv" style="margin-top:6px"><span>Calorías / 100 g</span><b style="color:var(--accent)">${food.cal} kcal</b></div>
-      <div class="macro-legend"><span class="m-p">●&nbsp;P ${food.protein}</span><span class="m-c">●&nbsp;C ${food.carbs}</span><span class="m-f">●&nbsp;G ${food.fat}</span><span class="m-fib">●&nbsp;Fib ${food.fiber}</span></div>
-      ${(food.sugar!=null||food.sodium!=null)?`<div class="kv"><span>Azúcar / Sodio</span><b>${food.sugar!=null?food.sugar+" g":"—"} · ${food.sodium!=null?food.sodium+" mg":"—"}</b></div>`:""}
-      <div class="row" style="margin-top:10px;gap:8px"><button class="btn-primary" onclick="scanAddToPlan()">➕ Añadir al plan</button><button class="btn-ghost btn-sm" style="flex:0" onclick="scanSaveFood(true)">💾 Solo guardar</button></div>
-    </div>`;
+    scanFood=foodFromOFF(j.product, code); st.textContent="¡Encontrado! Revisa y úsalo:";
+    rs.innerHTML=offFoodCardHTML(scanFood);
   }catch(e){ st.textContent="Sin conexión o error al buscar. Revisa tu internet e inténtalo de nuevo."; }
 }
+/* ---- L6: búsqueda de alimentos por nombre (Open Food Facts) ---- */
+let foodSearchResults=[];
+function openFoodSearch(){ set("foodSearchQuery",""); document.getElementById("foodSearchResults").innerHTML=""; document.getElementById("foodSearchStatus").textContent=""; openModal("foodSearchModal"); setTimeout(()=>{const i=document.getElementById("foodSearchQuery"); if(i)i.focus();},80); }
+async function runFoodSearch(){
+  const q=(val("foodSearchQuery")||"").trim(); if(q.length<2) return toast("Escribe al menos 2 letras");
+  const st=document.getElementById("foodSearchStatus"); st.textContent="Buscando “"+q+"”…"; document.getElementById("foodSearchResults").innerHTML="";
+  try{
+    const r=await fetch(`https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=24&fields=code,product_name,product_name_es,brands,nutriments`);
+    const j=await r.json();
+    const prods=(j.products||[]).filter(p=>(p.product_name_es||p.product_name)&&p.nutriments&&(p.nutriments["energy-kcal_100g"]!=null||p.nutriments["energy_100g"]!=null));
+    foodSearchResults=prods.map(p=>foodFromOFF(p,p.code));
+    if(!foodSearchResults.length){ st.textContent="Sin resultados. Prueba otro nombre o créalo a mano."; return; }
+    st.textContent=foodSearchResults.length+" resultados — toca uno:";
+    document.getElementById("foodSearchResults").innerHTML=foodSearchResults.map((f,i)=>`<button class="add-opt" style="width:100%;text-align:left;cursor:pointer" onclick="pickFoundFood(${i})"><div class="ao-main"><div class="ao-name">${f.name}</div><div class="ao-sub">${f.cal} kcal · P ${f.protein} · C ${f.carbs} · G ${f.fat} / 100 g</div></div></button>`).join("");
+  }catch(e){ st.textContent="Sin conexión o error. Revisa tu internet."; }
+}
+function pickFoundFood(i){ const f=foodSearchResults[i]; if(!f) return; scanFood=f;
+  if(!state.customFoods.some(x=>x.id===f.id)) state.customFoods.push(f); save();
+  closeModal("foodSearchModal"); openAdd(); set("apType","food"); onAddTypeChange(); set("apSearch", f.name.slice(0,12)); renderAddResults(); selectAddItem(f.id); renderAddQty(); toast("Añadido — ajusta la cantidad"); }
 function scanSaveFood(toastIt){ if(!scanFood) return; if(!state.customFoods.some(f=>f.barcode===scanFood.barcode)) state.customFoods.push(scanFood); save(); if(toastIt){ renderFoods&&renderFoods(); closeScanner(); toast("Guardado en tus alimentos"); } }
 function scanAddToPlan(){ if(!scanFood) return; scanSaveFood(false); const id=scanFood.id, nm=scanFood.name; closeScanner();
   openAdd(); set("apType","food"); onAddTypeChange(); set("apSearch", nm.slice(0,12)); renderAddResults(); selectAddItem(id); renderAddQty(); }
@@ -2043,7 +2091,9 @@ function renderPlan(){
 function removePlanItem(slot,i){ state.plan.slots[slot].splice(i,1); save(); refreshAfterPlanChange(); }
 
 let addSel=null;   // {type:'food'|'dish', id}
-let addUnit="g";   // 'g' | 'pza'
+let addUnit="g";   // 'g' | 'pza' | clave de PORTIONS
+/* porciones caseras aproximadas (gramos por unidad) */
+const PORTIONS={ cdita:{lbl:"Cucharadita",g:5}, cda:{lbl:"Cucharada",g:15}, mediataza:{lbl:"½ taza",g:120}, taza:{lbl:"Taza",g:240}, vaso:{lbl:"Vaso",g:250}, punado:{lbl:"Puñado",g:30}, palma:{lbl:"Palma (proteína)",g:100} };
 let editingPlan=null;  // {slot,index} cuando editas un ítem ya añadido
 /* acción contextual del botón central según la pantalla */
 function fabAction(){
@@ -2108,14 +2158,16 @@ function renderAddQty(){
   if(!addSel){ el.innerHTML=""; return; }
   if(addSel.type==="food"){
     const f=foodById(addSel.id);
-    const toggle=f.piece?`<div class="unit-toggle" style="margin-bottom:8px">
-        <button class="${addUnit==='g'?'on':''}" onclick="setAddUnit('g')">Gramos</button>
-        <button class="${addUnit==='pza'?'on':''}" onclick="setAddUnit('pza')">Piezas</button></div>`:"";
-    const lbl=addUnit==="pza"?`Cantidad (${f.pieceName||'pza'})`:"Gramos";
-    const def=addUnit==="pza"?1:100;
-    el.innerHTML=`${toggle}<div class="field" style="margin:0"><label>${lbl}</label>
-      <input type="number" id="apQtyVal" inputmode="decimal" min="0" step="${addUnit==='pza'?'0.5':'1'}" value="${def}" oninput="renderAddPreview()"></div>
+    const opts=`<option value="g">Gramos</option>`+(f.piece?`<option value="pza">${f.pieceName||'Pieza'}</option>`:"")+
+      Object.keys(PORTIONS).map(k=>`<option value="${k}">${PORTIONS[k].lbl} (~${PORTIONS[k].g} g)</option>`).join("");
+    const sel=`<div class="field" style="margin:0 0 8px"><label>Unidad</label><select id="apUnit" onchange="setAddUnit(this.value)">${opts}</select></div>`;
+    const isMeasure=PORTIONS[addUnit]!=null;
+    const lbl=addUnit==="pza"?`Cantidad (${f.pieceName||'pza'})`:(isMeasure?`Cantidad (${PORTIONS[addUnit].lbl})`:"Gramos");
+    const def=addUnit==="g"?100:1;
+    el.innerHTML=`${sel}<div class="field" style="margin:0"><label>${lbl}</label>
+      <input type="number" id="apQtyVal" inputmode="decimal" min="0" step="${addUnit==='g'?'1':'0.5'}" value="${def}" oninput="renderAddPreview()"></div>
       <div id="apPreview" class="add-preview"></div>`;
+    const us=document.getElementById("apUnit"); if(us) us.value=addUnit;
   }else{
     el.innerHTML=`<div class="field" style="margin:0"><label>Porción (%)</label>
       <input type="number" id="apQtyVal" inputmode="numeric" min="1" value="100" oninput="renderAddPreview()"></div>
@@ -2127,8 +2179,10 @@ function addComputed(){
   const v=num("apQtyVal");
   if(addSel.type==="food"){
     const f=foodById(addSel.id);
-    const grams=addUnit==="pza"?v*(f.piece||0):v;
-    const label=addUnit==="pza"?`${v} ${f.pieceName||'pza'} (${r0(grams)} g)`:`${r0(grams)} g`;
+    const P=PORTIONS[addUnit];
+    const grams = addUnit==="pza" ? v*(f.piece||0) : (P ? v*P.g : v);
+    const label = addUnit==="pza" ? `${v} ${f.pieceName||'pza'} (${r0(grams)} g)`
+      : (P ? `${v} ${P.lbl} (~${r0(grams)} g)` : `${r0(grams)} g`);
     return {f,grams,macros:foodMacros(f,grams),label};
   }
   const d=dishById(addSel.id), sc=v/100;
