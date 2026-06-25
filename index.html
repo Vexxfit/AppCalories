@@ -400,6 +400,8 @@ button,a,.meal-row,.settings-row,.pill.cat,nav button,.subnav button,.add-fab,.i
 /* evitar el zoom automático de iOS al enfocar un input (mínimo 16px) */
 input,select,textarea{font-size:16px}
 .set-row input{font-size:16px}
+/* iOS: los input date/time no respetan el ancho y se desbordan → forzar que encojan */
+input[type="date"],input[type="time"]{-webkit-appearance:none;appearance:none;min-width:0;max-width:100%;box-sizing:border-box}
 /* mobile-first: una sola columna siempre (la app es una columna estilo teléfono) */
 /* minmax(0,1fr) evita que el track de grid se infle al min-content y desborde la pantalla */
 .grid{grid-template-columns:minmax(0,1fr)!important;gap:14px}
