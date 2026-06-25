@@ -2955,14 +2955,16 @@ function tplById(id){ return state.templates.find(t=>t.id===id); }
 /* ----- cálculos (idénticos al Excel) ----- */
 function epley(wKg, reps){ return reps>0 ? wKg*(1+reps/30) : wKg; }   // 1RM ≈ peso×(1+reps/30)
 function isWarmup(s){ return s && s.type==="w"; }   // el calentamiento no cuenta para nada
-function entryTonnage(e){ return e.sets.reduce((a,s)=>a+(isWarmup(s)?0:(s.weight||0)*(s.reps||0)),0); }   // peso×reps (sin calentamiento)
-function entryBest1RM(e){ return e.sets.reduce((m,s)=>isWarmup(s)?m:Math.max(m, epley(s.weight||0, s.reps||0)),0); }
-function entryTopWeight(e){ return e.sets.reduce((m,s)=>isWarmup(s)?m:Math.max(m, s.weight||0),0); }
-/* factor de serie efectiva con fatiga por técnica: calentamiento=0, fallo/dropset≈máx, superserie+15% */
+/* "cargas" de una serie: un dropset tiene varias bajadas (peso×reps); las demás, una */
+function setLoads(s){ return (s && s.type==="d" && Array.isArray(s.drops) && s.drops.length) ? s.drops : [{weight:(s&&s.weight)||0, reps:(s&&s.reps)||0}]; }
+function entryTonnage(e){ return e.sets.reduce((a,s)=> isWarmup(s)?a : a + setLoads(s).reduce((x,d)=>x+(d.weight||0)*(d.reps||0),0), 0); }
+function entryBest1RM(e){ return e.sets.reduce((m,s)=> isWarmup(s)?m : Math.max(m, ...setLoads(s).map(d=>epley(d.weight||0,d.reps||0))), 0); }
+function entryTopWeight(e){ return e.sets.reduce((m,s)=> isWarmup(s)?m : Math.max(m, ...setLoads(s).map(d=>d.weight||0)), 0); }
+/* factor de serie efectiva con fatiga por técnica: calentamiento=0, fallo/dropset≈máx */
 function setEffFactor(s){
   if(isWarmup(s)) return 0;
   const base=(s.type==="f"||s.type==="d") ? 1 : effFactor(s.rir);
-  const mult=s.type==="f"?1.15 : s.type==="d"?1.3 : s.type==="s"?1.15 : 1;   // dropset/superserie/fallo suman fatiga
+  const mult=s.type==="f"?1.15 : s.type==="d"?1.3 : 1;   // un dropset cuenta como UNA serie, con más fatiga
   return base*mult;
 }
 function workoutTonnage(w){ return w.entries.reduce((a,e)=>a+entryTonnage(e),0); }
@@ -3010,7 +3012,7 @@ function startSession(){
     entries: t.exercises.map(te=>{
       const ex=exById(te.exId);
       const last=lastSetsFor(te.exId);
-      const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||te.rir||""}))
+      const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||te.rir||"", type:s.type, drops:s.drops?s.drops.map(d=>({weight:d.weight||0,reps:d.reps||0})):undefined}))
                         : Array.from({length:Math.max(1,te.sets||1)}, ()=>({weight:0,reps:0,rir:te.rir||""}));
       return { exId:te.exId, name:ex?ex.name:te.exId, group:ex?ex.group:"—",
         repRange:te.repRange, rir:te.rir, prefilled:!!last, sets };
@@ -3020,7 +3022,6 @@ function startSession(){
 }
 function cancelSession(){ if(confirm(sessionDraft&&sessionDraft.editingId?"¿Descartar los cambios?":"¿Descartar la sesión en curso?")){ sessionDraft=null; renderSesion(); } }
 function moveSessionEx(i,dir){ const a=sessionDraft.entries; const j=i+dir; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; renderSesion(); }
-function toggleSuperset(i){ if(!sessionDraft||!sessionDraft.entries[i]) return; sessionDraft.entries[i].superWithNext=!sessionDraft.entries[i].superWithNext; renderSesion(); }
 function editWorkout(id){
   if(sessionDraft){ if(!confirm("Tienes una sesión en el editor. ¿Reemplazarla por esta?")) return; }
   const w=state.workouts.find(x=>x.id===id); if(!w) return;
@@ -3057,11 +3058,21 @@ const SET_TAGS={
   n:{title:"Serie normal",bg:"var(--surface3)",fg:"var(--muted)",short:""},
   w:{title:"Calentamiento (no cuenta)",bg:"#C7CDD6",fg:"#28303B",short:"C"},
   f:{title:"Al fallo",bg:"#FF453A",fg:"#fff",short:"F"},
-  d:{title:"Dropset (más fatiga)",bg:"#FF9F0A",fg:"#3a2600",short:"D"},
-  s:{title:"Superserie (más fatiga)",bg:"#7C3AED",fg:"#fff",short:"S"}
+  d:{title:"Dropset",bg:"#FF9F0A",fg:"#3a2600",short:"D"}
 };
-function cycleSetType(i,j){ const order=["n","w","f","d","s"]; const s=sessionDraft.entries[i].sets[j];
-  const next=order[(order.indexOf(s.type||"n")+1)%order.length]; s.type = next==="n"?undefined:next; renderSesion(); }
+const SS_COLORS={A:"#7C3AED",B:"#0EA5A5",C:"#F59E0B",D:"#EC4899",E:"#22C55E"};
+function cycleSetType(i,j){ const order=["n","w","f","d"]; const s=sessionDraft.entries[i].sets[j];
+  const prev=s.type||"n"; const next=order[(order.indexOf(prev)+1)%order.length];
+  if(next==="d"){ if(!Array.isArray(s.drops)||!s.drops.length) s.drops=[{weight:s.weight||0,reps:s.reps||0}]; s.type="d"; }
+  else { if(prev==="d"&&Array.isArray(s.drops)&&s.drops[0]){ s.weight=s.drops[0].weight||0; s.reps=s.drops[0].reps||0; } delete s.drops; s.type = next==="n"?undefined:next; }
+  renderSesion(); }
+/* --- bajadas de un dropset --- */
+function updateDropWeight(i,j,k,v){ const s=sessionDraft.entries[i].sets[j]; if(!s.drops) return; s.drops[k].weight=toKg(Math.max(0,parseFloat(v)||0)); if(k===0)s.weight=s.drops[0].weight; renderSesion(); }
+function updateDropReps(i,j,k,v){ const s=sessionDraft.entries[i].sets[j]; if(!s.drops) return; s.drops[k].reps=Math.max(0,parseInt(v)||0); if(k===0)s.reps=s.drops[0].reps; renderSesion(); }
+function addDrop(i,j){ const s=sessionDraft.entries[i].sets[j]; if(!s.drops)s.drops=[{weight:s.weight||0,reps:s.reps||0}]; const last=s.drops[s.drops.length-1]; s.drops.push({weight:last?Math.max(0,(last.weight||0)-(last.weight>20?5:2.5)):0,reps:last?last.reps:0}); renderSesion(); }
+function removeDrop(i,j,k){ const s=sessionDraft.entries[i].sets[j]; if(s.drops&&s.drops.length>1){ s.drops.splice(k,1); s.weight=s.drops[0].weight; s.reps=s.drops[0].reps; } renderSesion(); }
+/* --- superseries por grupos (A, B, C…) --- */
+function cycleSuperset(i){ const e=sessionDraft.entries[i]; const seq=[null,"A","B","C","D","E"]; const idx=seq.indexOf(e.sg||null); const next=seq[(idx+1)%seq.length]; if(next) e.sg=next; else delete e.sg; renderSesion(); }
 function updateSessionNote(v){ if(sessionDraft){ sessionDraft.note=v; persistDraft(); } }
 function addSet(i){ const s=sessionDraft.entries[i].sets; const last=s[s.length-1]; s.push({weight:last?last.weight:0,reps:0,rir:last?last.rir:""}); renderSesion(); }
 function removeSet(i,j){ const s=sessionDraft.entries[i].sets; if(s.length>1) s.splice(j,1); renderSesion(); }
@@ -3117,34 +3128,54 @@ function renderSesion(){
         <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">💾 Guardar como plantilla</button>
       </div>
       <textarea id="sessNote" placeholder="📝 Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
-      <small class="hint" style="display:block;margin-top:8px">Toca el número de serie para marcar: <b style="color:#28303B;background:#C7CDD6;padding:0 5px;border-radius:4px">C</b> calentamiento (no cuenta) · <b style="color:#fff;background:#FF453A;padding:0 5px;border-radius:4px">F</b> fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 5px;border-radius:4px">D</b> dropset · <b style="color:#fff;background:#7C3AED;padding:0 5px;border-radius:4px">S</b> superserie</small>
+      <small class="hint" style="display:block;margin-top:8px">Toca el número de serie para cambiar tipo: <b style="color:#28303B;background:#C7CDD6;padding:0 5px;border-radius:4px">C</b> calentamiento (no cuenta) · <b style="color:#fff;background:#FF453A;padding:0 5px;border-radius:4px">F</b> fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 5px;border-radius:4px">D</b> dropset (despliega bajadas). Usa 🔗 para superseries (A, B, C…).</small>
       ${(((state.prefs&&state.prefs.deloadWeeks)||0)>0 && d.week>0 && d.week%state.prefs.deloadWeeks===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">🪫 Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
     </div>
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
       const sug=progressionSuggest(e.exId,e.repRange,e.group);
-      const inSuper = e.superWithNext || (i>0 && d.entries[i-1] && d.entries[i-1].superWithNext);
-      return `<div class="ex-block" style="${inSuper?'border-left:3px solid var(--accent);':''}">
+      const ssCol = e.sg ? (SS_COLORS[e.sg]||"var(--accent)") : null;
+      return `<div class="ex-block" style="${ssCol?`border-left:4px solid ${ssCol};`:''}">
         <div class="exh">
-          <div><div class="exname">${e.name}${inSuper?' <span class="pill" style="background:var(--accent-soft);color:var(--accent);font-size:10px;padding:1px 7px">🔗 superserie</span>':''}</div>
+          <div><div class="exname">${e.name}${e.sg?` <span class="pill" style="background:${ssCol};color:#fff;font-size:10px;padding:1px 8px">🔗 Superserie ${e.sg}</span>`:''}</div>
             <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div>
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
         <div class="set-head"><span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span></div>
-        ${e.sets.map((s,j)=>{const tg=SET_TAGS[s.type||"n"]; const isDrop=s.type==="d";return `
-          <div class="set-row" style="${isDrop?'border-left:3px solid #FF9F0A;background:rgba(255,159,10,.06);border-radius:8px':''}">
-            <button class="sidx" title="${tg.title} · toca para cambiar (D = dropset)" style="cursor:pointer;border:none;background:${tg.bg};color:${tg.fg};font-weight:700" onclick="cycleSetType(${i},${j})">${tg.short||(j+1)}</button>
+        ${e.sets.map((s,j)=>{
+          const tg=SET_TAGS[s.type||"n"];
+          let cShort,cBg,cFg;
+          if(s.type&&s.type!=="n"){ cShort=tg.short; cBg=tg.bg; cFg=tg.fg; }
+          else if(e.sg){ cShort=e.sg; cBg=ssCol; cFg="#fff"; }
+          else { cShort=(j+1); cBg=tg.bg; cFg=tg.fg; }
+          const chip=`<button class="sidx" title="Toca para cambiar tipo (calentamiento/fallo/dropset)" style="cursor:pointer;border:none;background:${cBg};color:${cFg};font-weight:700" onclick="cycleSetType(${i},${j})">${cShort}</button>`;
+          if(s.type==="d"){
+            const drops=(s.drops&&s.drops.length)?s.drops:[{weight:s.weight||0,reps:s.reps||0}];
+            return `<div style="border-left:3px solid #FF9F0A;background:rgba(255,159,10,.07);border-radius:8px;padding:8px;margin-bottom:8px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">${chip}<b style="font-size:12px;color:#b06a00">Dropset · 1 serie, varias bajadas</b><span style="flex:1"></span><button class="btn-danger btn-sm" style="flex:0" onclick="removeSet(${i},${j})">×</button></div>
+              ${drops.map((dp,k)=>`<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <span style="flex:0 0 26px;font-size:11px;color:var(--muted)">${k+1}ª</span>
+                <input type="number" inputmode="decimal" style="flex:1;min-width:0" value="${dp.weight?uw(dp.weight):""}" placeholder="${unit()}" onchange="updateDropWeight(${i},${j},${k},this.value)">
+                <input type="number" inputmode="numeric" style="flex:1;min-width:0" value="${dp.reps||""}" placeholder="reps" onchange="updateDropReps(${i},${j},${k},this.value)">
+                ${drops.length>1?`<button class="btn-danger btn-sm" style="flex:0;padding:3px 8px" onclick="removeDrop(${i},${j},${k})">×</button>`:`<span style="flex:0 0 30px"></span>`}
+              </div>`).join("")}
+              <button class="btn-ghost btn-sm" style="margin-top:2px" onclick="addDrop(${i},${j})">+ bajada</button>
+            </div>`;
+          }
+          return `<div class="set-row">
+            ${chip}
             <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
             <input type="number" inputmode="numeric" value="${s.reps||""}" placeholder="0" onchange="updateSetReps(${i},${j},this.value)">
-            <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)" ${(s.type==="f"||s.type==="d")?'disabled title="Al fallo / dropset = RIR 0"':''}>
+            <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)" ${s.type==="f"?'disabled title="Al fallo = RIR 0"':''}>
             <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
-          </div>`;}).join("")}
+          </div>`;
+        }).join("")}
         <div class="row" style="margin-top:8px;gap:6px">
           <button class="btn-ghost btn-sm" onclick="addSet(${i})">+ Serie</button>
           <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},-1)" ${i===0?"disabled":""}>↑</button>
           <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},1)" ${i===d.entries.length-1?"disabled":""}>↓</button>
-          ${i<d.entries.length-1?`<button class="btn-ghost btn-sm" style="flex:0;${e.superWithNext?'color:var(--accent);font-weight:700':''}" title="Superserie con el siguiente ejercicio" onclick="toggleSuperset(${i})">🔗</button>`:''}
+          <button class="btn-ghost btn-sm" style="flex:0;${e.sg?`color:${ssCol};font-weight:700`:''}" title="Superserie: agrupa ejercicios (A, B, C…)" onclick="cycleSuperset(${i})">🔗${e.sg||""}</button>
           <button class="btn-ghost btn-sm" style="flex:0" onclick="removeExEntry(${i})">Quitar</button>
         </div>
       </div>`;
@@ -3176,8 +3207,11 @@ function saveSession(){
     if(tw>0 && (!o || tw>o.weight.val+1e-6)) prHits.push(e.name+" (peso)");
     else if(orm>0 && (!o || orm>o.orm.val+1e-6)) prHits.push(e.name+" (1RM)");
   });
-  // limpiar series vacías
-  d.entries.forEach(e=>{ e.sets=e.sets.filter(s=>(s.weight||0)>0 && (s.reps||0)>0); });
+  // limpiar series vacías (en dropset, limpiar bajadas vacías)
+  d.entries.forEach(e=>{ e.sets=e.sets.filter(s=>{
+    if(s.type==="d"){ s.drops=(s.drops||[]).filter(dp=>(dp.weight||0)>0&&(dp.reps||0)>0); if(s.drops.length){ s.weight=s.drops[0].weight; s.reps=s.drops[0].reps; return true; } return false; }
+    return (s.weight||0)>0 && (s.reps||0)>0;
+  }); });
   d.entries = d.entries.filter(e=>e.sets.length);
   const editingId=d.editingId;
   const clean=JSON.parse(JSON.stringify(d)); delete clean.editingId;
