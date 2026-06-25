@@ -528,6 +528,7 @@ nav button{min-height:46px;justify-content:center}
       <div class="card">
         <h3 id="dishBuilderTitle">Nuevo platillo</h3>
         <div class="field"><label>Nombre del platillo</label><input id="dishName" placeholder="Ej. Bowl de pollo"></div>
+        <div class="field"><label>Rinde (porciones) <span style="font-weight:400;text-transform:none">· opcional, para recetas</span></label><input type="number" id="dishServings" min="1" step="1" inputmode="numeric" placeholder="Ej. 6 (hotcakes)"></div>
         <div class="row" style="align-items:flex-end">
           <div class="field" style="flex:2"><label>Ingrediente</label>
             <select id="dishIngSelect"></select></div>
@@ -1061,6 +1062,25 @@ nav button{min-height:46px;justify-content:center}
   </div>
 </div>
 
+<div class="modal-bg" id="prCalcModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('prCalcModal')">×</button>
+    <h3>🧮 Calculadora 1RM / calentamiento</h3>
+    <div style="font-weight:700;margin:6px 0 4px">1RM estimado</div>
+    <p class="card-sub" style="margin-bottom:8px">Mete un peso y reps; te doy tu 1RM (Epley) y cuánto cargar para cada repetición.</p>
+    <div class="row">
+      <div class="field" style="margin:0"><label>Peso (<span id="prcUnit">kg</span>)</label><input type="number" id="prcWeight" inputmode="decimal" placeholder="Ej. 100" oninput="calcPRCalc()"></div>
+      <div class="field" style="margin:0"><label>Reps</label><input type="number" id="prcReps" inputmode="numeric" placeholder="Ej. 5" oninput="calcPRCalc()"></div>
+    </div>
+    <div id="prc1rm" style="margin-top:10px"></div>
+    <div class="divider"></div>
+    <div style="font-weight:700;margin:0 0 4px">Calentamiento para un intento</div>
+    <p class="card-sub" style="margin-bottom:8px">Mete el peso que quieres intentar (tu PR objetivo) y te doy las series de calentamiento.</p>
+    <div class="field" style="margin:0"><label>Peso objetivo (<span id="prcUnit2">kg</span>)</label><input type="number" id="prcTarget" inputmode="decimal" placeholder="Ej. 120" oninput="calcPRCalc()"></div>
+    <div id="prcWarmup" style="margin-top:10px"></div>
+  </div>
+</div>
+
 <div class="modal-bg" id="foodSearchModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('foodSearchModal')">×</button>
@@ -1346,6 +1366,8 @@ function load(){
   if(!state.steps) state.steps = {};   // pasos por día {date:n}
   if(!state.waterLog) state.waterLog = {};   // agua por día {date:ml}
   if(!Array.isArray(state.folders)) state.folders = [];   // carpetas de plantillas
+  if(!Array.isArray(state.favFoods)) state.favFoods = [];      // alimentos favoritos (ids)
+  if(!Array.isArray(state.recentFoods)) state.recentFoods = []; // alimentos recientes (ids)
   // migración: el agua de hoy también vive en waterLog
   if(state.water && state.water.date && state.waterLog[state.water.date]==null) state.waterLog[state.water.date]=state.water.ml||0;
   // comidas personalizables (sembrado en el primer arranque)
@@ -1597,7 +1619,7 @@ function renderHoy(){
       </button>${itemsHtml}</div>`;
   }).join("");
   const goalCta=goalCal?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="openCloseMacros()">🎯 Cerrar mis macros</button>`:`<button class="btn-primary" style="width:100%;margin-top:4px" onclick="nav('metas')">Calcular mi meta diaria</button>`;
-  const cycleLine = (eg&&eg.cycled)?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:600;margin-top:8px">🔁 Hoy es día ciclado: ${nfmt(eg.cal)} kcal</div>`:"";
+  const cycleLine = (eg&&eg.cycled)?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:600;margin-top:8px">🔁 Hoy${eg.type&&CYCLE_TYPES[eg.type]?" · "+CYCLE_TYPES[eg.type].lbl:""}: ${nfmt(eg.cal)} kcal</div>`:"";
   const microLine = (t.sugar>0||t.sodium>0)?`<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">Azúcar ${r1(t.sugar)} g · Sodio ${nfmt(t.sodium)} mg</div>`:"";
   const copyDayBtn = prev ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">↻ Copiar mi día de ayer</button>` : "";
   document.getElementById("hoyContent").innerHTML=`
@@ -1688,6 +1710,7 @@ function renderAjustes(){
     {ic:"⚖️",label:"Unidades de peso",val:unit(),act:"toggleUnitAndRefresh()"},
     {ic:dark?"🌙":"☀️",label:"Tema",val:dark?"Oscuro":"Claro",act:"toggleTheme()"},
     {ic:"🪫",label:"Semana de descarga (deload)",val:dw?`cada ${dw} sem`:"Off",act:"setDeload()"},
+    {ic:"🧮",label:"Calculadora 1RM / calentamiento",val:"",act:"openPRCalc()"},
     {ic:"⬇️",label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
     {ic:"⬆️",label:"Importar respaldo",val:"",act:"triggerImport()"}
   ];
@@ -2047,16 +2070,18 @@ function saveDish(){
   const name=val("dishName").trim();
   if(!name) return toast("Ponle nombre al platillo");
   if(!dishDraft.length) return toast("Añade al menos un ingrediente");
+  const servings=parseInt(val("dishServings"))||0;
   if(editingDishId){
-    const d=dishById(editingDishId); d.name=name; d.ingredients=dishDraft.slice();
+    const d=dishById(editingDishId); d.name=name; d.ingredients=dishDraft.slice(); if(servings>1)d.servings=servings; else delete d.servings;
   }else{
-    state.dishes.push({id:"d_"+Date.now(), name, ingredients:dishDraft.slice()});
+    const nd={id:"d_"+Date.now(), name, ingredients:dishDraft.slice()}; if(servings>1)nd.servings=servings; state.dishes.push(nd);
   }
   save(); resetDishBuilder(); renderDishes(); toast("Platillo guardado");
 }
 function resetDishBuilder(){
   dishDraft=[]; editingDishId=null;
   document.getElementById("dishName").value="";
+  const sv=document.getElementById("dishServings"); if(sv)sv.value="";
   document.getElementById("dishBuilderTitle").textContent="Nuevo platillo";
   renderDishDraft();
 }
@@ -2064,6 +2089,7 @@ function editDish(id){
   const d=dishById(id); if(!d) return;
   editingDishId=id; dishDraft=d.ingredients.map(x=>({...x}));
   document.getElementById("dishName").value=d.name;
+  const sv=document.getElementById("dishServings"); if(sv)sv.value=d.servings||"";
   document.getElementById("dishBuilderTitle").textContent="Editar: "+d.name;
   renderDishDraft(); nav("platillos"); window.scrollTo(0,0);
 }
@@ -2080,7 +2106,7 @@ function renderDishes(){
     return `<div class="card" style="background:var(--surface2);padding:14px;margin-bottom:10px">
       <div class="flex-between">
         <div><b style="font-family:'Bebas Neue';font-size:18px;letter-spacing:.5px">${d.name}</b>
-          <div style="font-size:11px;color:var(--muted)">${d.ingredients.length} ingredientes · ${r0(t.grams)} g</div></div>
+          <div style="font-size:11px;color:var(--muted)">${d.ingredients.length} ingredientes · ${r0(t.grams)} g${d.servings>1?` · rinde ${d.servings} porciones`:""}</div></div>
         <div class="num" style="font-size:22px;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">${r0(t.cal)}<span style="font-size:11px;color:var(--muted);-webkit-text-fill-color:var(--muted)"> kcal</span></div>
       </div>
       <div class="macro-legend">
@@ -2170,7 +2196,7 @@ function editPlanItem(slot,i){
   editingPlan={slot,index:i};
   set("apType", it.type); onAddTypeChange();
   selectAddItem(it.refId);
-  if(it.type==="food") addUnit=it.unit||"g";
+  addUnit = it.type==="food" ? (it.unit||"g") : (it.unit||"pct");
   renderAddQty();
   set("apQtyVal", it.qty!=null? it.qty : (it.type==="dish"?100:(it.unit==="pza"?1:100)));
   renderAddPreview();
@@ -2184,16 +2210,27 @@ function addPool(){
 }
 function renderAddResults(){
   const q=(val("apSearch")||"").toLowerCase().trim();
-  const pool=addPool().filter(o=>o.name.toLowerCase().includes(q)).slice(0,40);
+  const isFood=val("apType")==="food";
   const el=document.getElementById("apResults");
-  if(!pool.length){ el.innerHTML=`<div class="empty" style="margin:0">${val("apType")==="dish"?"No tienes platillos guardados.":"Sin resultados."}</div>`; return; }
-  el.innerHTML=pool.map(o=>`
-    <div class="add-opt ${addSel&&addSel.id===o.id?'sel':''}" onclick="selectAddItem('${o.id}')">
+  let quick="";
+  if(isFood && !q){
+    const ids=[...new Set([...(state.favFoods||[]),...(state.recentFoods||[])])].filter(id=>foodById(id)).slice(0,10);
+    if(ids.length) quick=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">⭐ Favoritos y recientes</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">`+
+      ids.map(id=>{const f=foodById(id), fav=(state.favFoods||[]).includes(id); const nm=f.name.length>18?f.name.slice(0,18)+'…':f.name;
+        return `<button class="pill" style="cursor:pointer;border:1px solid var(--border-soft);background:var(--surface2);color:var(--text)" onclick="selectAddItem('${id}')">${fav?'⭐ ':'🕘 '}${nm}</button>`;}).join("")+`</div>`;
+  }
+  const pool=addPool().filter(o=>o.name.toLowerCase().includes(q)).slice(0,40);
+  if(!pool.length){ el.innerHTML=quick+`<div class="empty" style="margin:0">${val("apType")==="dish"?"No tienes platillos guardados.":"Sin resultados."}</div>`; return; }
+  el.innerHTML=quick+pool.map(o=>{ const fav=isFood&&(state.favFoods||[]).includes(o.id);
+    return `<div class="add-opt ${addSel&&addSel.id===o.id?'sel':''}" onclick="selectAddItem('${o.id}')">
       <div class="ao-main"><div class="ao-name">${o.name}${o.piece?' <span class="pill" style="padding:1px 7px;font-size:10px">pza</span>':''}</div>
         <div class="ao-sub">${o.type==='food'?r0(o.kcal)+' kcal / 100 g · '+o.sub:r0(o.kcal)+' kcal · '+o.sub}</div></div>
+      ${isFood?`<span onclick="event.stopPropagation();toggleFav('${o.id}')" style="cursor:pointer;font-size:16px;padding:0 4px" title="Favorito">${fav?'⭐':'☆'}</span>`:''}
       ${addSel&&addSel.id===o.id?'<span style="color:var(--accent);font-size:17px">✓</span>':''}
-    </div>`).join("");
+    </div>`;}).join("");
 }
+function toggleFav(id){ if(!state.favFoods)state.favFoods=[]; const i=state.favFoods.indexOf(id); if(i>=0)state.favFoods.splice(i,1); else state.favFoods.unshift(id); save(); renderAddResults(); }
+function addRecent(id){ if(!state.recentFoods)state.recentFoods=[]; state.recentFoods=[id,...state.recentFoods.filter(x=>x!==id)].slice(0,12); }
 function selectAddItem(id){ addSel={type:val("apType"),id}; renderAddResults(); renderAddQty(); }
 function setAddUnit(u){ addUnit=u; renderAddQty(); }
 function renderAddQty(){
@@ -2212,9 +2249,18 @@ function renderAddQty(){
       <div id="apPreview" class="add-preview"></div>`;
     const us=document.getElementById("apUnit"); if(us) us.value=addUnit;
   }else{
-    el.innerHTML=`<div class="field" style="margin:0"><label>Porción (%)</label>
-      <input type="number" id="apQtyVal" inputmode="numeric" min="1" value="100" oninput="renderAddPreview()"></div>
-      <div id="apPreview" class="add-preview"></div>`;
+    const d=dishById(addSel.id);
+    if(d && d.servings>1){
+      addUnit="rac";
+      el.innerHTML=`<div class="field" style="margin:0"><label>Raciones (de ${d.servings})</label>
+        <input type="number" id="apQtyVal" inputmode="decimal" min="0" step="0.5" value="1" oninput="renderAddPreview()"></div>
+        <div id="apPreview" class="add-preview"></div>`;
+    } else {
+      addUnit="pct";
+      el.innerHTML=`<div class="field" style="margin:0"><label>Porción (%)</label>
+        <input type="number" id="apQtyVal" inputmode="numeric" min="1" value="100" oninput="renderAddPreview()"></div>
+        <div id="apPreview" class="add-preview"></div>`;
+    }
   }
   renderAddPreview();
 }
@@ -2228,7 +2274,9 @@ function addComputed(){
       : (P ? `${v} ${P.lbl} (~${r0(grams)} g)` : `${r0(grams)} g`);
     return {f,grams,macros:foodMacros(f,grams),label};
   }
-  const d=dishById(addSel.id), sc=v/100;
+  const d=dishById(addSel.id);
+  if(d && d.servings>1 && addUnit==="rac"){ const sc=v/d.servings; return {d,scale:sc,macros:dishMacros(d,sc),label:`${r1(v)} de ${d.servings} raciones`}; }
+  const sc=v/100;
   return {d,scale:sc,macros:dishMacros(d,sc),label:`${r0(v)}%`};
 }
 function renderAddPreview(){
@@ -2241,9 +2289,10 @@ function confirmAddToPlan(){
   if(!addSel) return toast("Busca y elige un alimento");
   if(num("apQtyVal")<=0) return toast("Cantidad inválida");
   const c=addComputed(), qty=num("apQtyVal");
+  if(addSel.type==="food") addRecent(addSel.id);
   const item = addSel.type==="food"
     ? {type:"food",refId:addSel.id,name:c.f.name,label:c.label,macros:c.macros,qty,unit:addUnit}
-    : {type:"dish",refId:addSel.id,name:c.d.name,label:c.label,macros:c.macros,qty,unit:"pct"};
+    : {type:"dish",refId:addSel.id,name:c.d.name,label:c.label,macros:c.macros,qty,unit:(addUnit==="rac"?"rac":"pct")};
   if(editingPlan){
     const o=editingPlan, arr=state.plan.slots[o.slot];
     if(arr && arr[o.index]) arr.splice(o.index,1);
@@ -3960,25 +4009,48 @@ function setBFTarget(){ const t=num("simBF"), tw=targetWeightForBF(t); if(!tw) r
   if(!state.goals) state.goals={}; state.goals.targetBF=Math.round(t*10)/10; state.goals.goalWeight=Math.round(tw*10)/10;
   save(); renderGoalsTab(); if(currentView==="hoy")renderHoy(); toast(`Objetivo: ${r1(tw)} kg @ ${r1(t)}%`); }
 /* ===== L9: ciclado de calorías (meta por día de la semana) ===== */
+const CYCLE_TYPES={ entreno:{lbl:"Entreno",f:1}, descanso:{lbl:"Descanso",f:0.85}, refeed:{lbl:"Refeed",f:1.15}, cheat:{lbl:"Cheat",f:null}, custom:{lbl:"Personalizado",f:null} };
+function cycleDayCal(c, base){ if(!c) return base; if(typeof c==="number") return c>0?c:base;
+  const t=CYCLE_TYPES[c.type]||CYCLE_TYPES.entreno; if(t.f!=null) return Math.round(base*t.f); return (c.cal>0)?c.cal:base; }
+function cycleDayFixed(c){ if(!c) return false; if(typeof c==="number") return true; return c.type==="cheat"||c.type==="custom"||c.type==="refeed"; }
+function weekCycle(){
+  const g=state.goals; if(!g||!g.calories) return null;
+  const base=g.calories, cyc=g.cycle||{}, raw=[];
+  for(let wd=0;wd<7;wd++){ const c=cyc[wd]; raw.push({type:(c&&c.type)||(typeof c==="number"?"custom":"entreno"), cal:cycleDayCal(c,base), fixed:cycleDayFixed(c)}); }
+  if(g.bank){ const weeklyTarget=base*7, fixedSum=raw.filter(d=>d.fixed).reduce((a,d)=>a+d.cal,0);
+    const auto=raw.filter(d=>!d.fixed), autoSum=auto.reduce((a,d)=>a+d.cal,0), remaining=weeklyTarget-fixedSum;
+    if(auto.length&&autoSum>0&&remaining>0){ const floor=Math.round(g.bmr||base*0.7), factor=remaining/autoSum;
+      auto.forEach(d=>{ d.cal=Math.max(floor, Math.round(d.cal*factor/5)*5); }); } }
+  return raw.map(d=>{ const protein=g.protein, fat=g.fat; let carbs=Math.round((d.cal-protein*4-fat*9)/4); if(carbs<0)carbs=0; return {type:d.type, cal:d.cal, protein, carbs, fat, fiber:g.fiber}; });
+}
 function goalsForDay(date){ const g=state.goals; if(!g||!g.calories) return null;
-  const base={cal:g.calories,protein:g.protein,carbs:g.carbs,fat:g.fat,fiber:g.fiber,cycled:false};
-  if(g.cycle){ const wd=new Date((date||todayStr())+"T00:00:00").getDay(); const c=+g.cycle[wd];
-    if(c>0 && c!==g.calories){ const protein=g.protein, fat=g.fat; let carbs=Math.round((c-protein*4-fat*9)/4); if(carbs<0)carbs=0;
-      return {cal:c, protein, carbs, fat, fiber:g.fiber, cycled:true}; } }
-  return base; }
+  const wk=weekCycle(); if(!wk) return {cal:g.calories,protein:g.protein,carbs:g.carbs,fat:g.fat,fiber:g.fiber,cycled:false};
+  const wd=new Date((date||todayStr())+"T00:00:00").getDay(), d=wk[wd];
+  return {...d, cycled: d.cal!==g.calories || (d.type&&d.type!=="entreno")}; }
+function hasCycle(){ const g=state.goals; return !!(g&&((g.cycle&&Object.keys(g.cycle).length)||g.bank)); }
 function renderCycleCard(){ const el=document.getElementById("cycleCard"); if(!el) return; const g=state.goals;
   if(!g||!g.calories){ el.innerHTML=`<h3>🔁 Ciclado de calorías</h3><p class="card-sub" style="margin:0">Calcula tu meta primero para poder ciclar por día.</p>`; return; }
-  const days=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"], cyc=g.cycle||{};
+  const days=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"], cyc=g.cycle||{}, wk=weekCycle();
+  const weekTotal=wk.reduce((a,d)=>a+d.cal,0), target=g.calories*7;
+  const opts=val=>Object.keys(CYCLE_TYPES).map(k=>`<option value="${k}" ${val===k?"selected":""}>${CYCLE_TYPES[k].lbl}</option>`).join("");
   el.innerHTML=`<h3>🔁 Ciclado de calorías</h3>
-    <p class="card-sub" style="margin-bottom:10px">Metas distintas por día (entreno/descanso/refeed). Vacío = tu meta base (<b>${nfmt(g.calories)} kcal</b>). Se mantienen proteína y grasa; se ajustan los carbos.</p>
-    ${days.map((d,wd)=>`<div class="row" style="align-items:center;gap:10px;margin-bottom:6px"><div style="flex:0 0 80px;font-weight:600;font-size:13px">${d}</div>
-      <div class="field" style="margin:0;flex:1"><input type="number" inputmode="numeric" placeholder="${nfmt(g.calories)} kcal" value="${(cyc[wd]&&cyc[wd]!=g.calories)?cyc[wd]:''}" onchange="setCycleDay(${wd},this.value)"></div></div>`).join("")}
-    ${g.cycle?`<button class="btn-ghost btn-sm" style="margin-top:6px" onclick="clearCycle()">Quitar ciclado</button>`:""}`;
+    <p class="card-sub" style="margin-bottom:10px">Elige el tipo de cada día (vacío = Entreno). <b>Descanso</b> y <b>Refeed</b> se calculan solos; <b>Cheat</b>/<b>Personalizado</b> los escribes tú. Se mantienen proteína y grasa; ajustan los carbos.</p>
+    ${days.map((d,wd)=>{ const c=cyc[wd]; const type=(c&&c.type)||(typeof c==="number"?"custom":"entreno"); const manual=type==="cheat"||type==="custom";
+      return `<div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
+        <div style="flex:0 0 70px;font-weight:600;font-size:13px">${d}</div>
+        <div class="field" style="margin:0;flex:1"><select onchange="setCycleType(${wd},this.value)">${opts(type)}</select></div>
+        ${manual?`<div class="field" style="margin:0;flex:0 0 76px"><input type="number" inputmode="numeric" placeholder="kcal" value="${(c&&c.cal)||''}" onchange="setCycleCal(${wd},this.value)"></div>`:`<div style="flex:0 0 76px;text-align:right;font-size:12px;color:var(--muted)">${nfmt(wk[wd].cal)}</div>`}
+      </div>`; }).join("")}
+    <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer"><input type="checkbox" style="width:auto;flex:0" ${g.bank?"checked":""} onchange="setBanking(this.checked)"> <span style="font-size:13px">Compensar la semana (repartir cheat/refeed en los demás días)</span></label>
+    <div class="kv" style="margin-top:8px"><span>Total semanal</span><b style="color:${Math.abs(weekTotal-target)<=g.calories*0.06?'var(--ok)':'var(--muted)'}">${nfmt(weekTotal)} / ${nfmt(target)} kcal</b></div>
+    ${hasCycle()?`<button class="btn-ghost btn-sm" style="margin-top:6px" onclick="clearCycle()">Quitar ciclado</button>`:""}`;
 }
-function setCycleDay(wd,v){ const g=state.goals; if(!g)return; if(!g.cycle)g.cycle={}; const n=parseInt(v)||0;
-  if(n>0&&n!==g.calories) g.cycle[wd]=n; else delete g.cycle[wd];
-  if(!Object.keys(g.cycle).length) delete g.cycle; save(); if(currentView==="hoy")renderHoy(); toast("Ciclado actualizado"); }
-function clearCycle(){ const g=state.goals; if(g) delete g.cycle; save(); renderGoalsTab(); if(currentView==="hoy")renderHoy(); toast("Ciclado quitado"); }
+function setCycleType(wd,type){ const g=state.goals; if(!g)return; if(!g.cycle)g.cycle={};
+  if(type==="entreno") delete g.cycle[wd]; else { const prev=g.cycle[wd]; g.cycle[wd]={type, cal:(prev&&prev.cal)||0}; }
+  if(!Object.keys(g.cycle).length) delete g.cycle; save(); renderCycleCard(); if(currentView==="hoy")renderHoy(); }
+function setCycleCal(wd,v){ const g=state.goals; if(!g)return; if(!g.cycle)g.cycle={}; const c=g.cycle[wd]||{type:"custom"}; c.cal=parseInt(v)||0; g.cycle[wd]=c; save(); renderCycleCard(); if(currentView==="hoy")renderHoy(); }
+function setBanking(on){ const g=state.goals; if(!g)return; if(on)g.bank=true; else delete g.bank; save(); renderCycleCard(); if(currentView==="hoy")renderHoy(); }
+function clearCycle(){ const g=state.goals; if(g){ delete g.cycle; delete g.bank; } save(); renderGoalsTab(); if(currentView==="hoy")renderHoy(); toast("Ciclado quitado"); }
 /* ===== L10: cierra tus macros (sugeridor) ===== */
 function openCloseMacros(){
   const eg=goalsForDay(todayStr()); if(!eg) return toast("Define tu meta primero");
@@ -4215,6 +4287,23 @@ function registerSW(){
 function applyTheme(){ document.documentElement.setAttribute("data-theme", (state.prefs&&state.prefs.theme==="dark")?"dark":"light"); }
 function toggleTheme(){ if(!state.prefs)state.prefs={}; state.prefs.theme=(state.prefs.theme==="dark")?"light":"dark"; save(); applyTheme(); renderAjustes(); toast(state.prefs.theme==="dark"?"Modo oscuro":"Modo claro"); }
 function setDeload(){ const cur=(state.prefs&&state.prefs.deloadWeeks)||0; const v=prompt("Sugerir semana de descarga (deload) cada cuántas semanas de entreno? (0 = desactivar)", cur); if(v==null)return; const n=Math.max(0,Math.min(52,parseInt(v)||0)); if(!state.prefs)state.prefs={}; state.prefs.deloadWeeks=n; save(); renderAjustes(); toast(n?`Deload cada ${n} semanas`:"Deload desactivado"); }
+/* calculadora 1RM (Epley) + calentamiento para un intento */
+function r25(x){ return Math.round(x/2.5)*2.5; }
+function openPRCalc(){ const u=unit(); const a=document.getElementById('prcUnit'),b=document.getElementById('prcUnit2'); if(a)a.textContent=u; if(b)b.textContent=u; calcPRCalc(); openModal('prCalcModal'); }
+function calcPRCalc(){
+  const u=unit(), w=num('prcWeight'), reps=num('prcReps');
+  const el1=document.getElementById('prc1rm');
+  if(w>0&&reps>0){ const orm=w*(1+reps/30), repsT=[1,3,5,8,10,12];
+    el1.innerHTML=`<div class="kv"><span>1RM estimado (Epley)</span><b style="color:var(--accent2)">${r1(orm)} ${u}</b></div>
+      <div class="table-wrap"><table><thead><tr><th>Reps</th>${repsT.map(n=>`<th class="r">${n}</th>`).join("")}</tr></thead><tbody><tr><td>Peso</td>${repsT.map(n=>`<td class="r num">${r25(orm/(1+n/30))}</td>`).join("")}</tr></tbody></table></div>`;
+  } else el1.innerHTML=`<div class="card-sub" style="margin:0">Escribe peso y reps.</div>`;
+  const t=num('prcTarget'), el2=document.getElementById('prcWarmup');
+  if(t>0){ const ramp=[[40,5],[55,5],[70,3],[80,2],[90,1]];
+    el2.innerHTML=`<div class="table-wrap"><table><thead><tr><th>Serie</th><th class="r">%</th><th class="r">Peso (${u})</th><th class="r">Reps</th></tr></thead><tbody>
+      ${ramp.map(([p,rp],i)=>`<tr><td>Cal. ${i+1}</td><td class="r num">${p}%</td><td class="r num">${r25(t*p/100)}</td><td class="r num">${rp}</td></tr>`).join("")}
+      <tr style="font-weight:700"><td>Intento</td><td class="r num">100%</td><td class="r num">${r1(t)}</td><td class="r num">1</td></tr></tbody></table></div>`;
+  } else el2.innerHTML=`<div class="card-sub" style="margin:0">Escribe tu peso objetivo.</div>`;
+}
 function init(){
   load();
   applyTheme();
