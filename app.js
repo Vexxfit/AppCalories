@@ -1810,7 +1810,7 @@ function renderSwapList(q){ q=(q||"").toLowerCase().trim(); const e=sessionDraft
   const list=[...state.exercises].filter(x=>!q||x.name.toLowerCase().includes(q)||(x.group||"").toLowerCase().includes(q))
     .sort((a,b)=>((a.group===grp?0:1)-(b.group===grp?0:1))||a.name.localeCompare(b.name,'es')).slice(0,40);
   const el=document.getElementById("swapExList"); if(!el) return;
-  const rs="display:block;width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:10px 12px;margin-bottom:7px;color:var(--text);cursor:pointer;min-height:44px;font:inherit";
+  const rs="display:block;width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:11px 13px;margin-bottom:9px;color:var(--text);cursor:pointer;min-height:44px;font:inherit";
   el.innerHTML=list.length?list.map(x=>`<button style="${rs}" onclick="doSwapEx('${x.id}')"><b style="font-weight:600">${x.name}</b> <span style="font-size:11px;color:var(--muted)">${x.group||''}${x.group===grp?' · mismo grupo':''}</span></button>`).join(""):`<div class="empty">Sin resultados.</div>`; }
 function doSwapEx(id){ const ex=exById(id), e=sessionDraft&&sessionDraft.entries[swapExIdx]; if(ex&&e){ e.exId=ex.id; e.name=ex.name; e.group=ex.group; if(!e.repRange)e.repRange=ex.repRange; if(!e.rir)e.rir=ex.rir; } closeModal("swapExModal"); renderSesion(); toast("Ejercicio cambiado"); }
 function editWorkout(id){
@@ -1972,17 +1972,17 @@ function renderSesion(){
           </div>`;
         }).join("")}
         ${(function(){const im=uniImbalance(e); return im?`<div class="exmeta" style="color:var(--warn);font-weight:600;margin-top:4px">⚠️ Desbalance L/D: izq ${im.L} vs der ${im.R} reps (${im.pct}% más fuerte el ${im.strong})</div>`:'';})()}
-        <div class="row" style="margin-top:8px;gap:6px">
-          <button class="btn-ghost btn-sm" onclick="addSet(${i})">+ Serie</button>
-          <button class="btn-ghost btn-sm" style="flex:0" title="Agregar calentamiento" onclick="addWarmups(${i})">🔥</button>
-          <button class="btn-ghost btn-sm" style="flex:0" title="Cambiar ejercicio" onclick="openSwapEx(${i})">⇄</button>
-          <button class="btn-ghost btn-sm" style="flex:0;${e.uni?'color:var(--accent);font-weight:700':''}" title="Unilateral: registrar izquierda y derecha" onclick="toggleUni(${i})">L/D</button>
-          <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},-1)" ${i===0?"disabled":""}>↑</button>
-          <button class="btn-ghost btn-sm" style="flex:0" onclick="moveSessionEx(${i},1)" ${i===d.entries.length-1?"disabled":""}>↓</button>
-          <button class="btn-ghost btn-sm" style="flex:0;${e.sg?`color:${ssCol};font-weight:700`:''}" title="Superserie: agrupa ejercicios (A, B, C…)" onclick="cycleSuperset(${i})">🔗${e.sg||""}</button>
-          <button class="btn-ghost btn-sm" style="flex:0" onclick="removeExEntry(${i})">Quitar</button>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;row-gap:10px;margin-top:12px">
+          <button class="btn-ghost btn-sm" style="flex:1 1 auto;min-width:96px" onclick="addSet(${i})">+ Serie</button>
+          <button class="btn-ghost btn-sm" title="Agrega 3 series de calentamiento (no cuentan)" onclick="addWarmups(${i})">🔥 Calentar</button>
+          <button class="btn-ghost btn-sm" title="Cambiar este ejercicio por otro" onclick="openSwapEx(${i})">⇄ Cambiar</button>
+          <button class="btn-ghost btn-sm" style="${e.uni?'color:var(--accent);font-weight:700':''}" title="Unilateral: registrar izquierda y derecha" onclick="toggleUni(${i})">L/D</button>
+          <button class="btn-ghost btn-sm" style="${e.sg?`color:${ssCol};font-weight:700`:''}" title="Superserie: agrupa ejercicios (A, B, C…)" onclick="cycleSuperset(${i})">🔗 ${e.sg||"Superserie"}</button>
+          <button class="btn-ghost btn-sm" title="Subir" onclick="moveSessionEx(${i},-1)" ${i===0?"disabled":""}>↑</button>
+          <button class="btn-ghost btn-sm" title="Bajar" onclick="moveSessionEx(${i},1)" ${i===d.entries.length-1?"disabled":""}>↓</button>
+          <button class="btn-ghost btn-sm" onclick="removeExEntry(${i})">Quitar</button>
         </div>
-        <div class="row" style="margin-top:6px;gap:6px">
+        <div class="row" style="margin-top:8px;gap:8px">
           <div class="field" style="margin:0;flex:0 0 88px"><input placeholder="tempo 3-1-1" value="${(e.tempo||'').replace(/"/g,'&quot;')}" onchange="setExTempo(${i},this.value)" style="font-size:13px"></div>
           <div class="field" style="margin:0;flex:1"><input placeholder="📝 nota del ejercicio" value="${(e.exNote||'').replace(/"/g,'&quot;')}" onchange="setExNote(${i},this.value)" style="font-size:13px"></div>
         </div>

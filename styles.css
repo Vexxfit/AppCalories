@@ -437,3 +437,20 @@ nav button{min-height:46px;justify-content:center}
 .unit-toggle button{padding:8px 16px;border-radius:9px;font-size:13px;font-weight:600;background:none;color:var(--muted);min-height:0}
 .unit-toggle button.on{background:#fff;color:var(--text);box-shadow:var(--shadow-sm)}
 .add-preview{font-size:13px;color:var(--muted);margin-top:8px;padding:0 2px}
+
+/* ====================================================================
+   ESPACIADO v2 — más aire (aprobado jun 2026). Escala: 4 / 8 / 12 / 16 / 24
+   ==================================================================== */
+/* 1 · Series de la sesión: inputs más altos, columna "Der" igual de ancha
+   que "Izq", y más separación entre filas (también aplica al calentamiento) */
+.set-row,.set-head{grid-template-columns:30px 1fr 1fr 1fr 30px!important;gap:11px!important;align-items:center}
+.set-head{margin-bottom:9px!important}
+.set-row{margin-bottom:11px!important}
+.set-row input{padding:10px 8px!important}
+/* 2 · Lista de comidas (Hoy): renglones con más respiro y mejor toque */
+.meal-item{padding:11px 0!important}
+/* 3 · Formularios (Metas y demás): más aire entre campos y etiqueta/campo */
+.field{margin-bottom:20px!important}
+label{margin-bottom:9px!important}
+/* 4 · Filas dato–valor (resumen / medidas) menos apretadas */
+.kv{padding:11px 0!important}

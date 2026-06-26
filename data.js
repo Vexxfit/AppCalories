@@ -94,6 +94,7 @@ const EX_GROUPS = ["Pecho","Espalda","Hombro","Bíceps","Tríceps","Cuádriceps"
 const DEFAULT_EXERCISES = [
   {id:"e_pressbanca",     name:"Press banca plano",                          group:"Pecho",      repRange:"6-10",  rir:"0-1"},
   {id:"e_pressincmaq",    name:"Press inclinado en máquina",                 group:"Pecho",      repRange:"6-10",  rir:"0-1"},
+  {id:"e_pressincbarra",  name:"Press inclinado con barra",                  group:"Pecho",      repRange:"6-10",  rir:"0-1"},
   {id:"e_pressincmanc",   name:"Press inclinado con mancuernas",             group:"Pecho",      repRange:"6-10",  rir:"0-1"},
   {id:"e_pecfly",         name:"Pec Fly",                                    group:"Pecho",      repRange:"8-12",  rir:"0-1"},
   {id:"e_flysarriba",     name:"Flys de arriba hacia abajo",                 group:"Pecho",      repRange:"10-15", rir:"0-1"},
