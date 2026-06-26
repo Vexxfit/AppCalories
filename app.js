@@ -213,6 +213,59 @@ function microWarnings(t, daily){
   return w;
 }
 
+/* gramos reales de un item de plan (alimento) según su unidad guardada */
+function itemGrams(it){
+  if(!it||it.type!=="food") return 0;
+  const f=foodById(it.refId); if(!f) return 0;
+  const q=it.qty!=null?it.qty:0, u=it.unit||"g", P=PORTIONS[u];
+  return u==="pza" ? q*(f.piece||0) : (P ? q*P.g : q);
+}
+/* azúcar/sodio reales del día, recalculados desde la base (el snapshot del item a veces no los trae) */
+function daySugarSodium(){
+  let sugar=0, sodium=0; const items=[];
+  Object.values(state.plan.slots||{}).forEach(slot=>(slot||[]).forEach(it=>{
+    let s=0, so=0, food=null;
+    if(it.type==="food"){ food=foodById(it.refId); const g=itemGrams(it);
+      if(food && g>0){ s=(food.sugar||0)*g/100; so=(food.sodium||0)*g/100; }
+      else { s=(it.macros&&it.macros.sugar)||0; so=(it.macros&&it.macros.sodium)||0; } }
+    else { s=(it.macros&&it.macros.sugar)||0; so=(it.macros&&it.macros.sodium)||0; }
+    sugar+=s; sodium+=so; if(s>0||so>0) items.push({name:it.name, sugar:s, sodium:so, food});
+  }));
+  return {sugar, sodium, items};
+}
+/* mejor cambio: mismo grupo de alimento, calorías parecidas y bastante menos azúcar/sodio */
+function swapFor(food, micro){
+  if(!food) return null; const cur=food[micro]||0; if(cur<=0) return null;
+  const calTol=Math.max(50,(food.cal||0)*0.4);
+  const cands=allFoods().filter(c=> c.id!==food.id && c.cat===food.cat
+     && (c[micro]||0) <= cur*0.6 && Math.abs((c.cal||0)-(food.cal||0))<=calTol);
+  if(!cands.length) return null;
+  cands.sort((a,b)=> Math.abs((a.cal||0)-(food.cal||0)) - Math.abs((b.cal||0)-(food.cal||0)));
+  return cands[0];
+}
+/* tarjeta de recomendaciones cuando el azúcar o el sodio del día están altos */
+function microAdviceCard(){
+  const dd=daySugarSodium();
+  const sugarHi=dd.sugar>50, sodiumHi=dd.sodium>2300;
+  if(!sugarHi && !sodiumHi) return "";
+  const fmt=(v,micro)=> micro==="sugar" ? r1(v)+" g" : nfmt(Math.round(v))+" mg";
+  const section=(micro,title)=>{
+    const top=dd.items.filter(x=>x[micro]>0).sort((a,b)=>b[micro]-a[micro]).slice(0,3);
+    if(!top.length) return "";
+    const rows=top.map(x=>{
+      const sw=swapFor(x.food,micro);
+      const swLine=sw?`<div style="font-size:12px;color:var(--accent);margin-top:3px">↳ prueba <b>${sw.name}</b> · ${fmt(micro==="sugar"?(sw.sugar||0):(sw.sodium||0),micro)} por 100 g</div>`:"";
+      return `<div style="padding:8px 0;border-bottom:1px solid var(--border-soft)"><div style="display:flex;justify-content:space-between;gap:10px"><span>${x.name}</span><b>${fmt(x[micro],micro)}</b></div>${swLine}</div>`;
+    }).join("");
+    return `<div style="margin-top:6px"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${title}</div>${rows}</div>`;
+  };
+  let body="";
+  if(sugarHi) body+=section("sugar","🍯 Lo que más sube tu azúcar");
+  if(sodiumHi) body+=section("sodium","🧂 Lo que más sube tu sodio");
+  if(!body) return "";
+  return `<div class="card" style="margin-top:14px"><h3 style="margin-bottom:6px">Cómo bajarlo</h3>${body}<div style="font-size:11px;color:var(--muted);margin-top:10px">Cambios del mismo grupo, con calorías parecidas y menos ${sugarHi&&sodiumHi?"azúcar/sodio":sugarHi?"azúcar":"sodio"}.</div></div>`;
+}
+
 /* ---------- toast ---------- */
 let toastT;
 function toast(msg){
@@ -267,6 +320,7 @@ function goBack(){ const m=VIEW_META[currentView]||{}; nav(m.parent||"hoy"); }
    ==================================================================== */
 function renderHoy(){
   const g=state.goals, t=dayTotals();
+  const _ss=daySugarSodium(); t.sugar=_ss.sugar; t.sodium=_ss.sodium;   // azúcar/sodio reales (no del snapshot)
   const eg=(g&&g.calories)?goalsForDay(todayStr()):null;
   const goalCal=eg?eg.cal:0;
   const consumed=Math.round(t.cal);
@@ -321,6 +375,7 @@ function renderHoy(){
         <div class="cal-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">${center}</div></div>
       <div class="hero-rings">${miniRings}</div>${cycleLine}${microLine}${dayWarnHTML}${goalCta}
     </div>
+    ${microAdviceCard()}
     ${streakCardHTML()}
     ${objectiveCardHTML()}
     ${waterCardHTML()}
