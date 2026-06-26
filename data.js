@@ -150,6 +150,11 @@ const DEFAULT_EXERCISES = [
   {id:"e_crunchpolea",    name:"Crunch en polea",                            group:"Core",       repRange:"12-20", rir:"0-1"},
   {id:"e_elevpiernas",    name:"Elevación de piernas colgado",               group:"Core",       repRange:"10-20", rir:"0-1"},
   {id:"e_abruedita",      name:"Rueda abdominal",                            group:"Core",       repRange:"8-15",  rir:"1-2"},
+  // Agregados por el usuario (se conservan sus ids ce_ para no duplicar en cuentas existentes)
+  {id:"ce_1782310417636", name:"Dominadas",                                  group:"Espalda",    repRange:"8-12",  rir:"0-1", muscles:{dorsal:1,biceps:0.5,espaldaAlta:0.35,deltPost:0.15}},
+  {id:"ce_1782311296032", name:"Remo en polea alta unilateral",              group:"Espalda",    repRange:"10-15", rir:"0-1", muscles:{dorsal:0.7,deltPost:0.45,biceps:0.35}},
+  {id:"ce_1782313044383", name:"Curl femoral individual",                    group:"Femoral",    repRange:"10-12", rir:"0-1"},
+  {id:"ce_1782334604277", name:"Extensión de cuádriceps unilateral",         group:"Cuádriceps", repRange:"6-10",  rir:"0-1", muscles:{cuadriceps:1}},
 ];
 function _te(exId,sets,repRange,rir){ return {exId,sets,repRange,rir}; }
 const DEFAULT_TEMPLATES = [
