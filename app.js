@@ -1760,9 +1760,11 @@ function openStartModal(){
   set("startWeek", maxW+1 || 1);
   openModal("startModal");
 }
-function lastSetsFor(exId){
+function lastSetsFor(exId, templateId){
+  // Por rutina: si se pasa templateId, solo mira sesiones de ESA misma rutina
+  // (evita cargar los pesos/reps de otra rutina que comparte el ejercicio).
   const ws=state.workouts.slice().sort((a,b)=>a.date<b.date?1:-1);
-  for(const w of ws){ const e=w.entries.find(x=>x.exId===exId && x.sets && x.sets.length); if(e) return e.sets; }
+  for(const w of ws){ if(templateId && w.templateId!==templateId) continue; const e=w.entries.find(x=>x.exId===exId && x.sets && x.sets.length); if(e) return e.sets; }
   return null;
 }
 function startSession(){
@@ -1773,7 +1775,7 @@ function startSession(){
     id:"w_"+Date.now(), date, week, templateId:t.id, name:t.name,
     entries: t.exercises.map(te=>{
       const ex=exById(te.exId);
-      const last=lastSetsFor(te.exId);
+      const last=lastSetsFor(te.exId, t.id);
       const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||te.rir||"", type:s.type, drops:s.drops?s.drops.map(d=>({weight:d.weight||0,reps:d.reps||0})):undefined, repsL:s.repsL, repsR:s.repsR}))
                         : Array.from({length:Math.max(1,te.sets||1)}, ()=>({weight:0,reps:0,rir:te.rir||""}));
       const uni = !!(last && last.some(s=>s.repsL!=null||s.repsR!=null));
@@ -1924,7 +1926,7 @@ function renderSesion(){
     </div>
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
-      const sug=progressionSuggest(e.exId,e.repRange,e.group);
+      const sug=progressionSuggest(e.exId,e.repRange,e.group,d.templateId);
       const ssCol = e.sg ? (SS_COLORS[e.sg]||"var(--accent)") : null;
       return `<div class="ex-block" style="${ssCol?`border-left:4px solid ${ssCol};`:''}">
         <div class="exh">
@@ -2622,9 +2624,9 @@ function nextWeightRec(exId, repRange, group){
   return {newWeight: base+(lower?5:2.5)};
 }
 /* progresión sugerida automática según historial del ejercicio */
-function progressionSuggest(exId, repRange, group){
+function progressionSuggest(exId, repRange, group, templateId){
   const top=parseTopRep(repRange);
-  const sessions=state.workouts.filter(w=>w.entries.some(e=>e.exId===exId)).sort((a,b)=>a.date<b.date?1:-1); // recientes primero
+  const sessions=state.workouts.filter(w=>(!templateId||w.templateId===templateId) && w.entries.some(e=>e.exId===exId)).sort((a,b)=>a.date<b.date?1:-1); // recientes primero, misma rutina
   if(!sessions.length) return null;
   const workingOf=w=>{ const e=w.entries.find(x=>x.exId===exId); return e?(e.sets||[]).filter(s=>!isWarmup(s)&&(s.weight||0)>0):[]; };
   const last=workingOf(sessions[0]); if(!last.length) return null;
