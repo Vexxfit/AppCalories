@@ -340,6 +340,8 @@ nav button span{font-size:10px}
 .meal-item .mi-kcal{color:var(--muted);font-size:13px;font-variant-numeric:tabular-nums}
 .meal-item .mi-del{color:#C7C7CC;cursor:pointer;font-size:16px;padding:0 2px}
 .meal-item .mi-del:hover{color:var(--bad)}
+.meal-item .mi-edit{color:var(--accent);cursor:pointer;font-size:15px;flex:0 0 auto;padding:8px;margin:-8px 0;min-width:34px;text-align:center}
+.meal-item .mi-edit:hover{color:#6D28D9}
 .section-eyebrow{font-size:13px;font-weight:700;color:var(--muted);letter-spacing:-.01em;margin:22px 2px 10px}
 
 /* ---------- lista tipo Ajustes (iOS settings) ---------- */

@@ -294,9 +294,10 @@ function renderHoy(){
     const items=state.plan.slots[key]||[], st=sumMacros(items);
     const prevHas=prev&&prev.slots[key]&&prev.slots[key].length;
     const itemsHtml=items.length?`<div class="meal-items">${items.map((it,i)=>`
-      <div class="meal-item"><span class="mi-name" style="cursor:pointer" onclick="event.stopPropagation();editPlanItem('${key}',${i})">${it.name} <span style="color:var(--muted)">· ${it.label} ✎</span></span>
+      <div class="meal-item"><span class="mi-name">${it.name} <span style="color:var(--muted)">· ${it.label}</span></span>
         <span class="mi-kcal">${r0(it.macros.cal)} kcal</span>
-        <span class="mi-del" onclick="event.stopPropagation();removePlanItem('${key}',${i})">×</span></div>`).join("")}</div>`:"";
+        <span class="mi-edit" title="Editar" onclick="event.stopPropagation();editPlanItem('${key}',${i})">✎</span>
+        <span class="mi-del" title="Quitar" onclick="event.stopPropagation();removePlanItem('${key}',${i})">×</span></div>`).join("")}</div>`:"";
     const goalLab=mealGoalLabel(m, st);
     const sub = items.length ? `${items.length} ${items.length===1?'elemento':'elementos'} · P ${r0(st.protein)} · C ${r0(st.carbs)} · G ${r0(st.fat)}${goalLab}`
       : (prevHas ? `Toca para agregar · <span style="color:var(--accent)" onclick="event.stopPropagation();copyMealFromPrev('${key}')">copiar de ayer</span>${goalLab}` : 'Toca para agregar'+goalLab);
@@ -898,6 +899,7 @@ function openAdd(slot){
 }
 function editPlanItem(slot,i){
   const it=state.plan.slots[slot] && state.plan.slots[slot][i]; if(!it) return;
+  if(it.type!=="dish" && !foodById(it.refId)){ return toast("Ese alimento ya no está en la base; quítalo y vuelve a agregarlo"); }
   openAdd(slot);
   editingPlan={slot,index:i};
   set("apType", it.type); onAddTypeChange();
