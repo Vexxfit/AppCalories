@@ -337,7 +337,7 @@ function renderHoy(){
   const meses=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
   const dias=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
   const fecha=`${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]}`;
-  const macros=[["Proteína",t.protein,eg?eg.protein:0,"var(--protein)"],["Carbos",t.carbs,eg?eg.carbs:0,"var(--carbs)"],["Grasa",t.fat,eg?eg.fat:0,"var(--fat)"]];
+  const macros=[["Proteína",t.protein,eg?eg.protein:0,"var(--protein)"],["Carbos",t.carbs,eg?eg.carbs:0,"var(--carbs)"],["Grasa",t.fat,eg?eg.fat:0,"var(--fat)"],["Fibra",t.fiber,eg?eg.fiber:0,"var(--fiber)"]];
   const miniRings=macros.map(([n,cv,gv,col])=>{
     const pct=gv?cv/gv:0;
     return `<div class="macro-mini"><div style="position:relative;width:74px;height:74px">${ringSVG(pct,col,74,9,false)}
@@ -1221,13 +1221,19 @@ function calcGoals(){
   }
   if(targetCal==null){ const f=GOAL_FACTORS[obj]!=null?GOAL_FACTORS[obj]:1; targetCal=tdee*f; }
   const sp=SPLIT[cat]||SPLIT.maintenance;
-  const protein=sp.protein*w, fat=sp.fat*w;
-  let carbs=(targetCal-protein*4-fat*9)/4; if(carbs<0) carbs=0;
-  const fiber=Math.round(targetCal/1000*14);
+  const prevG=state.goals||{}, L=prevG.lock||{};   // candados: macros que NO se recalculan
+  let protein = (L.protein&&prevG.protein>0) ? prevG.protein : Math.round(sp.protein*w);
+  let fat     = (L.fat&&prevG.fat>0)         ? prevG.fat     : Math.round(sp.fat*w);
+  let carbs   = (L.carbs&&prevG.carbs>0)     ? prevG.carbs   : null;   // libre = balanceador de calorías
+  if(carbs===null){ carbs=Math.round((targetCal-protein*4-fat*9)/4); if(carbs<0)carbs=0; }
+  else if(!L.fat){ fat=Math.round((targetCal-protein*4-carbs*4)/9); if(fat<0)fat=0; }
+  else if(!L.protein){ protein=Math.round((targetCal-carbs*4-fat*9)/4); if(protein<0)protein=0; }
+  else { targetCal=protein*4+carbs*4+fat*9; }   // todos bloqueados → las kcal salen de los macros
+  const fiber=(L.fiber&&prevG.fiber>0) ? prevG.fiber : Math.round(targetCal/1000*14);
   state.goals = {
     weight:w,height:h,age,sex,objective:obj,category:cat,
     activitySel:actSel, activity:act, steps:steps||null, trainDays:trainDays||null, years:years||null,
-    goalWeight, targetDate, dateMode, warn,
+    goalWeight, targetDate, dateMode, warn, lock:L,
     weighDay: val("gWeighDay")||"1",
     bmr:Math.round(bmr), tdee:Math.round(tdee), calories:Math.round(targetCal),
     protein:Math.round(protein), carbs:Math.round(carbs), fat:Math.round(fat), fiber, mode:"auto"
@@ -1242,6 +1248,9 @@ function saveManualMacros(){
   state.goals.mode="manual";
   save(); renderGoalsTab(); toast("Macros manuales guardados");
 }
+function macroLockBtn(m){ const L=(state.goals&&state.goals.lock)||{}; const on=!!L[m];
+  return `<span onclick="toggleMacroLock('${m}')" title="${on?'Bloqueado: no se recalcula al actualizar la meta':'Bloquear para que no se recalcule'}" style="cursor:pointer;margin-left:8px;font-size:13px;color:${on?'var(--accent)':'var(--muted)'}">${on?'🔒':'🔓'}</span>`; }
+function toggleMacroLock(m){ if(!state.goals) return toast("Calcula tu meta primero"); if(!state.goals.lock) state.goals.lock={}; state.goals.lock[m]=!state.goals.lock[m]; save(); renderGoalsTab(); toast(state.goals.lock[m]?"🔒 "+m+" bloqueado":"🔓 "+m+" liberado"); }
 const WDAYS=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
 const MESES_ABBR=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 /* TDEE adaptativo: aprende tu gasto real comparando ingesta vs cambio de peso */
@@ -1414,10 +1423,11 @@ function renderGoalsTab(){
     <div class="kv"><span>Actividad</span><b style="font-size:13px">${actTxt}</b></div>
     ${g.tdee?`<div class="kv"><span>Mantenimiento (TDEE)</span><b>${g.tdee} kcal</b></div>`:''}
     <div class="kv"><span>Calorías objetivo</span><b style="color:var(--accent2)">${g.calories} kcal</b></div>
-    <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${g.protein} g</b></div>
-    <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${g.carbs} g</b></div>
-    <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${g.fat} g</b></div>
+    <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${g.protein} g${macroLockBtn('protein')}</b></div>
+    <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${g.carbs} g${macroLockBtn('carbs')}</b></div>
+    <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${g.fat} g${macroLockBtn('fat')}</b></div>
     <div class="kv"><span><span class="mdot bg-fib"></span>Fibra</span><b class="m-fib">${g.fiber} g</b></div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">${(g.lock&&(g.lock.protein||g.lock.carbs||g.lock.fat))?'🔒 = ese macro no se recalcula al actualizar la meta; los demás se ajustan.':'Toca 🔓 junto a un macro para bloquearlo (no se recalculará al actualizar la meta).'}</div>
     ${projectionHTML(g)}
     ${adaptiveCardHTML()}
     ${coachExtraHTML()}`;
@@ -1707,7 +1717,7 @@ function renderHistory(){
     const g=state.goals; let adhRows="";
     if(g&&g.calories){ const lo=g.calories-200,hi=g.calories+100; const okN=week.filter(d=>d.calories>=lo&&d.calories<=hi).length; adhRows+=adhRow("Nutrición", week.length?Math.round(okN/week.length*100):0); }
     if(g&&g.trainDays){ adhRows+=adhRow("Entrenamiento", Math.min(100,Math.round(wts.length/g.trainDays*100))); }
-    if(g&&g.steps){ let days=0,hit=0; for(let i=0;i<7;i++){ const dd=dayShift(today,-i); if(state.steps&&state.steps[dd]!=null){ days++; if(state.steps[dd]>=g.steps) hit++; } } if(days) adhRows+=adhRow("Pasos", Math.round(hit/days*100)); }
+    if(g&&g.steps){ let days=0,sum=0; for(let i=0;i<7;i++){ const dd=dayShift(today,-i); if(state.steps&&state.steps[dd]!=null){ days++; sum+=state.steps[dd]; } } if(days) adhRows+=adhRow("Pasos", Math.min(100,Math.round((sum/days)/g.steps*100))); }
     const adhBlock = adhRows?`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px">Adherencia</div>${adhRows}<div class="divider" style="margin:6px 0 12px"></div>`:"";
     ws.innerHTML=`${adhBlock}
       <div class="kv"><span>Días registrados</span><b>${week.length}</b></div>
@@ -2436,6 +2446,21 @@ function trendStatus(pct){
   if(pct< -2) return {color:"var(--bad)",txt:"▼ "+r1(pct)+"%"};
   return {color:"var(--warn)",txt:"▬ "+r1(pct)+"%"};
 }
+/* progreso por rutina: cada rutina comparada con SU sesión anterior (no con la semana completa) */
+function routineProgressHTML(){
+  const ws=(state.workouts||[]); if(!ws.length) return "";
+  const byName={}; ws.forEach(w=>{ (byName[w.name]=byName[w.name]||[]).push(w); });
+  const rows=Object.keys(byName).map(name=>{
+    const list=byName[name].slice().sort((a,b)=>a.date<b.date?1:-1);   // recientes primero
+    const last=list[0], prev=list[1];
+    const lt=workoutTonnage(last), pt=prev?workoutTonnage(prev):null;
+    const pct=(pt&&pt>0)?(lt-pt)/pt*100:null;
+    return {name, date:last.date, lt, n:list.length, st:trendStatus(pct)};
+  }).sort((a,b)=>a.name<b.name?-1:1);
+  return `<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 8px">Progreso por rutina · última vs anterior</div>`+
+    rows.map(r=>`<div class="kv"><span>${r.name} <span style="color:var(--muted);font-size:11px">${r.date}</span></span><b>${nfmt(fromKg(r.lt))} ${unit()} <span style="color:${r.st.color};font-size:12px;margin-left:6px">${r.n>1?r.st.txt:'1ª vez'}</span></b></div>`).join("")+
+    `<div class="divider"></div>`;
+}
 function renderProgreso(){
   const {weeks,days,rows}=weeklyRows();
   const tbl=document.getElementById("weeklyTonnageTable");
@@ -2443,16 +2468,18 @@ function renderProgreso(){
   else{
     let html=`<table><thead><tr><th>Semana</th>${days.map(d=>`<th class="r">${d}</th>`).join("")}<th class="r">Total</th><th class="r">vs ant.</th></tr></thead><tbody>`;
     rows.forEach((r,i)=>{
-      const prev=i>0?rows[i-1].total:null;
-      const pct = (prev && prev>0) ? (r.total-prev)/prev*100 : null;
+      const prevRow=i>0?rows[i-1]:null;
+      let pct=null;
+      if(prevRow){ const md=days.filter(d=>(r.byDay[d]>0)&&(prevRow.byDay[d]>0));   // solo rutinas hechas en AMBAS semanas
+        if(md.length){ const a=md.reduce((s,d)=>s+r.byDay[d],0), b=md.reduce((s,d)=>s+prevRow.byDay[d],0); if(b>0) pct=(a-b)/b*100; } }
       const st=trendStatus(pct);
       html+=`<tr><td><b style="font-family:'Bebas Neue'">Sem ${r.week}</b></td>
         ${days.map(d=>`<td class="r num">${r.byDay[d]?nfmt(fromKg(r.byDay[d])):"·"}</td>`).join("")}
         <td class="r num" style="color:var(--accent2)">${nfmt(fromKg(r.total))}</td>
         <td class="r"><span style="color:${st.color};font-weight:700;font-size:12px">${st.txt}</span></td></tr>`;
     });
-    html+=`</tbody></table><small class="hint">Tonelaje en ${unit()} · semáforo: ▲ sube · ▬ estancado (±2%) · ▼ baja.</small>`;
-    tbl.innerHTML=html;
+    html+=`</tbody></table><small class="hint">Tonelaje en ${unit()} · “vs ant.” compara solo las rutinas hechas en ambas semanas. ▲ sube · ▬ ±2% · ▼ baja.</small>`;
+    tbl.innerHTML=routineProgressHTML()+html;
   }
   // selector de semana para volumen por grupo
   const sel=document.getElementById("volWeekSelect");
@@ -2505,6 +2532,7 @@ function renderMuscleAnalysis(wk){
   const wks=state.workouts.filter(w=>w.week===wk);
   const hasUni=wks.some(w=>w.entries.some(e=>/unilateral|b[úu]lgara|zancad/i.test(((exById(e.exId)||{}).name)||e.name||"")));
   if(wks.length&&!hasUni) q.push({t:"warn",m:"Falta trabajo unilateral (a una pierna/brazo) — ayuda a corregir desbalances."});
+  if(wks.length){ const coreV=ev.core||0, coreMin=(MV_SUB.core&&MV_SUB.core[1])||6; if(coreV<coreMin) q.push({t:"warn",m:`Poco abdomen/core: ${r1(coreV)} series (recomendado ≥${coreMin}) — agrega trabajo directo de abdomen.`}); }
   const push=sumKeys(ev,["pecho","deltAnt","triceps"]), pull=sumKeys(ev,["dorsal","espaldaAlta","biceps","deltPost"]);
   if(push>0&&pull>0){ const rr=push/pull; if(rr>1.6) q.push({t:"warn",m:"Empujas mucho más de lo que jalas — agrega remos/jalones."}); else if(rr<0.62) q.push({t:"warn",m:"Jalas mucho más de lo que empujas."}); }
   const qb=document.getElementById("qualityBox");
