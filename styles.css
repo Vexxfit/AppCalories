@@ -456,3 +456,16 @@ nav button{min-height:46px;justify-content:center}
 label{margin-bottom:9px!important}
 /* 4 · Filas dato–valor (resumen / medidas) menos apretadas */
 .kv{padding:11px 0!important}
+
+/* ====================================================================
+   HOY v2 — tarjetas compactas de estadísticas (más limpio que anillos)
+   ==================================================================== */
+.stat-grid{display:grid;gap:9px;margin-top:12px}
+.stat-grid.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
+.stat-grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stat-card{background:var(--surface);border-radius:15px;box-shadow:var(--shadow-sm);padding:11px 9px;min-width:0;border:none;text-align:left}
+.stat-card .sv{font-size:18px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat-card .sg{font-size:11px;color:var(--muted);font-weight:600}
+.stat-card .sl{font-size:11px;color:var(--muted);margin-top:2px}
+.stat-card .sbar{height:4px;border-radius:2px;background:var(--bg2);margin-top:7px;overflow:hidden}
+.stat-card .sbar>i{display:block;height:100%;border-radius:2px}

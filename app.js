@@ -322,8 +322,31 @@ function nav(view){
 function goBack(){ const m=VIEW_META[currentView]||{}; nav(m.parent||"hoy"); }
 
 /* ====================================================================
-   HOY — pantalla principal (anillos + comidas)
+   HOY — pantalla principal (anillo de calorías + tarjetas compactas)
    ==================================================================== */
+/* tarjetas compactas de estadísticas del día (macros + agua + pasos + racha) */
+function statCardsHTML(t, eg){
+  const g=state.goals, today=todayStr();
+  const card=(rawC,rawG,dispC,dispG,lbl,col,onclick)=>{
+    const pct=rawG>0?Math.min(rawC/rawG,1)*100:0;
+    return `<div class="stat-card"${onclick?` style="cursor:pointer" onclick="${onclick}"`:''}>
+      <div class="sv" style="color:${col}">${dispC}</div>
+      <div class="sg">${rawG>0?'/ '+dispG:'—'}</div>
+      <div class="sl">${lbl}</div>
+      <div class="sbar"><i style="width:${pct}%;background:${col}"></i></div></div>`;
+  };
+  const M=[["Proteína",t.protein,eg?eg.protein:0,"var(--protein)"],["Carbos",t.carbs,eg?eg.carbs:0,"var(--carbs)"],["Grasa",t.fat,eg?eg.fat:0,"var(--fat)"],["Fibra",t.fiber,eg?eg.fiber:0,"var(--fiber)"]];
+  const macroCards=M.map(([n,cv,gv,col])=>card(cv,gv,r0(cv),gv?r0(gv):"",n,col,"")).join("");
+  ensureWater();
+  const ml=state.water.ml, wg=waterGoalMl();
+  const aguaCard=card(ml,wg,(ml/1000).toFixed(1).replace(/\.0$/,""),(wg/1000)+" L","Agua","var(--accent)","addWater(250)");
+  const kf=n=>n>=1000?(Math.round(n/100)/10).toString().replace(/\.0$/,"")+"k":String(n);
+  const steps=(state.steps&&state.steps[today])||0, sg=(g&&g.steps)||0;
+  const pasosCard=card(steps,sg,kf(steps),kf(sg),"Pasos","var(--accent)","editStepsToday()");
+  const st=computeStreak().streak;
+  const rachaCard=`<div class="stat-card"><div class="sv" style="color:${st>0?'var(--warn)':'var(--muted)'}">🔥 ${st}</div><div class="sg">&nbsp;</div><div class="sl">Racha</div><div class="sbar"><i style="width:${st>0?100:0}%;background:var(--warn)"></i></div></div>`;
+  return `<div class="stat-grid g4">${macroCards}</div><div class="stat-grid g3">${aguaCard}${pasosCard}${rachaCard}</div>`;
+}
 function renderHoy(){
   const g=state.goals, t=dayTotals();
   const _ss=daySugarSodium(); t.sugar=_ss.sugar; t.sodium=_ss.sodium;   // azúcar/sodio reales (no del snapshot)
@@ -337,14 +360,6 @@ function renderHoy(){
   const meses=["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
   const dias=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
   const fecha=`${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]}`;
-  const macros=[["Proteína",t.protein,eg?eg.protein:0,"var(--protein)"],["Carbos",t.carbs,eg?eg.carbs:0,"var(--carbs)"],["Grasa",t.fat,eg?eg.fat:0,"var(--fat)"],["Fibra",t.fiber,eg?eg.fiber:0,"var(--fiber)"]];
-  const miniRings=macros.map(([n,cv,gv,col])=>{
-    const pct=gv?cv/gv:0;
-    return `<div class="macro-mini"><div style="position:relative;width:74px;height:74px">${ringSVG(pct,col,74,9,false)}
-      <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
-        <div class="num" style="font-size:16px;color:${col}">${r0(cv)}</div><div style="font-size:9px;color:var(--muted)">/${gv||"—"}</div></div></div>
-      <div class="mm-lab" style="color:${col}">${n}</div></div>`;
-  }).join("");
   const center=goalCal
     ? `<div class="big">${nfmt(remaining)}</div><div class="lbl">kcal restantes</div><div class="lbl" style="margin-top:3px">${nfmt(consumed)} de ${nfmt(goalCal)}</div>`
     : `<div class="big">${nfmt(consumed)}</div><div class="lbl">kcal hoy</div>`;
@@ -379,12 +394,11 @@ function renderHoy(){
     <div class="card hero">
       <div style="position:relative;width:200px;height:200px">${ringSVG(calPct,"",200,16,true)}
         <div class="cal-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">${center}</div></div>
-      <div class="hero-rings">${miniRings}</div>${cycleLine}${microLine}${dayWarnHTML}${goalCta}
+      ${cycleLine}${microLine}${dayWarnHTML}${goalCta}
     </div>
+    ${statCardsHTML(t,eg)}
     ${microAdviceCard()}
-    ${streakCardHTML()}
     ${objectiveCardHTML()}
-    ${waterCardHTML()}
     <div class="section-eyebrow">COMIDAS DE HOY</div>${copyDayBtn}${meals}`;
 }
 function waterCardHTML(){
