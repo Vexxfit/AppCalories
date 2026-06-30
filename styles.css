@@ -463,6 +463,7 @@ label{margin-bottom:9px!important}
 .stat-grid{display:grid;gap:9px;margin-top:12px}
 .stat-grid.g4{grid-template-columns:repeat(4,minmax(0,1fr))}
 .stat-grid.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.stat-grid.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
 .stat-card{background:var(--surface);border-radius:15px;box-shadow:var(--shadow-sm);padding:11px 9px;min-width:0;border:none;text-align:left}
 .stat-card .sv{font-size:18px;font-weight:800;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat-card .sg{font-size:11px;color:var(--muted);font-weight:600}

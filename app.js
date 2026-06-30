@@ -73,7 +73,23 @@ function waterFor(d){ if(d===todayStr()){ ensureWater(); return state.water.ml; 
 function stepsFor(d){ return (state.steps&&state.steps[d]!=null)?state.steps[d]:0; }
 function setWaterFor(d,L){ const ml=Math.max(0,Math.round((parseFloat(L)||0)*1000)); if(!state.waterLog)state.waterLog={}; state.waterLog[d]=ml; if(d===todayStr()){ ensureWater(); state.water.ml=ml; } save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderHistory(); renderRecentLogEditor(); toast("Agua guardada"); }
 function setStepsFor(d,n){ const v=Math.max(0,parseInt(n)||0); if(!state.steps)state.steps={}; state.steps[d]=v; save(); if(currentView==="hoy")renderHoy(); if(currentView==="historial")renderHistory(); renderRecentLogEditor(); toast("Pasos guardados"); }
-function editWaterGoal(){ const cur=(waterGoalMl()/1000); const v=prompt("Meta de agua en litros:", cur); if(v==null) return; const L=parseFloat(v); if(L>0){ state.prefs.waterGoal=Math.round(L*1000); save(); if(currentView==="hoy") renderHoy(); toast("Meta de agua actualizada"); } }
+function editWaterGoal(){ const cur=(waterGoalMl()/1000); const v=prompt("Meta de agua en litros:", cur); if(v==null) return; const L=parseFloat(v); if(L>0){ state.prefs.waterGoal=Math.round(L*1000); save(); if(currentView==="hoy") renderHoy(); openWaterModal(); toast("Meta de agua actualizada"); } }
+function openWaterModal(){ ensureWater();
+  const ml=state.water.ml, goal=waterGoalMl();
+  const body=document.getElementById("waterModalBody"); if(!body) return;
+  body.innerHTML=`<div style="text-align:center;margin:4px 0 16px"><div style="font-size:36px;font-weight:800;color:var(--accent);line-height:1">${(ml/1000).toFixed(2).replace(/\.?0+$/,"")} L</div><div style="font-size:13px;color:var(--muted);margin-top:2px">de ${(goal/1000)} L</div></div>
+    <div class="row" style="gap:8px">
+      <button class="btn-ghost btn-sm" onclick="addWater(-250);openWaterModal()">−250</button>
+      <button class="btn-primary btn-sm" onclick="addWater(250);openWaterModal()">+ Vaso (250 ml)</button>
+      <button class="btn-ghost btn-sm" onclick="addWater(500);openWaterModal()">+500</button>
+    </div>
+    <div class="row" style="gap:8px;margin-top:10px">
+      <button class="btn-ghost btn-sm" style="flex:1" onclick="setWaterExact()">Fijar litros…</button>
+      <button class="btn-ghost btn-sm" style="flex:1" onclick="editWaterGoal()">Editar meta</button>
+    </div>`;
+  openModal("waterModal");
+}
+function setWaterExact(){ ensureWater(); const cur=(state.water.ml/1000); const v=prompt("¿Cuántos litros llevas hoy?", cur); if(v==null) return; const L=parseFloat(v); if(!(L>=0)) return toast("Valor inválido"); const ml=Math.round(L*1000); state.water.ml=ml; if(!state.waterLog)state.waterLog={}; state.waterLog[todayStr()]=ml; save(); if(currentView==="hoy") renderHoy(); openWaterModal(); toast("Agua actualizada"); }
 function saveLocal(){ localStorage.setItem(LS, JSON.stringify(state)); }
 function save(){ state._updatedAt=Date.now(); saveLocal(); if(typeof fbUser!=="undefined" && fbUser && !cloudApplying) cloudPush(false); }
 
@@ -339,13 +355,15 @@ function statCardsHTML(t, eg){
   const macroCards=M.map(([n,cv,gv,col])=>card(cv,gv,r0(cv),gv?r0(gv):"",n,col,"")).join("");
   ensureWater();
   const ml=state.water.ml, wg=waterGoalMl();
-  const aguaCard=card(ml,wg,(ml/1000).toFixed(1).replace(/\.0$/,""),(wg/1000)+" L","Agua","var(--accent)","addWater(250)");
+  const aguaCard=card(ml,wg,(ml/1000).toFixed(1).replace(/\.0$/,""),(wg/1000)+" L","Agua","var(--accent)","openWaterModal()");
   const kf=n=>n>=1000?(Math.round(n/100)/10).toString().replace(/\.0$/,"")+"k":String(n);
   const steps=(state.steps&&state.steps[today])||0, sg=(g&&g.steps)||0;
   const pasosCard=card(steps,sg,kf(steps),kf(sg),"Pasos","var(--accent)","editStepsToday()");
   const st=computeStreak().streak;
-  const rachaCard=`<div class="stat-card"><div class="sv" style="color:${st>0?'var(--warn)':'var(--muted)'}">🔥 ${st}</div><div class="sg">&nbsp;</div><div class="sl">Racha</div><div class="sbar"><i style="width:${st>0?100:0}%;background:var(--warn)"></i></div></div>`;
-  return `<div class="stat-grid g4">${macroCards}</div><div class="stat-grid g3">${aguaCard}${pasosCard}${rachaCard}</div>`;
+  const rachaCard=`<div class="card" style="margin-top:9px;padding:14px 16px;display:flex;align-items:center;gap:14px;background:var(--accent-soft);box-shadow:none">
+    <div style="font-size:32px;font-weight:800;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums">${st}</div>
+    <div><div style="font-weight:700;font-size:16px">Racha</div><div style="font-size:12px;color:var(--muted)">${st===1?'día':'días'} cumpliendo tu meta de calorías</div></div></div>`;
+  return `<div class="stat-grid g4">${macroCards}</div><div class="stat-grid g2">${aguaCard}${pasosCard}</div>${rachaCard}`;
 }
 function renderHoy(){
   const g=state.goals, t=dayTotals();
@@ -3092,8 +3110,9 @@ function balanceAndWarnings(ev){
     return `<div style="margin-bottom:11px"><div class="flex-between" style="font-size:13px"><span>${p.lbl}</span><span style="color:${col};font-weight:600">${note}</span></div>
       <div style="display:flex;height:8px;border-radius:4px;overflow:hidden;margin-top:3px;background:var(--bg2)"><div style="width:${aPct}%;background:var(--accent)"></div><div style="width:${100-aPct}%;background:var(--accent2)"></div></div></div>`;
   }).join("");
-  const q=[], big={pecho:"pecho",dorsal:"espalda",cuadriceps:"cuádriceps",femoral:"femoral",deltLat:"hombro lateral",gluteo:"glúteo"};
+  const q=[], big={pecho:"pecho",dorsal:"espalda",cuadriceps:"cuádriceps",femoral:"femoral",deltLat:"hombro lateral",gluteo:"glúteo",core:"abdomen/core"};
   Object.keys(big).forEach(k=>{ if(!(ev[k]>0)) q.push(`No trabajas ${big[k]} en toda la semana.`); });
+  const coreMin=(MV_SUB.core&&MV_SUB.core[1])||6; if(ev.core>0 && ev.core<coreMin) q.push(`Poco abdomen/core: ${r1(ev.core)} series (recomendado ≥${coreMin}).`);
   const push=sumKeys(ev,["pecho","deltAnt","triceps"]), pull=sumKeys(ev,["dorsal","espaldaAlta","biceps","deltPost"]);
   if(push>0&&pull>0){ const rr=push/pull; if(rr>1.6) q.push("Empujas mucho más de lo que jalas — agrega remos/jalones."); else if(rr<0.62) q.push("Jalas mucho más de lo que empujas."); }
   const alerts=q.length?q.map(m=>`<div style="border-left:3px solid var(--warn);background:var(--bg2);border-radius:0 10px 10px 0;padding:9px 12px;margin-bottom:8px;font-size:13px">${m}</div>`).join(""):`<div style="color:var(--ok);font-size:13px;font-weight:600">✓ Semana equilibrada, sin huecos evidentes.</div>`;
@@ -3104,23 +3123,28 @@ function openRoutineAnalysis(templateId){
   const t=tplById(templateId); if(!t) return;
   const ev=plannedVolByTemplate(t);
   document.getElementById("routineAnalysisTitle").textContent="Análisis · "+t.name;
+  const freq=t.freqWeek||1, weekEv={}; for(const k in ev) weekEv[k]=ev[k]*freq;
   document.getElementById("routineAnalysisBody").innerHTML =
     `<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Series efectivas por músculo (esta sesión)</div>`+
     muscleSetsTable(ev,false)+
-    `<p class="card-sub" style="margin-top:10px">El equilibrio y los huecos (espalda, piernas…) se evalúan sobre tu <b>semana completa</b>, no un solo día.</p>
+    (freq>1?`<div class="divider"></div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Volumen semanal (×${freq}/sem) con estado</div>`+muscleSetsTable(weekEv,true):"")+
+    `<p class="card-sub" style="margin-top:10px">El equilibrio y los huecos (espalda, piernas, abdomen…) se evalúan sobre tu <b>semana completa</b>. Usa “Analizar varias rutinas”.</p>
      <button class="btn-ghost btn-sm" style="margin-top:4px" onclick="closeModal('routineAnalysisModal');openSetAnalysis()">📊 Analizar carpeta / varias rutinas</button>`;
   openModal("routineAnalysisModal");
 }
 /* análisis de un CONJUNTO de rutinas (semana / carpeta): volumen + equilibrio + huecos */
 function analyzeSet(ids, title){
-  const ev={}; ids.forEach(id=>{ const t=tplById(id); if(!t) return; const m=plannedVolByTemplate(t); for(const k in m) ev[k]=(ev[k]||0)+m[k]; });
+  const ev={}, counted=new Set();
+  const add=(t,mult)=>{ const m=plannedVolByTemplate(t); for(const k in m) ev[k]=(ev[k]||0)+m[k]*mult; };
+  (ids||[]).forEach(id=>{ const t=tplById(id); if(!t||counted.has(id)) return; counted.add(id); add(t, t.freqWeek||1); });
+  freqTemplates().forEach(t=>{ if(!counted.has(t.id)){ counted.add(t.id); add(t, t.freqWeek); } });   // incluir rutinas con meta semanal (ej. Abdomen ×2) aunque no se elijan
   document.getElementById("routineAnalysisTitle").textContent="Análisis · "+(title||(ids.length+" rutinas"));
   const body=document.getElementById("routineAnalysisBody");
   if(!SUBMUSCLES.some(([k])=>ev[k]>0)){ body.innerHTML=`<div class="empty">Las rutinas elegidas no tienen series.</div>`; openModal("routineAnalysisModal"); return; }
   body.innerHTML =
     `<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Volumen semanal estimado por músculo</div>`+
     muscleSetsTable(ev,true)+`<div class="divider"></div>`+balanceAndWarnings(ev)+
-    `<p class="card-sub" style="margin-top:8px">Suma de las rutinas elegidas, asumiendo <b>1×/semana</b> cada una. El "Estado" compara con los rangos semanales MEV–MRV.</p>`;
+    `<p class="card-sub" style="margin-top:8px">Suma semanal: cada rutina cuenta por su <b>frecuencia</b> (las que tienen meta semanal, como Abdomen ×2, se incluyen aunque no las elijas). El "Estado" compara con los rangos semanales MEV–MRV.</p>`;
   openModal("routineAnalysisModal");
 }
 function openSetAnalysis(){
