@@ -1996,6 +1996,24 @@ function addExToSession(){
   sessionDraft.entries.push({exId:ex.id,name:ex.name,group:ex.group,repRange:ex.repRange,rir:ex.rir,sets:[{weight:0,reps:0,rir:ex.rir||""}]});
   renderSesion();
 }
+/* ---- rutinas con meta de frecuencia semanal (p. ej. Abdomen 2×/sem) ---- */
+function freqTemplates(){ return (state.templates||[]).filter(t=>t.freqWeek>0); }
+function currentTrainWeek(){ return (state.workouts||[]).reduce((m,w)=>Math.max(m,w.week||0),0)||1; }
+/* veces que se hizo una rutina esta semana: sesión propia de esa rutina O anexada (srcTpl) a otra */
+function freqDoneThisWeek(tplId){ const wk=currentTrainWeek();
+  return (state.workouts||[]).filter(w=>(w.week||0)===wk && (w.templateId===tplId || (w.entries||[]).some(e=>e.srcTpl===tplId))).length; }
+/* anexar los ejercicios de una rutina al final de la sesión en curso */
+function appendTplToSession(tplId){
+  const t=tplById(tplId); if(!t||!sessionDraft) return;
+  if(sessionDraft.entries.some(e=>e.srcTpl===tplId)) return toast(t.name+" ya está en esta sesión");
+  t.exercises.forEach(te=>{ const ex=exById(te.exId); const last=lastSetsFor(te.exId, t.id);
+    const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||te.rir||"", type:s.type, drops:s.drops?s.drops.map(dp=>({weight:dp.weight||0,reps:dp.reps||0})):undefined, repsL:s.repsL, repsR:s.repsR}))
+                      : Array.from({length:Math.max(1,te.sets||1)}, ()=>({weight:0,reps:0,rir:te.rir||""}));
+    const uni=!!(last&&last.some(s=>s.repsL!=null||s.repsR!=null));
+    sessionDraft.entries.push({exId:te.exId, name:ex?ex.name:te.exId, group:ex?ex.group:"—", repRange:te.repRange, rir:te.rir, prefilled:!!last, uni, srcTpl:tplId, sets});
+  });
+  renderSesion(); toast(t.name+" anexado a la sesión 🔩");
+}
 
 function renderSesion(){
   persistDraft();
@@ -2009,6 +2027,7 @@ function renderSesion(){
           <button class="btn-primary btn-sm" onclick="openStartModal()">+ Iniciar sesión</button></div>
         <p class="card-sub" style="margin-top:8px">Elige un día de tu rutina y registra peso × reps por serie. El tonelaje y el 1RM se calculan solos.</p>
       </div>
+      ${freqTemplates().length?`<div class="card" style="margin-top:16px"><h3>Metas de la semana (Sem ${currentTrainWeek()})</h3>${freqTemplates().map(t=>{const done=freqDoneThisWeek(t.id),ok=done>=t.freqWeek;return `<div class="kv"><span>${t.name}</span><b style="color:${ok?'var(--ok)':'var(--muted)'}">${done}/${t.freqWeek} ${ok?'✓':''}</b></div>`;}).join("")}<small class="hint" style="display:block;margin-top:6px">Anéxala a cualquier sesión con su botón “+”, o regístrala sola; cuenta sin importar el día.</small></div>`:""}
       <div class="card" style="margin-top:16px">
         <h3>Sesiones recientes</h3>
         ${recent.length? recent.map(w=>`
@@ -2118,6 +2137,9 @@ function renderSesion(){
         <button class="btn-ghost btn-sm" onclick="addExToSession()">+ Añadir</button>
       </div>
     </div>
+    ${freqTemplates().filter(t=>t.id!==d.templateId).length?`<div class="card" style="padding:12px;margin-top:12px">
+      <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Anexar rutina (meta semanal)</div>
+      <div class="row" style="gap:8px">${freqTemplates().filter(t=>t.id!==d.templateId).map(t=>`<button class="btn-ghost btn-sm" style="flex:0 1 auto" onclick="appendTplToSession('${t.id}')">+ ${t.name} <span style="color:var(--muted)">${freqDoneThisWeek(t.id)}/${t.freqWeek}</span></button>`).join("")}</div></div>`:""}
     <div class="session-totalbar">
       <div><span style="color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px">Tonelaje del día</span><br>
         <span class="num" style="font-size:26px;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">${fmtTon(total)}</span></div>
@@ -2319,6 +2341,9 @@ function renderTemplateEditor(){
       <button class="btn-ghost btn-sm" onclick="closeTemplateEditor()">Cerrar</button></div>
     <div class="field" style="margin-top:12px"><label>Nombre del día</label>
       <input id="tplName" value="${d.name.replace(/"/g,'&quot;')}" placeholder="Ej. Push, Pull, Leg…"></div>
+    <div class="field"><label>Veces por semana (meta, opcional)</label>
+      <input id="tplFreq" type="number" inputmode="numeric" min="0" max="7" value="${d.freqWeek||''}" placeholder="0 = sin meta"></div>
+    <small class="hint" style="display:block;margin:-6px 0 8px">Si pones ≥1 (ej. Abdomen = 2), la app lleva el conteo semanal y podrás anexar esta rutina a cualquier sesión.</small>
     <div id="tplExList">${
       d.exercises.length ? d.exercises.map((x,i)=>`
         <div class="tpl-ex-row">
@@ -2381,6 +2406,7 @@ function saveTemplate(){
   if(!name) return toast("Ponle nombre al día");
   if(!templateDraft.exercises.length) return toast("Añade al menos un ejercicio");
   templateDraft.name=name;
+  const fq=parseInt(val("tplFreq"))||0; if(fq>0) templateDraft.freqWeek=Math.min(7,fq); else delete templateDraft.freqWeek;
   if(editingTemplateId==="new"){ state.templates.push(templateDraft); }
   else{ const idx=state.templates.findIndex(t=>t.id===editingTemplateId); if(idx>=0) state.templates[idx]=templateDraft; }
   save(); closeTemplateEditor(); renderTemplateList(); toast("Día guardado");
