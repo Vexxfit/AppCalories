@@ -220,6 +220,12 @@ function itemGrams(it){
   const q=it.qty!=null?it.qty:0, u=it.unit||"g", P=PORTIONS[u];
   return u==="pza" ? q*(f.piece||0) : (P ? q*P.g : q);
 }
+/* macros + micros reales de un item de plan, recalculados desde la base (el snapshot a veces no trae micros) */
+function itemFullMacros(it){
+  if(it.type==="food"){ const f=foodById(it.refId), g=itemGrams(it); if(f&&g>0) return foodMacros(f,g); }
+  else if(it.type==="dish"){ const d=dishById(it.refId); if(d){ const sc = it.unit==="rac" ? (it.qty||0)/(d.servings||1) : (it.qty!=null? it.qty/100 : 1); return dishMacros(d,sc); } }
+  return it.macros||{};
+}
 /* azúcar/sodio reales del día, recalculados desde la base (el snapshot del item a veces no los trae) */
 function daySugarSodium(){
   let sugar=0, sodium=0; const items=[];
@@ -638,14 +644,45 @@ function renderFoods(){
   const el = document.getElementById("foodList");
   if(!rows.length){ el.innerHTML = `<div class="empty">Sin resultados.</div>`; return; }
   el.innerHTML = rows.map(f=>`
-    <div class="list-row">
+    <div class="list-row" style="cursor:pointer" onclick="openFoodDetail('${f.id}')">
       <div class="lr-main">
         <div class="lr-title">${f.name} ${f.custom?'<span class="badge" style="background:var(--accent-soft);color:var(--accent)">propio</span>':''}</div>
         <div class="lr-sub">${r0(f.cal)} kcal · <span class="m-p">P ${r1(f.protein)}</span> · <span class="m-c">C ${r1(f.carbs)}</span> · <span class="m-f">G ${r1(f.fat)}</span> · <span class="m-fib">Fib ${r1(f.fiber)}</span></div>
       </div>
       <span class="pill">${f.cat}</span>
-      ${f.custom?`<button class="icon-btn" style="color:var(--bad)" onclick="deleteFood('${f.id}')" aria-label="Eliminar"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg></button>`:''}
+      ${f.custom?`<button class="icon-btn" style="color:var(--bad)" onclick="event.stopPropagation();deleteFood('${f.id}')" aria-label="Eliminar"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg></button>`:''}
     </div>`).join("");
+}
+function quickAddFoodToPlan(id){ const f=foodById(id); if(!f) return; openAdd(); set("apType","food"); onAddTypeChange(); set("apSearch", f.name.slice(0,12)); renderAddResults(); selectAddItem(id); renderAddQty(); }
+/* tarjeta de detalle de un alimento: macros + micronutrientes (por 100 g) */
+function openFoodDetail(id){
+  const f=foodById(id); if(!f) return;
+  document.getElementById("foodDetailTitle").textContent=f.name;
+  const kv=(lbl,val,cls)=>`<div class="kv"><span>${lbl}</span><b${cls?` class="${cls}"`:''}>${val}</b></div>`;
+  const has=v=>v!=null&&!isNaN(v);
+  let macros=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:2px 0 6px">Por 100 g</div>`+
+    kv("Calorías", r0(f.cal)+" kcal")+
+    kv('<span class="mdot bg-p"></span>Proteína', r1(f.protein)+" g","m-p")+
+    kv('<span class="mdot bg-c"></span>Carbohidratos', r1(f.carbs)+" g","m-c")+
+    kv('<span class="mdot bg-f"></span>Grasa', r1(f.fat)+" g","m-f")+
+    kv("Fibra", r1(f.fiber)+" g");
+  let micro="";
+  if(has(f.sugar))     micro+=kv("Azúcar", r1(f.sugar)+" g");
+  if(has(f.sodium))    micro+=kv("Sodio", nfmt(Math.round(f.sodium))+" mg");
+  if(has(f.satfat))    micro+=kv("Grasa saturada", r1(f.satfat)+" g");
+  if(has(f.potassium)) micro+=kv("Potasio", nfmt(Math.round(f.potassium))+" mg");
+  if(has(f.calcium))   micro+=kv("Calcio", nfmt(Math.round(f.calcium))+" mg");
+  if(has(f.iron))      micro+=kv("Hierro", r1(f.iron)+" mg");
+  if(has(f.vitc))      micro+=kv("Vitamina C", r1(f.vitc)+" mg");
+  if(has(f.vitd))      micro+=kv("Vitamina D", r1(f.vitd)+" µg");
+  const microSection = micro
+    ? `<div class="divider"></div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:2px 0 6px">Micronutrientes</div>${micro}`
+    : `<div class="divider"></div><div class="empty" style="margin:0">Sin micronutrientes registrados para este alimento.</div>`;
+  const piece = f.piece?`<div style="font-size:12px;color:var(--muted);margin-top:10px">1 ${f.pieceName||'pza'} ≈ ${f.piece} g</div>`:"";
+  document.getElementById("foodDetailBody").innerHTML=
+    `<div class="pill" style="margin-bottom:10px">${f.cat}</div>${macros}${microSection}${piece}
+     <button class="btn-primary" style="width:100%;margin-top:14px" onclick="closeModal('foodDetailModal');quickAddFoodToPlan('${f.id}')">+ Agregar a mi día</button>`;
+  openModal("foodDetailModal");
 }
 document.addEventListener("input", e=>{ if(e.target.id==="foodSearch"){ foodFilter.q=e.target.value; renderFoods(); } });
 
@@ -1082,6 +1119,7 @@ function donutSVG(segs, centerTop, centerBot, size){
 function openMealDash(key){
   const meal=state.meals.find(m=>m.id===key); const items=state.plan.slots[key]||[];
   const t=sumMacros(items);
+  { const mi=items.reduce((a,it)=>{const m=itemFullMacros(it);['sugar','sodium','satfat','potassium','calcium','iron','vitc','vitd'].forEach(k=>a[k]=(a[k]||0)+(m[k]||0));return a;},{}); ['sugar','sodium','satfat','potassium','calcium','iron','vitc','vitd'].forEach(k=>t[k]=mi[k]||0); }
   const kcalP=t.protein*4, kcalC=t.carbs*4, kcalF=t.fat*9, totCal=kcalP+kcalC+kcalF||1;
   const pct=v=>Math.round(v/totCal*100);
   const segs=[{name:"Proteína",val:kcalP,color:"var(--protein)"},{name:"Carbos",val:kcalC,color:"var(--carbs)"},{name:"Grasa",val:kcalF,color:"var(--fat)"}];
@@ -1100,7 +1138,9 @@ function openMealDash(key){
     ${microWarnings(t,false).map(w=>`<div style="border-left:3px solid var(--warn);background:var(--bg2);border-radius:0 8px 8px 0;padding:7px 10px;margin-top:6px;font-size:12px">${w}</div>`).join("")}
     <div class="divider"></div>
     <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Ingredientes (${items.length})</div>
-    ${items.map(it=>`<div class="kv"><span>${it.name} <span style="color:var(--muted);font-size:11px">${it.label||""}</span></span><b>${r0(it.macros.cal)} kcal</b></div>`).join("")}
+    ${items.map(it=>{ const m=itemFullMacros(it); const mic=[]; if((m.sugar||0)>0.1)mic.push(`az ${r1(m.sugar)} g`); if((m.sodium||0)>=1)mic.push(`Na ${nfmt(Math.round(m.sodium))} mg`); if((m.fiber||0)>0.1)mic.push(`fib ${r1(m.fiber)} g`);
+      return `<div style="padding:7px 0;border-bottom:1px solid var(--border-soft)"><div style="display:flex;justify-content:space-between;gap:10px"><span>${it.name} <span style="color:var(--muted);font-size:11px">${it.label||""}</span></span><b>${r0(it.macros.cal)} kcal</b></div>${mic.length?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${mic.join(" · ")}</div>`:""}</div>`;
+    }).join("")}
     <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveMealAsDish('${key}')">💾 Guardar como platillo</button>
   ` : `<div class="empty">Esta comida no tiene elementos todavía.</div>`;
   openModal("mealDashModal");
@@ -2890,25 +2930,43 @@ function setCycleCal(wd,v){ const g=state.goals; if(!g)return; if(!g.cycle)g.cyc
 function setBanking(on){ const g=state.goals; if(!g)return; if(on)g.bank=true; else delete g.bank; save(); renderCycleCard(); if(currentView==="hoy")renderHoy(); }
 function clearCycle(){ const g=state.goals; if(g){ delete g.cycle; delete g.bank; } save(); renderGoalsTab(); if(currentView==="hoy")renderHoy(); toast("Ciclado quitado"); }
 /* ===== L10: cierra tus macros (sugeridor) ===== */
+function macroSuggest(macroKey, need, remCal){
+  // alimentos eficientes en el macro (g del macro por kcal), variados por categoría y que quepan en las kcal restantes
+  const ranked=allFoods().filter(f=>(f[macroKey]||0)>0 && (f.cal||0)>0)
+    .map(f=>({f, dens:(f[macroKey]||0)/f.cal})).sort((a,b)=>b.dens-a.dens);
+  const out=[], seenCat={};
+  for(const {f} of ranked){
+    if(seenCat[f.cat]) continue;                       // 1 por categoría → variedad
+    let grams=need/((f[macroKey]||0)/100);             // cubrir lo que falta del macro
+    if(remCal>0) grams=Math.min(grams, remCal/(f.cal/100));   // sin pasar las kcal restantes
+    grams=Math.round(grams/5)*5; if(grams<5) continue;
+    out.push({f,grams,m:foodMacros(f,grams)}); seenCat[f.cat]=1;
+    if(out.length>=3) break;
+  }
+  return out;
+}
 function openCloseMacros(){
   const eg=goalsForDay(todayStr()); if(!eg) return toast("Define tu meta primero");
   const t=dayTotals();
-  const remCal=Math.round(eg.cal-t.cal), remP=Math.round(eg.protein-t.protein), remC=Math.round(eg.carbs-t.carbs), remF=Math.round(eg.fat-t.fat);
+  const rem={cal:Math.round(eg.cal-t.cal), protein:Math.round(eg.protein-t.protein), carbs:Math.round(eg.carbs-t.carbs), fat:Math.round(eg.fat-t.fat)};
   const pos=x=>x>0?x:0;
-  let body=`<div class="kv"><span>Te falta hoy</span><b>${pos(remCal)} kcal</b></div>
-    <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${pos(remP)} g</b></div>
-    <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${pos(remC)} g</b></div>
-    <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${pos(remF)} g</b></div><div class="divider"></div>`;
-  if(remP<=2 && remCal<=25){ body+=`<div style="color:var(--ok);font-weight:600">✓ ¡Ya cerraste tus macros de hoy! 🎉</div>`; }
-  else{
-    const cands=allFoods().filter(f=>f.protein>0&&f.cal>0).map(f=>({f,dens:f.protein/f.cal})).sort((a,b)=>b.dens-a.dens).slice(0,10);
-    const sugg=cands.map(({f})=>{ let grams = remP>0 ? remP/(f.protein/100) : 0;
-        if(remCal>0){ grams=Math.min(grams, remCal/(f.cal/100)); }
-        grams=Math.round(grams/5)*5; if(grams<=0) return null;
-        return {f,grams,m:foodMacros(f,grams)}; }).filter(Boolean).slice(0,6);
-    body+=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Opciones para cubrir tu proteína sin pasarte de kcal</div>`+
-      (sugg.length? sugg.map(s=>`<div class="kv"><span>${s.f.name} · <b>${s.grams} g</b></span><b style="color:var(--protein)">+${r0(s.m.protein)} P · ${r0(s.m.cal)} kcal</b></div>`).join("")
-        : `<div class="empty">Agrega alimentos con proteína a tu base para sugerencias.</div>`);
+  let body=`<div class="kv"><span>Te falta hoy</span><b>${pos(rem.cal)} kcal</b></div>
+    <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${pos(rem.protein)} g</b></div>
+    <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${pos(rem.carbs)} g</b></div>
+    <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${pos(rem.fat)} g</b></div><div class="divider"></div>`;
+  if(rem.protein<=3 && rem.carbs<=6 && rem.fat<=3 && rem.cal<=30){
+    body+=`<div style="color:var(--ok);font-weight:600">✓ ¡Ya cerraste tus macros de hoy! 🎉</div>`;
+  } else {
+    if(rem.cal<=20) body+=`<div style="font-size:12px;color:var(--warn);font-weight:600;margin-bottom:4px">Ya casi llegas a tus calorías — para subir un macro sin pasarte, cambia algo por una opción más rica en ese macro.</div>`;
+    const defs=[{k:'protein',lbl:'proteína',cls:'m-p',min:4},{k:'carbs',lbl:'carbohidratos',cls:'m-c',min:6},{k:'fat',lbl:'grasa',cls:'m-f',min:4}];
+    let any=false;
+    defs.forEach(M=>{
+      if(rem[M.k] < M.min) return;                     // ese macro ya está cubierto
+      const sugg=macroSuggest(M.k, rem[M.k], rem.cal); if(!sugg.length) return; any=true;
+      body+=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:10px 0 6px">Para tu ${M.lbl} (faltan ${rem[M.k]} g)</div>`+
+        sugg.map(s=>`<div class="kv"><span>${s.f.name} · <b>${s.grams} g</b></span><b class="${M.cls}">+${r0(s.m[M.k])} g · ${r0(s.m.cal)} kcal</b></div>`).join("");
+    });
+    if(!any) body+=`<div class="empty" style="margin:0">Agrega más alimentos a tu base para recibir sugerencias.</div>`;
   }
   document.getElementById("closeMacrosBody").innerHTML=body;
   openModal("closeMacrosModal");
