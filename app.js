@@ -141,7 +141,7 @@ function cloudPull(){
         ensureSlots(); ensureWater(); saveLocal();
         cloudApplying=false; cloudLastSync=nowTime();
         nav(currentView||"hoy");
-        toast("Datos traídos de la nube ☁️");
+        toast("Datos traídos de la nube");
       } else { cloudPush(true); }
     } else { cloudPush(true); }
   }).catch(err=>{ console.warn("cloudPull", err); });
@@ -157,13 +157,13 @@ function cloudPush(now){
 }
 function cloudCardHTML(){
   if(typeof firebase==="undefined" || !fbReady)
-    return `<div class="card" style="margin-bottom:14px"><h3>☁️ Nube</h3><p class="card-sub" style="margin:0">Sin conexión a la nube en este momento (revisa tu internet).</p></div>`;
+    return `<div class="card" style="margin-bottom:14px"><h3>${ic('cloud',18)} Nube</h3><p class="card-sub" style="margin:0">Sin conexión a la nube en este momento (revisa tu internet).</p></div>`;
   if(fbUser)
-    return `<div class="card" style="margin-bottom:14px"><div class="flex-between"><h3 style="margin:0">☁️ Cuenta en la nube</h3><span class="pill">conectado</span></div>
+    return `<div class="card" style="margin-bottom:14px"><div class="flex-between"><h3 style="margin:0">${ic('cloud',18)} Cuenta en la nube</h3><span class="pill">conectado</span></div>
       <div class="kv"><span>Sesión</span><b style="font-size:13px">${fbUser.email||"—"}</b></div>
       <div class="kv"><span>Última sincronización</span><b style="font-size:13px">${cloudLastSync||"—"}</b></div>
       <div class="row" style="margin-top:10px"><button class="btn-primary" onclick="fbSyncNow()">Sincronizar ahora</button><button class="btn-ghost" onclick="fbSignOut()">Cerrar sesión</button></div></div>`;
-  return `<div class="card" style="margin-bottom:14px"><h3>☁️ Cuenta en la nube</h3>
+  return `<div class="card" style="margin-bottom:14px"><h3>${ic('cloud',18)} Cuenta en la nube</h3>
     <p class="card-sub">Inicia sesión para respaldar tu progreso y verlo en otros dispositivos.</p>
     <div class="field"><label>Correo</label><input type="email" id="fbEmail" autocomplete="username" placeholder="tucorreo@ejemplo.com"></div>
     <div class="field"><label>Contraseña</label><input type="password" id="fbPass" autocomplete="current-password" placeholder="mín. 6 caracteres"></div>
@@ -225,7 +225,7 @@ function microWarnings(t, daily){
   const w=[], sodLim=daily?2300:700, sugLim=daily?50:25;
   if((t.sodium||0)>sodLim) w.push(`⚠️ Sodio alto: ${nfmt(t.sodium)} mg${daily?" (límite ~2300)":""}`);
   if((t.sugar||0)>sugLim) w.push(`⚠️ Azúcar alta: ${r1(t.sugar)} g`);
-  if(daily){ const fg=state.goals&&state.goals.fiber; if(fg && (t.fiber||0) < fg*0.6) w.push(`🌾 Poca fibra: ${r1(t.fiber)} de ${fg} g`); }
+  if(daily){ const fg=state.goals&&state.goals.fiber; if(fg && (t.fiber||0) < fg*0.6) w.push(`${ic('leaf',15)} Poca fibra: ${r1(t.fiber)} de ${fg} g`); }
   return w;
 }
 
@@ -282,8 +282,8 @@ function microAdviceCard(){
     return `<div style="margin-top:6px"><div style="font-size:13px;font-weight:600;margin-bottom:2px">${title}</div>${rows}</div>`;
   };
   let body="";
-  if(sugarHi) body+=section("sugar","🍯 Lo que más sube tu azúcar");
-  if(sodiumHi) body+=section("sodium","🧂 Lo que más sube tu sodio");
+  if(sugarHi) body+=section("sugar",ic('sugar',15)+" Lo que más sube tu azúcar");
+  if(sodiumHi) body+=section("sodium",ic('salt',15)+" Lo que más sube tu sodio");
   if(!body) return "";
   return `<div class="card" style="margin-top:14px"><h3 style="margin-bottom:6px">Cómo bajarlo</h3>${body}<div style="font-size:11px;color:var(--muted);margin-top:10px">Cambios del mismo grupo, con calorías parecidas y menos ${sugarHi&&sodiumHi?"azúcar/sodio":sugarHi?"azúcar":"sodio"}.</div></div>`;
 }
@@ -360,10 +360,10 @@ function statCardsHTML(t, eg){
   const steps=(state.steps&&state.steps[today])||0, sg=(g&&g.steps)||0;
   const pasosCard=card(steps,sg,kf(steps),kf(sg),"Pasos","var(--accent)","editStepsToday()");
   const st=computeStreak().streak;
-  const rachaCard=`<div class="card" style="margin-top:9px;padding:14px 16px;display:flex;align-items:center;gap:14px;background:var(--accent-soft);box-shadow:none">
-    <div style="font-size:32px;font-weight:800;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums">${st}</div>
-    <div><div style="font-weight:700;font-size:16px">Racha</div><div style="font-size:12px;color:var(--muted)">${st===1?'día':'días'} cumpliendo tu meta de calorías</div></div></div>`;
-  return `<div class="stat-grid g4">${macroCards}</div><div class="stat-grid g2">${aguaCard}${pasosCard}</div>${rachaCard}`;
+  const rachaCard=`<div class="card" style="margin-bottom:12px;padding:13px 16px;display:flex;align-items:center;gap:13px;background:var(--accent-soft);box-shadow:none">
+    <span style="flex:0 0 auto;display:flex">${ic('fire',30,'#FF7A2F')}</span>
+    <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:21px;line-height:1;font-variant-numeric:tabular-nums">${st} ${st===1?'día':'días'}</div><div style="font-size:12px;color:var(--muted);margin-top:3px">de racha cumpliendo tu meta</div></div></div>`;
+  return `${rachaCard}<div class="stat-grid g4">${macroCards}</div><div class="stat-grid g2">${aguaCard}${pasosCard}</div>`;
 }
 function renderHoy(){
   const g=state.goals, t=dayTotals();
@@ -397,13 +397,13 @@ function renderHoy(){
     return `<div class="meal-group">
       <button class="meal-row" onclick="openAdd('${key}')">
         <div class="meal-ic">${m.icon||"🍴"}</div>
-        <div class="meal-main"><div class="meal-name"${items.length?` style="cursor:pointer" onclick="event.stopPropagation();openMealDash('${key}')"`:''}>${label}${items.length?' <span style="font-size:13px;color:var(--accent)">📊</span>':''}</div>
+        <div class="meal-main"><div class="meal-name"${items.length?` style="cursor:pointer" onclick="event.stopPropagation();openMealDash('${key}')"`:''}>${label}${items.length?' <span style="color:var(--accent)">'+ic('chart',13)+'</span>':''}</div>
           <div class="meal-sub">${sub}</div></div>
         <div class="meal-kcal">${r0(st.cal)}</div><div class="meal-add">+</div>
       </button>${itemsHtml}</div>`;
   }).join("");
-  const goalCta=goalCal?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="openCloseMacros()">🎯 Cerrar mis macros</button>`:`<button class="btn-primary" style="width:100%;margin-top:4px" onclick="nav('metas')">Calcular mi meta diaria</button>`;
-  const cycleLine = (eg&&eg.cycled)?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:600;margin-top:8px">🔁 Hoy${eg.type&&CYCLE_TYPES[eg.type]?" · "+CYCLE_TYPES[eg.type].lbl:""}: ${nfmt(eg.cal)} kcal</div>`:"";
+  const goalCta=goalCal?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="openCloseMacros()">${ic('target',15)} Cerrar mis macros</button>`:`<button class="btn-primary" style="width:100%;margin-top:4px" onclick="nav('metas')">Calcular mi meta diaria</button>`;
+  const cycleLine = (eg&&eg.cycled)?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:600;margin-top:8px">${ic('cycle',14)} Hoy${eg.type&&CYCLE_TYPES[eg.type]?" · "+CYCLE_TYPES[eg.type].lbl:""}: ${nfmt(eg.cal)} kcal</div>`:"";
   const microLine = (t.sugar>0||t.sodium>0)?`<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">Azúcar ${r1(t.sugar)} g · Sodio ${nfmt(t.sodium)} mg</div>`:"";
   const dayWarnHTML = microWarnings(t,true).map(wn=>`<div style="text-align:center;font-size:12px;color:var(--warn);font-weight:600;margin-top:4px">${wn}</div>`).join("");
   const copyDayBtn = prev ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">↻ Copiar mi día de ayer</button>` : "";
@@ -424,7 +424,7 @@ function waterCardHTML(){
   const ml=state.water.ml, goal=waterGoalMl(), pct=Math.min(ml/goal,1);
   return `<div class="card" style="margin-top:14px;padding:16px 18px">
     <div class="flex-between" style="margin-bottom:10px">
-      <div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">💧</span>
+      <div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">${ic('water',20)}</span>
         <div><div style="font-weight:700;font-size:16px">Agua</div>
           <div style="font-size:13px;color:var(--muted)">${(ml/1000).toFixed(2).replace(/\\.?0+$/,'')} / ${(goal/1000)} L <span style="color:var(--accent);cursor:pointer" onclick="editWaterGoal()">✎ meta</span></div></div></div>
       <div style="display:flex;gap:6px">
@@ -435,7 +435,7 @@ function waterCardHTML(){
     </div>
     <div style="height:8px;background:var(--bg2);border-radius:5px;overflow:hidden"><div style="height:100%;width:${pct*100}%;background:#34C7FF;border-radius:5px"></div></div>
     <div class="flex-between" style="margin-top:12px;font-size:13px">
-      <span style="color:var(--muted)">👟 Pasos hoy: <b style="color:var(--text)">${nfmt(stepsToday())}</b>${state.goals&&state.goals.steps?` / ${nfmt(state.goals.steps)}`:""}</span>
+      <span style="color:var(--muted)">${ic('steps',14)} Pasos hoy: <b style="color:var(--text)">${nfmt(stepsToday())}</b>${state.goals&&state.goals.steps?` / ${nfmt(state.goals.steps)}`:""}</span>
       <span style="color:var(--accent);cursor:pointer" onclick="editStepsToday()">✎ registrar</span>
     </div>
   </div>`;
@@ -468,11 +468,11 @@ function computeStreak(){
 }
 function streakCardHTML(){
   const s=computeStreak(); if(!s) return "";
-  const msg = s.status==="cumplido" ? "¡Hoy estás en tu rango! 🎯"
+  const msg = s.status==="cumplido" ? "¡Hoy estás en tu rango!"
     : s.status==="excedido" ? `Hoy: ${nfmt(s.todayCal)} kcal — te pasaste del rango (${nfmt(s.lo)}–${nfmt(s.hi)})`
     : `Hoy: ${nfmt(s.todayCal)} / ${nfmt(s.target)} kcal — vas en camino`;
   return `<div class="card" style="display:flex;align-items:center;gap:14px;padding:16px 18px;margin-top:14px">
-    <div style="font-size:30px;filter:${s.streak>0?'none':'grayscale(1) opacity(.5)'}">🔥</div>
+    <div style="font-size:30px;filter:${s.streak>0?'none':'grayscale(1) opacity(.5)'}">${ic('fire',26,'#FF7A2F')}</div>
     <div style="flex:1"><div style="font-weight:700;font-size:17px;letter-spacing:-.01em">Racha: ${s.streak} ${s.streak===1?'día':'días'}</div>
       <div style="font-size:13px;color:var(--muted)">${msg}</div></div>
     <div class="num" style="font-size:30px;color:${s.streak>0?'var(--accent)':'var(--muted)'}">${s.streak}</div>
@@ -487,17 +487,17 @@ function renderAjustes(){
   const dark=state.prefs&&state.prefs.theme==="dark";
   const dw=(state.prefs&&state.prefs.deloadWeeks)||0;
   const rows=[
-    {ic:"🎯",label:"Metas y calorías",val:(g&&g.calories)?`${nfmt(g.calories)} kcal`:"Definir",act:"nav('metas')"},
-    {ic:"🥑",label:"Base de alimentos",val:`${allFoods().length}`,act:"nav('alimentos')"},
-    {ic:"🍱",label:"Mis platillos",val:`${state.dishes.length}`,act:"nav('platillos')"},
-    {ic:"🍽️",label:"Comidas del día",val:`${state.meals.length}`,act:"nav('comidas')"},
-    {ic:"🔄",label:"Sustituciones",val:"",act:"nav('sustituciones')"},
-    {ic:"⚖️",label:"Unidades de peso",val:unit(),act:"toggleUnitAndRefresh()"},
-    {ic:dark?"🌙":"☀️",label:"Tema",val:dark?"Oscuro":"Claro",act:"toggleTheme()"},
-    {ic:"🪫",label:"Semana de descarga (deload)",val:dw?`cada ${dw} sem`:"Off",act:"setDeload()"},
-    {ic:"🧮",label:"Calculadora 1RM / calentamiento",val:"",act:"openPRCalc()"},
-    {ic:"⬇️",label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
-    {ic:"⬆️",label:"Importar respaldo",val:"",act:"triggerImport()"}
+    {ic:ic('target',18),label:"Metas y calorías",val:(g&&g.calories)?`${nfmt(g.calories)} kcal`:"Definir",act:"nav('metas')"},
+    {ic:ic('apple',18),label:"Base de alimentos",val:`${allFoods().length}`,act:"nav('alimentos')"},
+    {ic:ic('bowl',18),label:"Mis platillos",val:`${state.dishes.length}`,act:"nav('platillos')"},
+    {ic:ic('utensils',18),label:"Comidas del día",val:`${state.meals.length}`,act:"nav('comidas')"},
+    {ic:ic('cycle',18),label:"Sustituciones",val:"",act:"nav('sustituciones')"},
+    {ic:ic('scale',18),label:"Unidades de peso",val:unit(),act:"toggleUnitAndRefresh()"},
+    {ic:dark?ic('moon',18):ic('sun',18),label:"Tema",val:dark?"Oscuro":"Claro",act:"toggleTheme()"},
+    {ic:ic('battery',18),label:"Semana de descarga (deload)",val:dw?`cada ${dw} sem`:"Off",act:"setDeload()"},
+    {ic:ic('calc',18),label:"Calculadora 1RM / calentamiento",val:"",act:"openPRCalc()"},
+    {ic:ic('download',18),label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
+    {ic:ic('upload',18),label:"Importar respaldo",val:"",act:"triggerImport()"}
   ];
   let html=cloudCardHTML();
   if(g&&g.calories){
@@ -553,8 +553,8 @@ function renderComidas(){
       <span class="drag-h" style="cursor:grab;color:var(--muted);font-size:16px;margin-top:6px;touch-action:none">⠿</span>
       <span style="font-size:18px;margin-top:6px">${m.icon||"🍴"}</span>
       <div class="lr-main"><input value="${(m.name||'').replace(/"/g,'&quot;')}" onchange="renameMeal(${i},this.value)" style="font-weight:600;background:transparent;padding:6px 0;border-radius:0">
-        <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy${m.goal?` · 🎯 ${goalSummary(m.goal)}`:''}</div>
-        <button class="btn-ghost btn-sm" style="margin-top:7px" onclick="openMealGoal(${i})">🎯 ${m.goal?"Editar objetivo":"Definir objetivo"}</button></div>
+        <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy${m.goal?` · ${ic('target',13)} ${goalSummary(m.goal)}`:''}</div>
+        <button class="btn-ghost btn-sm" style="margin-top:7px" onclick="openMealGoal(${i})">${ic('target',15)} ${m.goal?"Editar objetivo":"Definir objetivo"}</button></div>
       <button class="icon-btn" onclick="moveMeal(${i},-1)" aria-label="Subir">↑</button>
       <button class="icon-btn" onclick="moveMeal(${i},1)" aria-label="Bajar">↓</button>
       <button class="icon-btn" style="color:var(--bad)" onclick="deleteMeal(${i})" aria-label="Eliminar">×</button>
@@ -578,7 +578,7 @@ function goalProgressText(g,t){ const p=[]; if(g.cal)p.push(`${r0(t.cal)}/${g.ca
 function mealGoalLabel(m, st){ if(!m||!m.goal) return ""; const p=[];
   if(m.goal.cal){ const ok=st.cal>=m.goal.cal*0.9&&st.cal<=m.goal.cal*1.1; p.push(`<span style="color:${ok?'var(--ok)':'var(--muted)'}">${r0(st.cal)}/${m.goal.cal} kcal</span>`); }
   if(m.goal.protein){ const ok=st.protein>=m.goal.protein*0.9; p.push(`<span style="color:${ok?'var(--ok)':'var(--muted)'}">P ${r0(st.protein)}/${m.goal.protein}</span>`); }
-  return p.length?` · 🎯 ${p.join(" · ")}`:""; }
+  return p.length?` · ${ic('target',13)} ${p.join(" · ")}`:""; }
 function addMeal(){
   const name=val("newMealName").trim();
   if(!name) return toast("Escribe un nombre");
@@ -767,7 +767,7 @@ function loadZXing(){ return new Promise((res,rej)=>{ if(window.ZXing) return re
   const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"; s.onload=res; s.onerror=rej; document.head.appendChild(s); }); }
 async function startScan(){
   const v=document.getElementById("scanVideo"), st=document.getElementById("scanStatus");
-  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ st.textContent="Aquí no hay cámara disponible. Escribe el código abajo 👇"; return; }
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ st.textContent="Aquí no hay cámara disponible. Escribe el código abajo"; return; }
   try{
     if("BarcodeDetector" in window){
       scanStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
@@ -785,7 +785,7 @@ async function startScan(){
       st.textContent="Escaneando…";
       scanReader.decodeFromVideoDevice(null, v, (result,err)=>{ if(result){ const c=result.getText(); stopScan(); lookupBarcode(c); } });
     }
-  }catch(e){ st.textContent="No pude abrir la cámara (¿permiso denegado?). Escribe el código abajo 👇"; }
+  }catch(e){ st.textContent="No pude abrir la cámara (¿permiso denegado?). Escribe el código abajo"; }
 }
 function manualBarcode(){ const c=(val("scanManual")||"").trim(); if(!/^\d{6,14}$/.test(c)) return toast("Escribe un código válido (6–14 dígitos)"); stopScan(); lookupBarcode(c); }
 /* construye un alimento (por 100 g) desde un producto de Open Food Facts, con micros */
@@ -813,7 +813,7 @@ function offFoodCardHTML(food){
     <div class="kv" style="margin-top:6px"><span>Calorías / 100 g</span><b style="color:var(--accent)">${food.cal} kcal</b></div>
     <div class="macro-legend"><span class="m-p">●&nbsp;P ${food.protein}</span><span class="m-c">●&nbsp;C ${food.carbs}</span><span class="m-f">●&nbsp;G ${food.fat}</span><span class="m-fib">●&nbsp;Fib ${food.fiber}</span></div>
     ${(food.sugar!=null||food.sodium!=null)?`<div class="kv"><span>Azúcar / Sodio</span><b>${food.sugar!=null?food.sugar+" g":"—"} · ${food.sodium!=null?food.sodium+" mg":"—"}</b></div>`:""}
-    <div class="row" style="margin-top:10px;gap:8px"><button class="btn-primary" onclick="scanAddToPlan()">➕ Añadir al plan</button><button class="btn-ghost btn-sm" style="flex:0" onclick="scanSaveFood(true)">💾 Solo guardar</button></div>
+    <div class="row" style="margin-top:10px;gap:8px"><button class="btn-primary" onclick="scanAddToPlan()">➕ Añadir al plan</button><button class="btn-ghost btn-sm" style="flex:0" onclick="scanSaveFood(true)">${ic('save',15)} Solo guardar</button></div>
   </div>`;
 }
 async function lookupBarcode(code){
@@ -1047,9 +1047,9 @@ function renderAddResults(){
   let quick="";
   if(isFood && !q){
     const ids=[...new Set([...(state.favFoods||[]),...(state.recentFoods||[])])].filter(id=>foodById(id)).slice(0,10);
-    if(ids.length) quick=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">⭐ Favoritos y recientes</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">`+
+    if(ids.length) quick=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px">${ic('star',13)} Favoritos y recientes</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">`+
       ids.map(id=>{const f=foodById(id), fav=(state.favFoods||[]).includes(id); const nm=f.name.length>18?f.name.slice(0,18)+'…':f.name;
-        return `<button class="pill" style="cursor:pointer;border:1px solid var(--border-soft);background:var(--surface2);color:var(--text)" onclick="selectAddItem('${id}')">${fav?'⭐ ':'🕘 '}${nm}</button>`;}).join("")+`</div>`;
+        return `<button class="pill" style="cursor:pointer;border:1px solid var(--border-soft);background:var(--surface2);color:var(--text)" onclick="selectAddItem('${id}')">${fav?ic('star',13)+' ':ic('clock',13)+' '}${nm}</button>`;}).join("")+`</div>`;
   }
   const pool=addPool().filter(o=>o.name.toLowerCase().includes(q)).slice(0,40);
   if(!pool.length){ el.innerHTML=quick+`<div class="empty" style="margin:0">${val("apType")==="dish"?"No tienes platillos guardados.":"Sin resultados."}</div>`; return; }
@@ -1057,7 +1057,7 @@ function renderAddResults(){
     return `<div class="add-opt ${addSel&&addSel.id===o.id?'sel':''}" onclick="selectAddItem('${o.id}')">
       <div class="ao-main"><div class="ao-name">${o.name}${o.piece?' <span class="pill" style="padding:1px 7px;font-size:10px">pza</span>':''}</div>
         <div class="ao-sub">${o.type==='food'?r0(o.kcal)+' kcal / 100 g · '+o.sub:r0(o.kcal)+' kcal · '+o.sub}</div></div>
-      ${isFood?`<span onclick="event.stopPropagation();toggleFav('${o.id}')" style="cursor:pointer;font-size:16px;padding:0 4px" title="Favorito">${fav?'⭐':'☆'}</span>`:''}
+      ${isFood?`<span onclick="event.stopPropagation();toggleFav('${o.id}')" style="cursor:pointer;font-size:16px;padding:0 4px" title="Favorito">${fav?ic('star',15,'#F5A623'):ic('star',15,'#C7C7CC')}</span>`:''}
       ${addSel&&addSel.id===o.id?'<span style="color:var(--accent);font-size:17px">✓</span>':''}
     </div>`;}).join("");
 }
@@ -1158,7 +1158,7 @@ function openMealDash(key){
   document.getElementById("mealDashTitle").textContent = meal?meal.name:"Comida";
   document.getElementById("mealDashBody").innerHTML = items.length ? `
     <div style="display:flex;justify-content:center;margin:4px 0 14px">${donutSVG(segs, r0(t.cal), "kcal", 168)}</div>
-    ${(meal&&meal.goal)?`<div class="kv" style="background:var(--accent-soft);border-radius:8px;padding:7px 10px"><span>🎯 Meta</span><b>${goalProgressText(meal.goal,t)}</b></div>`:""}
+    ${(meal&&meal.goal)?`<div class="kv" style="background:var(--accent-soft);border-radius:8px;padding:7px 10px"><span>${ic('target',14)} Meta</span><b>${goalProgressText(meal.goal,t)}</b></div>`:""}
     <div class="kv"><span><span class="mdot bg-p"></span>Proteína</span><b class="m-p">${r1(t.protein)} g · ${pct(kcalP)}%</b></div>
     <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${r1(t.carbs)} g · ${pct(kcalC)}%</b></div>
     <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${r1(t.fat)} g · ${pct(kcalF)}%</b></div>
@@ -1173,7 +1173,7 @@ function openMealDash(key){
     ${items.map(it=>{ const m=itemFullMacros(it); const mic=[]; if((m.sugar||0)>0.1)mic.push(`az ${r1(m.sugar)} g`); if((m.sodium||0)>=1)mic.push(`Na ${nfmt(Math.round(m.sodium))} mg`); if((m.fiber||0)>0.1)mic.push(`fib ${r1(m.fiber)} g`);
       return `<div style="padding:7px 0;border-bottom:1px solid var(--border-soft)"><div style="display:flex;justify-content:space-between;gap:10px"><span>${it.name} <span style="color:var(--muted);font-size:11px">${it.label||""}</span></span><b>${r0(it.macros.cal)} kcal</b></div>${mic.length?`<div style="font-size:11px;color:var(--muted);margin-top:3px">${mic.join(" · ")}</div>`:""}</div>`;
     }).join("")}
-    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveMealAsDish('${key}')">💾 Guardar como platillo</button>
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="saveMealAsDish('${key}')">${ic('save',15)} Guardar como platillo</button>
   ` : `<div class="empty">Esta comida no tiene elementos todavía.</div>`;
   openModal("mealDashModal");
 }
@@ -1282,7 +1282,7 @@ function saveManualMacros(){
 }
 function macroLockBtn(m){ const L=(state.goals&&state.goals.lock)||{}; const on=!!L[m];
   return `<span onclick="toggleMacroLock('${m}')" title="${on?'Bloqueado: no se recalcula al actualizar la meta':'Bloquear para que no se recalcule'}" style="cursor:pointer;margin-left:8px;font-size:13px;color:${on?'var(--accent)':'var(--muted)'}">${on?'🔒':'🔓'}</span>`; }
-function toggleMacroLock(m){ if(!state.goals) return toast("Calcula tu meta primero"); if(!state.goals.lock) state.goals.lock={}; state.goals.lock[m]=!state.goals.lock[m]; save(); renderGoalsTab(); toast(state.goals.lock[m]?"🔒 "+m+" bloqueado":"🔓 "+m+" liberado"); }
+function toggleMacroLock(m){ if(!state.goals) return toast("Calcula tu meta primero"); if(!state.goals.lock) state.goals.lock={}; state.goals.lock[m]=!state.goals.lock[m]; save(); renderGoalsTab(); toast(state.goals.lock[m]?m+" bloqueado":m+" liberado"); }
 const WDAYS=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
 const MESES_ABBR=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 /* TDEE adaptativo: aprende tu gasto real comparando ingesta vs cambio de peso */
@@ -1321,13 +1321,13 @@ function adaptiveCardHTML(){
   }
   const dir=a.weeklyChange<0?"bajando":(a.weeklyChange>0?"subiendo":"estable");
   const diff=a.suggested-(state.goals.calories||0);
-  return `<div class="divider"></div><h3 style="margin-bottom:6px">TDEE adaptativo 🤖</h3>
+  return `<div class="divider"></div><h3 style="margin-bottom:6px">TDEE adaptativo</h3>
     <div class="kv"><span>Gasto real estimado</span><b style="color:var(--accent)">${nfmt(a.realTDEE)} kcal</b></div>
     <div class="kv"><span>Ingesta promedio (${a.days} d)</span><b>${nfmt(a.avgIntake)} kcal</b></div>
     <div class="kv"><span>Peso ${dir}</span><b>${a.weeklyChange>0?'+':''}${r1(a.weeklyChange)} kg/sem</b></div>
     <div class="kv"><span>Meta sugerida</span><b style="color:var(--accent)">${nfmt(a.suggested)} kcal</b></div>
     ${Math.abs(diff)>=50?`<button class="btn-primary" style="width:100%;margin-top:10px" onclick="applyAdaptive(${a.suggested})">Ajustar a ${nfmt(a.suggested)} kcal (${diff>0?'+':''}${diff})</button>`
-      :`<p class="card-sub" style="margin-top:8px">Tu meta actual ya coincide con tu gasto real. 👌</p>`}`;
+      :`<p class="card-sub" style="margin-top:8px">Tu meta actual ya coincide con tu gasto real.</p>`}`;
 }
 /* ----- ajuste por peso esperado vs real ----- */
 function calorieAdjustment(){
@@ -1364,7 +1364,7 @@ function coachExtraHTML(){
   const ca=calorieAdjustment();
   if(ca && ca.enough && Math.abs(ca.kcal)>=50){
     const action = ca.kcal>0 ? `reduce ${ca.kcal} kcal` : `aumenta ${Math.abs(ca.kcal)} kcal`;
-    h+=`<div class="divider"></div><h3 style="margin-bottom:6px">Ajuste recomendado 🎯</h3>
+    h+=`<div class="divider"></div><h3 style="margin-bottom:6px">Ajuste recomendado</h3>
       <div class="kv"><span>Ritmo objetivo</span><b>${r1(ca.expectedKgWk)} kg/sem</b></div>
       <div class="kv"><span>Ritmo real</span><b>${r1(ca.actualKgWk)} kg/sem</b></div>
       <div style="background:var(--accent-soft);border-radius:12px;padding:11px 13px;margin-top:8px;font-size:13px;color:#5b21b6">
@@ -1418,7 +1418,7 @@ function projectionHTML(g){
     <h3 style="margin-bottom:4px">Proyección y seguimiento</h3>
     ${body}
     <div style="background:var(--accent-soft);border-radius:14px;padding:13px 15px;margin-top:12px">
-      <div style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:4px">📅 Pésate los ${dia} en ayunas</div>
+      <div style="font-size:13px;color:var(--accent);font-weight:600;margin-bottom:4px">${ic('calendar',14)} Pésate los ${dia} en ayunas</div>
       <div style="font-size:12.5px;color:#5b21b6;line-height:1.5">1 vez por semana, siempre el mismo día al despertar (sin comer ni beber). Si un día no puedes, no pasa nada — retómalo el siguiente ${dia}.</div>
     </div>
     <p class="card-sub" style="margin-top:12px;margin-bottom:0">Reajusta tus calorías cada <b>3–4 semanas</b> (o si te estancas 2 semanas): al bajar de peso tu gasto disminuye y el déficit se reduce. Vuelve a poner tu peso actual y pulsa “Calcular meta”.</p>`;
@@ -1719,8 +1719,8 @@ function renderHistory(){
     const ml=(dd===today)?(state.water?state.water.ml:null):((state.waterLog&&state.waterLog[dd]!=null)?state.waterLog[dd]:null);
     if(ml!=null&&ml>0){ wsum+=ml; wd++; }
     if(state.steps&&state.steps[dd]!=null&&state.steps[dd]>0){ ssum+=state.steps[dd]; sd++; } }
-  const waterRow=wd?`<div class="kv"><span>💧 Agua promedio</span><b style="color:#34C7FF">${(wsum/wd/1000).toFixed(2)} L</b></div>`:"";
-  const stepsRow=sd?`<div class="kv"><span>👟 Pasos promedio</span><b>${nfmt(ssum/sd)}</b></div>`:"";
+  const waterRow=wd?`<div class="kv"><span>${ic('water',14)} Agua promedio</span><b style="color:#34C7FF">${(wsum/wd/1000).toFixed(2)} L</b></div>`:"";
+  const stepsRow=sd?`<div class="kv"><span>${ic('steps',14)} Pasos promedio</span><b>${nfmt(ssum/sd)}</b></div>`:"";
   const logEditBtn=`<button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openLogEdit()">✎ Editar agua / pasos</button>`;
   if(!week.length){ ws.innerHTML = ((waterRow||stepsRow) ? (waterRow+stepsRow) : `<div class="empty" style="margin-bottom:4px">Sin datos de la semana.</div>`) + logEditBtn; }
   else{
@@ -1744,7 +1744,7 @@ function renderHistory(){
     // PRs de la semana
     const pr=computeExercisePRs(state.workouts||[]); let prCount=0;
     Object.values(pr).forEach(p=>{ if((p.weight.date&&within7(p.weight.date))||(p.orm.date&&within7(p.orm.date))) prCount++; });
-    const prRow=prCount?`<div class="kv"><span>Records 🏆</span><b style="color:var(--accent)">${prCount} esta semana</b></div>`:"";
+    const prRow=prCount?`<div class="kv"><span>Records ${ic('trophy',14)}</span><b style="color:var(--accent)">${prCount} esta semana</b></div>`:"";
     // adherencia (Nutrición / Entreno / Pasos)
     const g=state.goals; let adhRows="";
     if(g&&g.calories){ const lo=g.calories-200,hi=g.calories+100; const okN=week.filter(d=>d.calories>=lo&&d.calories<=hi).length; adhRows+=adhRow("Nutrición", week.length?Math.round(okN/week.length*100):0); }
@@ -1816,8 +1816,8 @@ function renderRecentLogEditor(){
   el.innerHTML = [0,1,2].map(i=>{ const d=dayShift(t,-i);
     return `<div class="row" style="align-items:flex-end;gap:8px;margin-bottom:10px">
       <div style="flex:0 0 58px"><div style="font-weight:600;font-size:13px">${labels[i]}</div><div style="font-size:10px;color:var(--muted)">${d.slice(5)}</div></div>
-      <div class="field" style="margin:0"><label>💧 Litros</label><input type="number" step="0.25" min="0" inputmode="decimal" value="${waterFor(d)?(waterFor(d)/1000):""}" placeholder="0" onchange="setWaterFor('${d}',this.value)"></div>
-      <div class="field" style="margin:0"><label>👟 Pasos</label><input type="number" min="0" inputmode="numeric" value="${stepsFor(d)||""}" placeholder="0" onchange="setStepsFor('${d}',this.value)"></div>
+      <div class="field" style="margin:0"><label>${ic('water',13)} Litros</label><input type="number" step="0.25" min="0" inputmode="decimal" value="${waterFor(d)?(waterFor(d)/1000):""}" placeholder="0" onchange="setWaterFor('${d}',this.value)"></div>
+      <div class="field" style="margin:0"><label>${ic('steps',13)} Pasos</label><input type="number" min="0" inputmode="numeric" value="${stepsFor(d)||""}" placeholder="0" onchange="setStepsFor('${d}',this.value)"></div>
     </div>`;
   }).join("");
 }
@@ -1944,7 +1944,7 @@ function addWarmups(i){ const e=sessionDraft&&sessionDraft.entries[i]; if(!e) re
   const work=e.sets.filter(s=>!isWarmup(s)).map(s=> (s.type==="d"&&s.drops&&s.drops[0])?s.drops[0].weight:(s.weight||0));
   const w=Math.max(0,...work); if(!(w>0)) return toast("Primero pon el peso de trabajo");
   const warm=[[0.4,8],[0.6,5],[0.8,3]].map(([p,r])=>({weight:r25(w*p),reps:r,type:"w"}));
-  e.sets=[...warm, ...e.sets]; renderSesion(); toast("Calentamiento agregado 🔥"); }
+  e.sets=[...warm, ...e.sets]; renderSesion(); toast("Calentamiento agregado"); }
 let swapExIdx=null;
 function openSwapEx(i){ swapExIdx=i; set("swapExSearch",""); renderSwapList(""); openModal("swapExModal"); setTimeout(()=>{const el=document.getElementById("swapExSearch"); if(el)el.focus();},80); }
 function renderSwapList(q){ q=(q||"").toLowerCase().trim(); const e=sessionDraft&&sessionDraft.entries[swapExIdx]; const grp=e?e.group:null;
@@ -2030,7 +2030,7 @@ function appendTplToSession(tplId){
     const uni=!!(last&&last.some(s=>s.repsL!=null||s.repsR!=null));
     sessionDraft.entries.push({exId:te.exId, name:ex?ex.name:te.exId, group:ex?ex.group:"—", repRange:te.repRange, rir:te.rir, prefilled:!!last, uni, srcTpl:tplId, sets});
   });
-  renderSesion(); toast(t.name+" anexado a la sesión 🔩");
+  renderSesion(); toast(t.name+" anexado a la sesión");
 }
 
 function renderSesion(){
@@ -2052,7 +2052,7 @@ function renderSesion(){
           <div class="plan-item">
             <div class="pi-name">${w.name} <span style="color:var(--muted);font-size:11px">· Sem ${w.week} · ${w.date}</span>
               <div class="pi-macros">Tonelaje ${fmtTon(workoutTonnage(w))} · ${w.entries.length} ejercicios</div>
-              ${w.note?`<div class="pi-macros" style="font-style:italic">📝 ${w.note}</div>`:""}</div>
+              ${w.note?`<div class="pi-macros" style="font-style:italic">${ic('note',13)} ${w.note}</div>`:""}</div>
             <button class="btn-ghost btn-sm" style="flex:0" onclick="editWorkout('${w.id}')">Editar</button>
             <button class="btn-danger btn-sm" onclick="deleteWorkout('${w.id}')">×</button>
           </div>`).join("") : `<div class="empty">Aún no registras sesiones.</div>`}
@@ -2076,11 +2076,11 @@ function renderSesion(){
         <button class="btn-ghost btn-sm" onclick="cancelSession()">${d.editingId?"Descartar":"Cancelar"}</button>
       </div>
       <div class="row" style="margin-top:10px;gap:6px">
-        <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">💾 Guardar como plantilla</button>
+        <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">${ic('save',15)} Guardar como plantilla</button>
       </div>
-      <textarea id="sessNote" placeholder="📝 Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
-      <small class="hint" style="display:block;margin-top:8px">Toca el número de serie para cambiar tipo: <b style="color:#28303B;background:#C7CDD6;padding:0 5px;border-radius:4px">C</b> calentamiento (no cuenta) · <b style="color:#fff;background:#FF453A;padding:0 5px;border-radius:4px">F</b> fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 5px;border-radius:4px">D</b> dropset (despliega bajadas). Usa 🔗 para superseries (A, B, C…).</small>
-      ${(((state.prefs&&state.prefs.deloadWeeks)||0)>0 && d.week>0 && d.week%state.prefs.deloadWeeks===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">🪫 Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
+      <textarea id="sessNote" placeholder="Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
+      <small class="hint" style="display:block;margin-top:8px">Toca el número de serie para cambiar tipo: <b style="color:#28303B;background:#C7CDD6;padding:0 5px;border-radius:4px">C</b> calentamiento (no cuenta) · <b style="color:#fff;background:#FF453A;padding:0 5px;border-radius:4px">F</b> fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 5px;border-radius:4px">D</b> dropset (despliega bajadas). Usa ${ic('link',13)} para superseries (A, B, C…).</small>
+      ${(((state.prefs&&state.prefs.deloadWeeks)||0)>0 && d.week>0 && d.week%state.prefs.deloadWeeks===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">${ic('battery',15)} Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
     </div>
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
@@ -2088,7 +2088,7 @@ function renderSesion(){
       const ssCol = e.sg ? (SS_COLORS[e.sg]||"var(--accent)") : null;
       return `<div class="ex-block" style="${ssCol?`border-left:4px solid ${ssCol};`:''}">
         <div class="exh">
-          <div><div class="exname">${e.name}${e.sg?` <span class="pill" style="background:${ssCol};color:#fff;font-size:10px;padding:1px 8px">🔗 Superserie ${e.sg}</span>`:''}</div>
+          <div><div class="exname">${e.name}${e.sg?` <span class="pill" style="background:${ssCol};color:#fff;font-size:10px;padding:1px 8px">${ic('link',12)} Superserie ${e.sg}</span>`:''}</div>
             <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.tempo?` · tempo ${e.tempo}`:''}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div>
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
@@ -2134,17 +2134,17 @@ function renderSesion(){
         ${(function(){const im=uniImbalance(e); return im?`<div class="exmeta" style="color:var(--warn);font-weight:600;margin-top:4px">⚠️ Desbalance L/D: izq ${im.L} vs der ${im.R} reps (${im.pct}% más fuerte el ${im.strong})</div>`:'';})()}
         <div style="display:flex;flex-wrap:wrap;gap:8px;row-gap:10px;margin-top:12px">
           <button class="btn-ghost btn-sm" style="flex:1 1 auto;min-width:96px" onclick="addSet(${i})">+ Serie</button>
-          <button class="btn-ghost btn-sm" title="Agrega 3 series de calentamiento (no cuentan)" onclick="addWarmups(${i})">🔥 Calentar</button>
-          <button class="btn-ghost btn-sm" title="Cambiar este ejercicio por otro" onclick="openSwapEx(${i})">⇄ Cambiar</button>
+          <button class="btn-ghost btn-sm" title="Agrega 3 series de calentamiento (no cuentan)" onclick="addWarmups(${i})">${ic('fire',15)} Calentar</button>
+          <button class="btn-ghost btn-sm" title="Cambiar este ejercicio por otro" onclick="openSwapEx(${i})">${ic('swap',15)} Cambiar</button>
           <button class="btn-ghost btn-sm" style="${e.uni?'color:var(--accent);font-weight:700':''}" title="Unilateral: registrar izquierda y derecha" onclick="toggleUni(${i})">L/D</button>
-          <button class="btn-ghost btn-sm" style="${e.sg?`color:${ssCol};font-weight:700`:''}" title="Superserie: agrupa ejercicios (A, B, C…)" onclick="cycleSuperset(${i})">🔗 ${e.sg||"Superserie"}</button>
+          <button class="btn-ghost btn-sm" style="${e.sg?`color:${ssCol};font-weight:700`:''}" title="Superserie: agrupa ejercicios (A, B, C…)" onclick="cycleSuperset(${i})">${ic('link',15)} ${e.sg||"Superserie"}</button>
           <button class="btn-ghost btn-sm" title="Subir" onclick="moveSessionEx(${i},-1)" ${i===0?"disabled":""}>↑</button>
           <button class="btn-ghost btn-sm" title="Bajar" onclick="moveSessionEx(${i},1)" ${i===d.entries.length-1?"disabled":""}>↓</button>
           <button class="btn-ghost btn-sm" onclick="removeExEntry(${i})">Quitar</button>
         </div>
         <div class="row" style="margin-top:8px;gap:8px">
           <div class="field" style="margin:0;flex:0 0 88px"><input placeholder="tempo 3-1-1" value="${(e.tempo||'').replace(/"/g,'&quot;')}" onchange="setExTempo(${i},this.value)" style="font-size:13px"></div>
-          <div class="field" style="margin:0;flex:1"><input placeholder="📝 nota del ejercicio" value="${(e.exNote||'').replace(/"/g,'&quot;')}" onchange="setExNote(${i},this.value)" style="font-size:13px"></div>
+          <div class="field" style="margin:0;flex:1"><input placeholder="nota del ejercicio" value="${(e.exNote||'').replace(/"/g,'&quot;')}" onchange="setExNote(${i},this.value)" style="font-size:13px"></div>
         </div>
       </div>`;
     }).join("")}
@@ -2294,7 +2294,7 @@ function confirmImportRoutine(){
 /* ----- importar pasos desde la URL (Atajo de Apple Salud / Health Connect) ----- */
 function importStepsFromURL(){
   try{ const sp=new URLSearchParams(location.search); const st=sp.get("steps");
-    if(st!=null && /^\d{1,6}$/.test(st)){ const d=sp.get("date")||todayStr(); if(!state.steps)state.steps={}; state.steps[d]=parseInt(st); save(); setTimeout(()=>toast("👟 Pasos importados: "+nfmt(parseInt(st))),500); }
+    if(st!=null && /^\d{1,6}$/.test(st)){ const d=sp.get("date")||todayStr(); if(!state.steps)state.steps={}; state.steps[d]=parseInt(st); save(); setTimeout(()=>toast("Pasos importados: "+nfmt(parseInt(st))),500); }
     if(location.search) history.replaceState(null,"",location.pathname+location.hash);
   }catch(e){}
 }
@@ -2302,6 +2302,45 @@ function importStepsFromURL(){
 /* --- lista de días (agrupada por carpeta) --- */
 function folderIcon(s,color){ s=s||16; color=color||"var(--accent)";
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true" style="vertical-align:-3px"><path d="M3 6a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.4.6L11.4 6H19a2 2 0 0 1 2 2v1.4H7.2a2 2 0 0 0-1.9 1.3L3 17.6z"/><path d="M6.4 11h15.2a1 1 0 0 1 .95 1.3l-2 6.3A2 2 0 0 1 18.6 20H4.1a1 1 0 0 1-.95-1.3l2.3-7A1 1 0 0 1 6.4 11z"/></svg>`; }
+/* ---- íconos SVG limpios (reemplazan emojis genéricos) ---- */
+function ic(name,s,color){ s=s||16; color=color||"currentColor";
+  const st=`fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"`;
+  const P={
+    fire:`<path d="M12 2.4c.7 2.9-.9 4.4-2.4 5.9C8 9.9 6.8 11.6 6.8 13.9a5.2 5.2 0 0 0 10.4.2c0-1.5-.5-2.9-1.5-4-.3 1.1-1.1 1.7-2.1 1.7 1.4-2.6.2-5.4-1.8-7 .2 1.7-.8 2.9-1.9 3.8-.6-2.1 0-4.6 2-6.2z" fill="${color}"/>`,
+    water:`<path d="M12 3.2c2.6 3 6 7 6 10.3a6 6 0 0 1-12 0C6 10.2 9.4 6.2 12 3.2z" fill="${color}"/>`,
+    steps:`<path d="M8.5 4.2c1.6.3 2.6 2 2.2 4.3-.25 1.5-.7 2.9-1.5 4.6-.6 1.2-2.2 1.2-2.9 0C5.2 11.6 4.4 9 4.6 7.1 4.8 5.2 6.3 3.8 8.5 4.2z" fill="${color}"/><path d="M16.6 9.4c1.4.3 2.2 1.8 1.9 3.8-.2 1.3-.6 2.5-1.3 4-.5 1-1.9 1-2.5-.1-.9-1.6-1.5-3.9-1.3-5.5.2-1.6 1.5-2.5 3.2-2.2z" fill="${color}"/>`,
+    chart:`<path d="M4 20V11M9.3 20V5M14.6 20v-6M19.9 20V8" ${st} stroke-width="2.1"/>`,
+    share:`<path d="M12 14.5V3m0 0L8.2 6.8M12 3l3.8 3.8" ${st}/><path d="M6 11v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7" ${st}/>`,
+    target:`<circle cx="12" cy="12" r="8.2" ${st}/><circle cx="12" cy="12" r="3.3" fill="${color}"/>`,
+    scale:`<path d="M12 3v18M6.5 7.5h11M6 7.5 3 13.5h6zM18 7.5l-3 6h6zM5 21h14" ${st} stroke-width="1.7"/>`,
+    calc:`<rect x="5" y="3" width="14" height="18" rx="2.6" ${st} stroke-width="1.8"/><path d="M8.5 7h7" ${st}/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 16h.01M12 16h.01M15.5 16h.01" stroke="${color}" stroke-width="2.2" stroke-linecap="round"/>`,
+    save:`<path d="M6 4h9l4 4v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" ${st} stroke-width="1.8"/><path d="M9 4v5h6" ${st} stroke-width="1.8"/>`,
+    leaf:`<path d="M5 19c-1-8 6-14 15-14 .5 9-5.5 15-14 14 .5-3.2 3-6 7-8" ${st} stroke-width="1.8"/>`,
+    bulb:`<path d="M9.5 18.5h5M10.5 21.5h3M12 3a6 6 0 0 1 3.8 10.6c-.5.5-.8 1.1-.8 1.9H9c0-.8-.3-1.4-.8-1.9A6 6 0 0 1 12 3z" ${st} stroke-width="1.8"/>`,
+    trophy:`<path d="M8 4h8v4.5a4 4 0 0 1-8 0V4zM8 5.5H5V8a3 3 0 0 0 3 3M16 5.5h3V8a3 3 0 0 1-3 3M9.5 21h5M12 16.5V21" ${st} stroke-width="1.8"/>`,
+    note:`<path d="M5 4h11l3.5 3.5V20a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" ${st} stroke-width="1.7"/><path d="M8 9.5h6M8 13h8M8 16.5h5" ${st} stroke-width="1.7"/>`,
+    link:`<path d="M9.3 14.7l5.4-5.4M9.8 7.6l1.6-1.6a3.6 3.6 0 0 1 5.1 5.1l-1.6 1.6M14.2 16.4l-1.6 1.6a3.6 3.6 0 0 1-5.1-5.1l1.6-1.6" ${st}/>`,
+    swap:`<path d="M6.5 8.5h11l-3.2-3.2M17.5 15.5h-11l3.2 3.2" ${st}/>`,
+    cycle:`<path d="M4.5 12a7.5 7.5 0 0 1 12.8-5.3L20 9M20 4.5V9h-4.5M19.5 12a7.5 7.5 0 0 1-12.8 5.3L4 15M4 19.5V15h4.5" ${st} stroke-width="1.8"/>`,
+    hourglass:`<path d="M7 4h10M7 20h10M8 4c0 4.5 8 4.5 8 8s-8 3.5-8 8M16 4c0 4.5-8 4.5-8 8" ${st} stroke-width="1.8"/>`,
+    calendar:`<rect x="4" y="5" width="16" height="16" rx="2.4" ${st} stroke-width="1.8"/><path d="M4 9.5h16M8.5 3v4M15.5 3v4" ${st} stroke-width="1.8"/>`,
+    star:`<path d="M12 3.4l2.6 5.4 5.9.8-4.3 4.2 1 5.9L12 17l-5.2 2.7 1-5.9-4.3-4.2 5.9-.8z" fill="${color}"/>`,
+    clock:`<circle cx="12" cy="12" r="8.2" ${st} stroke-width="1.8"/><path d="M12 7.5V12l3 2" ${st} stroke-width="1.8"/>`,
+    dumbbell:`<path d="M3.5 9.5v5M6.5 7v10M17.5 7v10M20.5 9.5v5M6.5 12h11" ${st} stroke-width="2"/>`,
+    salt:`<path d="M8 9.5h8l-.9 10.5H8.9zM9 9.5V6.5a3 3 0 0 1 6 0v3M11 13v2.5M13 13v2.5" ${st} stroke-width="1.7"/>`,
+    sugar:`<rect x="4.5" y="9" width="15" height="10.5" rx="2.2" ${st} stroke-width="1.8"/><path d="M8 9V7l-1.2-2.5h10.4L16 7v2" ${st} stroke-width="1.8"/>`,
+    apple:`<path d="M12 7.2c1.1-1.7 3.2-2.4 4.9-1.5 2 1 2.5 3.8 1.4 6.6-.7 1.9-1.9 3.9-3.3 5.2-.9.8-2.3.8-3-.1-.7.9-2.1.9-3 .1-1.4-1.3-2.6-3.3-3.3-5.2C4.6 9.5 5.1 6.7 7.1 5.7c1.7-.9 3.8-.2 4.9 1.5z" ${st} stroke-width="1.7"/><path d="M12 7V4.6c0-1 .8-1.8 2-1.8" ${st} stroke-width="1.7"/>`,
+    bowl:`<path d="M3.5 11h17a8.5 8.5 0 0 1-17 0z" ${st} stroke-width="1.8"/><path d="M7 11c0-2.8 2.2-5 5-5s5 2.2 5 5" ${st} stroke-width="1.7"/>`,
+    utensils:`<path d="M6 3v6a2 2 0 0 0 4 0V3M8 9v12M16.5 3C15 3 14 5.2 14 8s1 4 2.5 4V21" ${st} stroke-width="1.8"/>`,
+    moon:`<path d="M20 14.2A8 8 0 1 1 9.8 4 6.5 6.5 0 0 0 20 14.2z" ${st} stroke-width="1.8"/>`,
+    sun:`<circle cx="12" cy="12" r="4" ${st} stroke-width="1.8"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6 7.1 7.1M16.9 16.9l1.5 1.5M18.4 5.6 16.9 7.1M7.1 16.9l-1.5 1.5" ${st} stroke-width="1.8"/>`,
+    battery:`<rect x="3" y="8" width="16" height="9" rx="2.2" ${st} stroke-width="1.8"/><path d="M21.5 11.5v3" ${st} stroke-width="1.8"/><path d="M6.5 11.5v3" stroke="${color}" stroke-width="2.6" stroke-linecap="round"/>`,
+    download:`<path d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5M5 19h14" ${st} stroke-width="1.9"/>`,
+    upload:`<path d="M12 20V10m0 0 3.5 3.5M12 10l-3.5 3.5M5 5h14" ${st} stroke-width="1.9"/>`,
+    cloud:`<path d="M7 18.5a4.2 4.2 0 0 1-.5-8.37 5.6 5.6 0 0 1 10.8-1.05A3.75 3.75 0 0 1 17.2 18.5z" ${st} stroke-width="1.8"/>`
+  };
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px;flex:0 0 auto">${P[name]||''}</svg>`;
+}
 function tplCard(t){
   const groups=[...new Set(t.exercises.map(x=>exGroupOf(x.exId)))].join(", ");
   return `<div style="background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:9px 10px 9px 12px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
@@ -2309,8 +2348,8 @@ function tplCard(t){
       <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
       <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.exercises.length} ej · ${groups||"—"}</div>
     </div>
-    <button class="icon-btn" style="flex:0 0 auto" title="Analizar rutina" onclick="openRoutineAnalysis('${t.id}')">📊</button>
-    <button class="icon-btn" style="flex:0 0 auto" title="Compartir por link" onclick="shareTemplate('${t.id}')">📤</button>
+    <button class="icon-btn" style="flex:0 0 auto" title="Analizar rutina" onclick="openRoutineAnalysis('${t.id}')">${ic('chart',16)}</button>
+    <button class="icon-btn" style="flex:0 0 auto" title="Compartir por link" onclick="shareTemplate('${t.id}')">${ic('share',16)}</button>
     <button class="icon-btn" style="flex:0 0 auto" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">${folderIcon(15)}</button>
     <button class="btn-ghost btn-sm" style="flex:0 0 auto" onclick="editTemplate('${t.id}')">Editar</button>
     <button class="icon-btn" style="flex:0 0 auto;color:var(--bad)" title="Eliminar" onclick="deleteTemplate('${t.id}')">×</button>
@@ -2320,18 +2359,18 @@ function renderTemplateList(){
   const el=document.getElementById("templateList");
   const fs=state.folders||[];
   const inFolder=fid=>state.templates.filter(t=>(t.folder||null)===fid);
-  const newFolderBtn=`<div class="row" style="margin-bottom:10px;gap:6px"><button class="btn-ghost btn-sm" onclick="newFolder()">${folderIcon(14)} Nueva carpeta</button><button class="btn-ghost btn-sm" onclick="openSetAnalysis()">📊 Analizar semana</button></div>`;
+  const newFolderBtn=`<div class="row" style="margin-bottom:10px;gap:6px"><button class="btn-ghost btn-sm" onclick="newFolder()">${folderIcon(14)} Nueva carpeta</button><button class="btn-ghost btn-sm" onclick="openSetAnalysis()">${ic('chart',15)} Analizar semana</button></div>`;
   if(!state.templates.length){ el.innerHTML=newFolderBtn+`<div class="empty">Sin días. Crea uno o restaura los del Excel.</div>`; return; }
   let html=newFolderBtn;
   fs.forEach(f=>{
     const items=inFolder(f.id), col=collapsedFolders[f.id];
     html+=`<div style="display:flex;align-items:center;gap:8px;margin:8px 2px 6px">
       <span style="cursor:pointer;font-weight:700;font-size:14px;flex:1;min-width:0" onclick="toggleFolder('${f.id}')">${col?'▸':'▾'} ${folderIcon(15)} ${f.name} <span style="color:var(--muted);font-weight:400;font-size:12px">(${items.length})</span></span>
-      <span title="Analizar carpeta" style="cursor:pointer;font-size:13px" onclick="analyzeFolder('${f.id}')">📊</span>
-      <span title="Compartir carpeta por link" style="cursor:pointer;font-size:13px" onclick="shareFolder('${f.id}')">📤</span>
+      <span title="Analizar carpeta" style="cursor:pointer;font-size:13px" onclick="analyzeFolder('${f.id}')">${ic('chart',15)}</span>
+      <span title="Compartir carpeta por link" style="cursor:pointer;font-size:13px" onclick="shareFolder('${f.id}')">${ic('share',15)}</span>
       <span style="color:var(--muted);cursor:pointer" onclick="renameFolder('${f.id}')">✎</span>
       <span style="color:var(--bad);cursor:pointer" onclick="deleteFolder('${f.id}')">×</span></div>`;
-    if(!col) html += items.length ? items.map(tplCard).join("") : `<div class="empty" style="margin:0 0 10px">Carpeta vacía · usa 📁 en un día para moverlo aquí.</div>`;
+    if(!col) html += items.length ? items.map(tplCard).join("") : `<div class="empty" style="margin:0 0 10px">Carpeta vacía · usa ${folderIcon(13)} en un día para moverlo aquí.</div>`;
   });
   const none=inFolder(null);
   if(fs.length) html+=`<div style="font-weight:700;font-size:14px;color:var(--muted);margin:8px 2px 6px">Sin carpeta <span style="font-weight:400;font-size:12px">(${none.length})</span></div>`;
@@ -2595,7 +2634,7 @@ function renderMuscleAnalysis(wk){
   if(push>0&&pull>0){ const rr=push/pull; if(rr>1.6) q.push({t:"warn",m:"Empujas mucho más de lo que jalas — agrega remos/jalones."}); else if(rr<0.62) q.push({t:"warn",m:"Jalas mucho más de lo que empujas."}); }
   const qb=document.getElementById("qualityBox");
   qb.innerHTML = q.length ? q.map(x=>`<div style="border-left:3px solid ${x.t==='bad'?'var(--bad)':'var(--warn)'};background:var(--bg2);border-radius:0 10px 10px 0;padding:9px 12px;margin-bottom:8px;font-size:13px">${x.m}</div>`).join("")
-    : `<div style="border-left:3px solid var(--ok);background:var(--bg2);border-radius:0 10px 10px 0;padding:9px 12px;font-size:13px">Sin alertas: tu reparto de volumen se ve equilibrado. 👍</div>`;
+    : `<div style="border-left:3px solid var(--ok);background:var(--bg2);border-radius:0 10px 10px 0;padding:9px 12px;font-size:13px">Sin alertas: tu reparto de volumen se ve equilibrado.</div>`;
 }
 /* ===== Modelo muscular: involucramiento por ejercicio + series efectivas por RIR ===== */
 const SUBMUSCLES=[["pecho","Pecho"],["deltAnt","Hombro ant."],["deltLat","Hombro lat."],["deltPost","Hombro post."],["dorsal","Dorsal"],["espaldaAlta","Espalda alta"],["biceps","Bíceps"],["triceps","Tríceps"],["antebrazo","Antebrazo"],["cuadriceps","Cuádriceps"],["femoral","Femoral"],["gluteo","Glúteo"],["aductor","Aductor"],["pantorrilla","Pantorrilla"],["core","Core"]];
@@ -2817,7 +2856,7 @@ function progressionSuggest(exId, repRange, group, templateId){
   const inc=lower?5:2.5;
   const base=Math.max(...last.map(s=>s.weight||0));
   const lastReps=Math.max(...last.map(s=>s.reps||0));
-  if(top && last.every(s=>(s.reps||0)>=top)) return {text:`💡 Llegaste al tope (${top} reps) — sube a ${fmtW(base+inc)}`, color:"var(--ok)"};
+  if(top && last.every(s=>(s.reps||0)>=top)) return {text:`${ic('bulb',15)} Llegaste al tope (${top} reps) — sube a ${fmtW(base+inc)}`, color:"var(--ok)"};
   if(sessions.length>=2){
     const prev=workingOf(sessions[1]);
     if(prev.length){ const prevBase=Math.max(...prev.map(s=>s.weight||0)), prevReps=Math.max(...prev.map(s=>s.reps||0));
@@ -2845,7 +2884,7 @@ function renderExerciseChart(){
   };
   const labels=s.map((p,i)=>`<text x="${xOf(i)}" y="${H-9}" fill="var(--muted)" font-size="8" text-anchor="middle">${p.date.slice(5)}</text>`).join("");
   const tbl=`<div class="table-wrap" style="margin-top:10px"><table><thead><tr><th>Fecha</th><th class="r">Top set</th><th class="r">1RM est.</th><th class="r">Tonelaje</th></tr></thead><tbody>
-    ${s.slice().reverse().map(p=>`<tr><td>${p.date}${p.week?` <span style="color:var(--muted);font-size:10px">S${p.week}</span>`:""}${p.note?`<br><span style="font-size:10px;color:var(--muted);font-style:italic">📝 ${p.note}</span>`:""}</td>
+    ${s.slice().reverse().map(p=>`<tr><td>${p.date}${p.week?` <span style="color:var(--muted);font-size:10px">S${p.week}</span>`:""}${p.note?`<br><span style="font-size:10px;color:var(--muted);font-style:italic">${ic('note',12)} ${p.note}</span>`:""}</td>
       <td class="r num">${p.tw?fmtW(p.tw):"—"}</td>
       <td class="r num" style="color:var(--accent2)">${p.orm?fmtW(p.orm):"—"}</td>
       <td class="r num">${fmtTon(p.ton)}</td></tr>`).join("")}
@@ -2933,7 +2972,7 @@ function renderBodyComp(){
     <div class="kv"><span><span class="mdot" style="background:var(--protein)"></span>Masa magra (FFM)</span><b style="color:var(--protein)">${r1(lean)} kg</b></div>
     <div class="kv"><span><span class="mdot" style="background:var(--fat)"></span>Masa grasa</span><b style="color:var(--fat)">${r1(fat)} kg</b></div>
     <div class="divider"></div>
-    <div style="font-weight:700;margin-bottom:4px">🎯 Simulador de peso por % de grasa</div>
+    <div style="font-weight:700;margin-bottom:4px">${ic('target',15)} Simulador de peso por % de grasa</div>
     <p class="card-sub" style="margin-bottom:8px">Si conservas tu masa magra (${r1(lean)} kg), ¿a qué peso llegarías?</p>
     <div class="field" style="margin:0"><label>% de grasa objetivo</label><input type="number" id="simBF" inputmode="decimal" step="0.5" value="${tBF}" placeholder="Ej. 12" oninput="simulateBF()"></div>
     <div id="simBFResult" style="margin-top:10px"></div>
@@ -2953,10 +2992,10 @@ function etaToGoal(){ const g=state.goals, r=realWeightRate(), w=curWeight(); if
   const weeks=Math.abs(remaining)/Math.abs(r.kgPerWeek);
   return {weeks:r1(weeks), eta:dayShift(todayStr(),Math.round(weeks*7)), rate:r.kgPerWeek, remaining:r1(Math.abs(remaining))}; }
 function etaHTML(){ const g=state.goals; if(!g||!g.goalWeight) return ""; const e=etaToGoal();
-  if(!e) return `<div class="divider"></div><div class="card-sub" style="margin:0">⏳ Registra tu peso 2+ veces (con ~1 semana entre medidas) para estimar cuándo llegas a tu meta.</div>`;
+  if(!e) return `<div class="divider"></div><div class="card-sub" style="margin:0">${ic('hourglass',15)} Registra tu peso 2+ veces (con ~1 semana entre medidas) para estimar cuándo llegas a tu meta.</div>`;
   if(e.done) return `<div class="divider"></div><div style="color:var(--ok);font-weight:600">✓ ¡Ya estás en tu peso objetivo (${r1(g.goalWeight)} kg)!</div>`;
   if(e.stalled) return `<div class="divider"></div><div style="color:var(--warn);font-weight:600">⚠️ A tu ritmo actual (${e.rate>0?'+':''}${r1(e.rate)} kg/sem) no te acercas a la meta — ajusta calorías.</div>`;
-  return `<div class="divider"></div><div style="font-weight:700;margin-bottom:4px">⏳ ¿Cuánto me falta?</div>
+  return `<div class="divider"></div><div style="font-weight:700;margin-bottom:4px">${ic('hourglass',15)} ¿Cuánto me falta?</div>
     <div class="kv"><span>Ritmo actual</span><b>${e.rate>0?'+':''}${r1(e.rate)} kg/sem</b></div>
     <div class="kv"><span>Te faltan</span><b>${e.remaining} kg</b></div>
     <div class="kv"><span>Llegarías ~</span><b style="color:var(--accent2)">${e.eta} (${e.weeks} sem)</b></div>`; }
@@ -2993,11 +3032,11 @@ function goalsForDay(date){ const g=state.goals; if(!g||!g.calories) return null
   return {...d, cycled: d.cal!==g.calories || (d.type&&d.type!=="entreno")}; }
 function hasCycle(){ const g=state.goals; return !!(g&&((g.cycle&&Object.keys(g.cycle).length)||g.bank)); }
 function renderCycleCard(){ const el=document.getElementById("cycleCard"); if(!el) return; const g=state.goals;
-  if(!g||!g.calories){ el.innerHTML=`<h3>🔁 Ciclado de calorías</h3><p class="card-sub" style="margin:0">Calcula tu meta primero para poder ciclar por día.</p>`; return; }
+  if(!g||!g.calories){ el.innerHTML=`<h3>${ic('cycle',16)} Ciclado de calorías</h3><p class="card-sub" style="margin:0">Calcula tu meta primero para poder ciclar por día.</p>`; return; }
   const days=["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"], cyc=g.cycle||{}, wk=weekCycle();
   const weekTotal=wk.reduce((a,d)=>a+d.cal,0), target=g.calories*7;
   const opts=val=>Object.keys(CYCLE_TYPES).map(k=>`<option value="${k}" ${val===k?"selected":""}>${CYCLE_TYPES[k].lbl}</option>`).join("");
-  el.innerHTML=`<h3>🔁 Ciclado de calorías</h3>
+  el.innerHTML=`<h3>${ic('cycle',16)} Ciclado de calorías</h3>
     <p class="card-sub" style="margin-bottom:10px">Elige el tipo de cada día (vacío = Entreno). <b>Descanso</b> y <b>Refeed</b> se calculan solos; <b>Cheat</b>/<b>Personalizado</b> los escribes tú. Se mantienen proteína y grasa; ajustan los carbos.</p>
     ${days.map((d,wd)=>{ const c=cyc[wd]; const type=(c&&c.type)||(typeof c==="number"?"custom":"entreno"); const manual=type==="cheat"||type==="custom";
       return `<div class="row" style="align-items:center;gap:8px;margin-bottom:6px">
@@ -3041,7 +3080,7 @@ function openCloseMacros(){
     <div class="kv"><span><span class="mdot bg-c"></span>Carbohidratos</span><b class="m-c">${pos(rem.carbs)} g</b></div>
     <div class="kv"><span><span class="mdot bg-f"></span>Grasa</span><b class="m-f">${pos(rem.fat)} g</b></div><div class="divider"></div>`;
   if(rem.protein<=3 && rem.carbs<=6 && rem.fat<=3 && rem.cal<=30){
-    body+=`<div style="color:var(--ok);font-weight:600">✓ ¡Ya cerraste tus macros de hoy! 🎉</div>`;
+    body+=`<div style="color:var(--ok);font-weight:600">✓ ¡Ya cerraste tus macros de hoy!</div>`;
   } else {
     if(rem.cal<=20) body+=`<div style="font-size:12px;color:var(--warn);font-weight:600;margin-bottom:4px">Ya casi llegas a tus calorías — para subir un macro sin pasarte, cambia algo por una opción más rica en ese macro.</div>`;
     const defs=[{k:'protein',lbl:'proteína',cls:'m-p',min:4},{k:'carbs',lbl:'carbohidratos',cls:'m-c',min:6},{k:'fat',lbl:'grasa',cls:'m-f',min:4}];
@@ -3066,7 +3105,7 @@ function objectiveCardHTML(){
       <div class="flex-between" style="font-size:13px"><span style="color:var(--muted)">Actual</span><b>${r1(w)} kg ${near?'<span style="color:var(--ok);font-size:11px">¡en meta! ✓</span>':`<span style="color:${diff>0?'var(--accent)':'var(--warn)'};font-size:11px">(${diff>0?'bajar':'subir'} ${r1(Math.abs(diff))})</span>`}</b></div>`; }
   if(g.targetBF&&bf!=null){ const d=bf-g.targetBF;
     rows+=`<div class="flex-between" style="font-size:13px;margin-top:4px"><span style="color:var(--muted)">Grasa (meta ${r1(g.targetBF)}%)</span><b style="color:var(--accent)">${r1(bf)}% ${Math.abs(d)<0.5?'✓':`<span style="font-size:11px;color:var(--muted)">(${d>0?'-':'+'}${r1(Math.abs(d))} pts)</span>`}</b></div>`; }
-  return rows?`<div class="card" style="margin-top:14px;padding:14px 16px"><div style="font-weight:700;margin-bottom:8px">🎯 Tu objetivo</div>${rows}</div>`:"";
+  return rows?`<div class="card" style="margin-top:14px;padding:14px 16px"><div style="font-weight:700;margin-bottom:8px">${ic('target',15)} Tu objetivo</div>${rows}</div>`:"";
 }
 /* gráfica de masa magra vs grasa en el tiempo */
 function renderCompChart(){
@@ -3129,7 +3168,7 @@ function openRoutineAnalysis(templateId){
     muscleSetsTable(ev,false)+
     (freq>1?`<div class="divider"></div><div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Volumen semanal (×${freq}/sem) con estado</div>`+muscleSetsTable(weekEv,true):"")+
     `<p class="card-sub" style="margin-top:10px">El equilibrio y los huecos (espalda, piernas, abdomen…) se evalúan sobre tu <b>semana completa</b>. Usa “Analizar varias rutinas”.</p>
-     <button class="btn-ghost btn-sm" style="margin-top:4px" onclick="closeModal('routineAnalysisModal');openSetAnalysis()">📊 Analizar carpeta / varias rutinas</button>`;
+     <button class="btn-ghost btn-sm" style="margin-top:4px" onclick="closeModal('routineAnalysisModal');openSetAnalysis()">${ic('chart',15)} Analizar carpeta / varias rutinas</button>`;
   openModal("routineAnalysisModal");
 }
 /* análisis de un CONJUNTO de rutinas (semana / carpeta): volumen + equilibrio + huecos */
