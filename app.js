@@ -2304,6 +2304,45 @@ function folderIcon(s,color){ s=s||16; color=color||"var(--accent)";
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true" style="vertical-align:-3px"><path d="M3 6a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.4.6L11.4 6H19a2 2 0 0 1 2 2v1.4H7.2a2 2 0 0 0-1.9 1.3L3 17.6z"/><path d="M6.4 11h15.2a1 1 0 0 1 .95 1.3l-2 6.3A2 2 0 0 1 18.6 20H4.1a1 1 0 0 1-.95-1.3l2.3-7A1 1 0 0 1 6.4 11z"/></svg>`; }
 /* ---- íconos SVG limpios (reemplazan emojis genéricos) ---- */
 function ic(name,s,color){ s=s||16; color=color||"currentColor";
+  const a=`fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"`;
+  const f=`fill="${color}"`;
+  const P={
+    fire:`<path ${f} d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.07-2.14-.22-4.05 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.15.43-2.29 1-3a2.5 2.5 0 0 0 2.5 2.5Z"/>`,
+    water:`<path ${f} d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>`,
+    steps:`<path ${a} d="M4 16v-2.38C4 11.5 2.97 10.5 3 8c.03-2.72 1.49-6 4.5-6C9.37 2 10 3.8 10 5.5c0 3.11-2 5.66-2 8.68V16a2 2 0 1 1-4 0Z"/><path ${a} d="M20 20v-2.38c0-2.12 1.03-3.12 1-5.62-.03-2.72-1.49-6-4.5-6C14.63 6 14 7.8 14 9.5c0 3.11 2 5.66 2 8.68V20a2 2 0 1 0 4 0Z"/><path ${a} d="M16 17h4M4 13h4"/>`,
+    chart:`<path ${a} d="M3 3v16a2 2 0 0 0 2 2h16"/><path ${a} d="M18 17V9M13 17V5M8 17v-3"/>`,
+    share:`<circle cx="18" cy="5" r="3" ${a}/><circle cx="6" cy="12" r="3" ${a}/><circle cx="18" cy="19" r="3" ${a}/><path ${a} d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>`,
+    target:`<circle cx="12" cy="12" r="10" ${a}/><circle cx="12" cy="12" r="6" ${a}/><circle cx="12" cy="12" r="2" ${a}/>`,
+    scale:`<path ${a} d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path ${a} d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/><path ${a} d="M7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>`,
+    calc:`<rect x="4" y="2" width="16" height="20" rx="2" ${a}/><path ${a} d="M8 6h8M16 14v4"/><path stroke="${color}" stroke-width="2" stroke-linecap="round" d="M16 10h.01M12 10h.01M8 10h.01M12 14h.01M8 14h.01M12 18h.01M8 18h.01"/>`,
+    save:`<path ${a} d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Z"/><path ${a} d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7M7 3v4a1 1 0 0 0 1 1h7"/>`,
+    leaf:`<path ${a} d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path ${a} d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>`,
+    bulb:`<path ${a} d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path ${a} d="M9 18h6M10 22h4"/>`,
+    trophy:`<path ${a} d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z"/>`,
+    note:`<path ${a} d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path ${a} d="M14 2v5h5M10 9H8M16 13H8M16 17H8"/>`,
+    link:`<path ${a} d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path ${a} d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>`,
+    swap:`<path ${a} d="M8 3 4 7l4 4M4 7h16M16 21l4-4-4-4M20 17H4"/>`,
+    cycle:`<path ${a} d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path ${a} d="M21 3v5h-5"/><path ${a} d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path ${a} d="M8 16H3v5"/>`,
+    hourglass:`<path ${a} d="M5 22h14M5 2h14M17 22v-4.17a2 2 0 0 0-.59-1.41L12 12l-4.41 4.41A2 2 0 0 0 7 17.83V22M7 2v4.17a2 2 0 0 0 .59 1.41L12 12l4.41-4.41A2 2 0 0 0 17 6.17V2"/>`,
+    calendar:`<path ${a} d="M8 2v4M16 2v4"/><rect x="3" y="4" width="18" height="18" rx="2" ${a}/><path ${a} d="M3 10h18"/>`,
+    star:`<path ${f} d="M11.48 3.5a.6.6 0 0 1 1.04 0l2.42 4.9 5.4.79a.6.6 0 0 1 .33 1.02l-3.9 3.8.92 5.38a.6.6 0 0 1-.87.63L12 17.98l-4.84 2.54a.6.6 0 0 1-.87-.63l.92-5.38-3.9-3.8a.6.6 0 0 1 .33-1.02l5.4-.79z"/>`,
+    clock:`<circle cx="12" cy="12" r="10" ${a}/><path ${a} d="M12 6v6l4 2"/>`,
+    dumbbell:`<path ${a} d="M14.4 14.4 9.6 9.6M18.66 21.49a2 2 0 1 1-2.83-2.83l1.42-1.41 2.82 2.82zM5.34 2.51a2 2 0 1 1 2.83 2.83L6.76 6.76 3.93 3.93zM21.5 21.5l-1.4-1.4M3.9 3.9 2.5 2.5M6.4 12.77 2.51 8.9a2 2 0 0 1 0-2.83l3.54-3.54M17.6 11.23l3.89 3.87a2 2 0 0 1 0 2.83l-3.54 3.54"/>`,
+    salt:`<path ${a} d="M8 9.5h8l-.9 10.5H8.9zM9 9.5V6.5a3 3 0 0 1 6 0v3M11 13v2.5M13 13v2.5"/>`,
+    sugar:`<path ${a} d="M6 8l1-3h10l1 3"/><rect x="5" y="8" width="14" height="11" rx="2" ${a}/>`,
+    apple:`<path ${a} d="M12 20.94c1.5 0 2.75 1.06 4 1.06 3 0 6-8 6-12.22A4.91 4.91 0 0 0 17 5c-2.22 0-4 1.44-5 2-1-.56-2.78-2-5-2a4.9 4.9 0 0 0-5 4.78C2 14 5 22 8 22c1.25 0 2.5-1.06 4-1.06Z"/><path ${a} d="M10 2c1 .5 2 2 2 5"/>`,
+    bowl:`<path ${a} d="M3 11h18a9 9 0 0 1-18 0Z"/><path ${a} d="M7 11a5 5 0 0 1 10 0"/>`,
+    utensils:`<path ${a} d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2M7 2v20M21 15V2a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3v7"/>`,
+    moon:`<path ${a} d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>`,
+    sun:`<circle cx="12" cy="12" r="4" ${a}/><path ${a} d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>`,
+    battery:`<rect x="2" y="7" width="16" height="10" rx="2" ${a}/><path ${a} d="M22 11v2"/><path stroke="${color}" stroke-width="2.4" stroke-linecap="round" d="M6 11v2"/>`,
+    download:`<path ${a} d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>`,
+    upload:`<path ${a} d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>`,
+    cloud:`<path ${a} d="M17.5 19H9a7 7 0 1 1 6.71-9H17.5a4.5 4.5 0 1 1 0 9Z"/>`
+  };
+  return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="${color}" aria-hidden="true" style="vertical-align:-3px"><path d="M3 6a2 2 0 0 1 2-2h3.6a2 2 0 0 1 1.4.6L11.4 6H19a2 2 0 0 1 2 2v1.4H7.2a2 2 0 0 0-1.9 1.3L3 17.6z"/><path d="M6.4 11h15.2a1 1 0 0 1 .95 1.3l-2 6.3A2 2 0 0 1 18.6 20H4.1a1 1 0 0 1-.95-1.3l2.3-7A1 1 0 0 1 6.4 11z"/></svg>`; }
+/* ---- íconos SVG limpios (reemplazan emojis genéricos) ---- */
+function ic(name,s,color){ s=s||16; color=color||"currentColor";
   const st=`fill="none" stroke="${color}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"`;
   const P={
     fire:`<path d="M12 2.4c.7 2.9-.9 4.4-2.4 5.9C8 9.9 6.8 11.6 6.8 13.9a5.2 5.2 0 0 0 10.4.2c0-1.5-.5-2.9-1.5-4-.3 1.1-1.1 1.7-2.1 1.7 1.4-2.6.2-5.4-1.8-7 .2 1.7-.8 2.9-1.9 3.8-.6-2.1 0-4.6 2-6.2z" fill="${color}"/>`,

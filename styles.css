@@ -470,3 +470,51 @@ label{margin-bottom:9px!important}
 .stat-card .sl{font-size:11px;color:var(--muted);margin-top:2px}
 .stat-card .sbar{height:4px;border-radius:2px;background:var(--bg2);margin-top:7px;overflow:hidden}
 .stat-card .sbar>i{display:block;height:100%;border-radius:2px}
+
+/* ====================================================================
+   DISEÑO v2 — pulido pro estilo Apple (sombras, jerarquía, componentes)
+   ==================================================================== */
+:root{
+  --shadow-sm:0 1px 2px rgba(17,17,26,.04),0 2px 6px rgba(17,17,26,.03);
+  --shadow:0 2px 8px rgba(17,17,26,.05),0 10px 26px rgba(17,17,26,.055);
+  --shadow-lg:0 10px 30px rgba(17,17,26,.08),0 26px 56px rgba(17,17,26,.08);
+}
+html[data-theme="dark"]{
+  --shadow-sm:0 1px 2px rgba(0,0,0,.5);
+  --shadow:0 2px 10px rgba(0,0,0,.5),0 14px 30px rgba(0,0,0,.55);
+  --shadow-lg:0 16px 42px rgba(0,0,0,.6);
+}
+/* jerarquía tipográfica más Apple (títulos grandes, tracking negativo) */
+.greet{font-size:29px;font-weight:800;letter-spacing:-.035em}
+.subtle{font-size:14px}
+.section-title{letter-spacing:-.035em}
+.section-eyebrow{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.055em;color:var(--muted);margin:26px 6px 11px}
+/* tarjetas y hero */
+.card{border-radius:24px;box-shadow:var(--shadow)}
+.hero{padding:26px 20px 22px;box-shadow:var(--shadow-lg)}
+.cal-center .big{font-size:52px;letter-spacing:-.045em}
+.cal-center .lbl{font-size:12px}
+/* barra de navegación: estado activo claro + hairline + sombra elevada */
+.tabbar{border:.5px solid rgba(0,0,0,.05);box-shadow:0 8px 28px rgba(17,17,26,.13),0 2px 8px rgba(17,17,26,.06)}
+html[data-theme="dark"] .tabbar{border-color:rgba(255,255,255,.08)}
+nav button{transition:background .15s,color .15s}
+nav button.active{background:var(--accent-soft)}
+.add-fab{box-shadow:0 6px 18px rgba(124,58,237,.4)}
+/* botones e inputs con feedback fino */
+button{transition:transform .08s ease,background .15s,filter .15s,box-shadow .15s}
+button:active{transform:scale(.97)}
+.btn-primary:hover{background:#6D28D9}
+input,select,textarea{transition:box-shadow .15s,background .15s}
+input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3.5px var(--accent-soft)}
+/* stat cards del dashboard */
+.stat-card{border-radius:16px;box-shadow:var(--shadow-sm);transition:transform .1s,box-shadow .15s}
+.stat-card:active{transform:scale(.98)}
+/* íconos en contenedores (ajustes / comidas) alineados y en acento */
+.settings-row .sr-ic{color:var(--accent)}
+.settings-row .sr-ic svg{width:19px;height:19px}
+.meal-ic svg{width:19px;height:19px}
+/* pills redondeadas consistentes */
+.pill{border-radius:999px;padding:4px 10px;font-size:12px}
+/* pequeños refinamientos de lista */
+.settings-row{padding:15px 16px}
+.list-row{border-radius:16px}
