@@ -359,11 +359,29 @@ function statCardsHTML(t, eg){
   const kf=n=>n>=1000?(Math.round(n/100)/10).toString().replace(/\.0$/,"")+"k":String(n);
   const steps=(state.steps&&state.steps[today])||0, sg=(g&&g.steps)||0;
   const pasosCard=card(steps,sg,kf(steps),kf(sg),"Pasos","var(--accent)","editStepsToday()");
-  const st=computeStreak().streak;
+  const st=((computeStreak()||{}).streak)||0;
   const rachaCard=`<div class="card" style="margin-bottom:12px;padding:13px 16px;display:flex;align-items:center;gap:13px;background:var(--accent-soft);box-shadow:none">
     <span style="flex:0 0 auto;display:flex">${ic('fire',30,'#FF7A2F')}</span>
     <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:21px;line-height:1;font-variant-numeric:tabular-nums">${st} ${st===1?'día':'días'}</div><div style="font-size:12px;color:var(--muted);margin-top:3px">de racha cumpliendo tu meta</div></div></div>`;
   return `${rachaCard}<div class="stat-grid g4">${macroCards}</div><div class="stat-grid g2">${aguaCard}${pasosCard}</div>`;
+}
+/* checklist de primer uso: guía al usuario nuevo en 3 pasos; desaparece al completarlos */
+function starterCardHTML(){
+  const hasGoal=!!(state.goals&&state.goals.calories);
+  const hasFood=Object.values(state.plan.slots||{}).some(s=>s&&s.length) || (state.history||[]).length>0;
+  const hasWorkout=(state.workouts||[]).length>0;
+  if(hasGoal&&hasFood&&hasWorkout) return "";
+  const row=(done,txt,btn,fn)=>`<div style="display:flex;align-items:center;gap:10px;padding:9px 0">
+    <span style="width:22px;height:22px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;${done?'background:var(--ok);color:#fff':'background:var(--bg2);color:var(--muted)'}">${done?'✓':''}</span>
+    <span style="flex:1;font-size:14px;${done?'color:var(--muted)':''}">${txt}</span>
+    ${done?'':`<button class="btn-primary btn-sm" style="flex:0 0 auto" onclick="${fn}">${btn}</button>`}</div>`;
+  return `<div class="card" style="margin-bottom:14px;padding:16px 18px">
+    <div style="font-weight:700;font-size:16px">Empieza aquí</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:4px">3 pasos y la app hace el resto por ti</div>
+    ${row(hasGoal,'Calcula tu meta de calorías','Calcular',"nav('metas')")}
+    ${row(hasFood,'Registra tu primera comida','Registrar',"openAdd()")}
+    ${row(hasWorkout,'Registra tu primer entreno','Ir a Entreno',"nav('entreno')")}
+  </div>`;
 }
 function renderHoy(){
   const g=state.goals, t=dayTotals();
@@ -409,6 +427,7 @@ function renderHoy(){
   const copyDayBtn = prev ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">↻ Copiar mi día de ayer</button>` : "";
   document.getElementById("hoyContent").innerHTML=`
     <div style="margin:4px 2px 18px"><div class="greet">${greet}</div><div class="subtle">${fecha}</div></div>
+    ${starterCardHTML()}
     <div class="card hero">
       <div style="position:relative;width:200px;height:200px">${ringSVG(calPct,"",200,16,true)}
         <div class="cal-center" style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center">${center}</div></div>
@@ -2042,7 +2061,7 @@ function renderSesion(){
     cont.innerHTML = `
       <div class="card">
         <div class="flex-between"><h3 style="margin:0">Nueva sesión</h3>
-          <button class="btn-primary btn-sm" onclick="openStartModal()">+ Iniciar sesión</button></div>
+          <button class="btn-primary btn-sm" onclick="openStartModal()">+ Empezar entreno</button></div>
         <p class="card-sub" style="margin-top:8px">Elige un día de tu rutina y registra peso × reps por serie. El tonelaje y el 1RM se calculan solos.</p>
       </div>
       ${freqTemplates().length?`<div class="card" style="margin-top:16px"><h3>Metas de la semana (Sem ${currentTrainWeek()})</h3>${freqTemplates().map(t=>{const done=freqDoneThisWeek(t.id),ok=done>=t.freqWeek;return `<div class="kv"><span>${t.name}</span><b style="color:${ok?'var(--ok)':'var(--muted)'}">${done}/${t.freqWeek} ${ok?'✓':''}</b></div>`;}).join("")}<small class="hint" style="display:block;margin-top:6px">Anéxala a cualquier sesión con su botón “+”, o regístrala sola; cuenta sin importar el día.</small></div>`:""}
@@ -2079,7 +2098,7 @@ function renderSesion(){
         <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">${ic('save',15)} Guardar como plantilla</button>
       </div>
       <textarea id="sessNote" placeholder="Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
-      <small class="hint" style="display:block;margin-top:8px">Toca el número de serie para cambiar tipo: <b style="color:#28303B;background:#C7CDD6;padding:0 5px;border-radius:4px">C</b> calentamiento (no cuenta) · <b style="color:#fff;background:#FF453A;padding:0 5px;border-radius:4px">F</b> fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 5px;border-radius:4px">D</b> dropset (despliega bajadas). Usa ${ic('link',13)} para superseries (A, B, C…).</small>
+      <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openModal('guiaModal')">${ic('bulb',15)} ¿Cómo registrar mis series? · Guía rápida</button>
       ${(((state.prefs&&state.prefs.deloadWeeks)||0)>0 && d.week>0 && d.week%state.prefs.deloadWeeks===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">${ic('battery',15)} Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
     </div>
     ${d.entries.map((e,i)=>{

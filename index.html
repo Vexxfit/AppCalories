@@ -525,7 +525,7 @@
 <div class="modal-bg" id="startModal">
   <div class="modal">
     <button class="modal-close" onclick="closeModal('startModal')">×</button>
-    <h3>Iniciar sesión</h3>
+    <h3>Empezar entreno</h3>
     <div class="field"><label>Día de rutina</label><select id="startTemplate"></select></div>
     <div class="row">
       <div class="field"><label>Fecha</label><input type="date" id="startDate"></div>
@@ -576,6 +576,27 @@
     <button class="modal-close" onclick="closeModal('waterModal')">×</button>
     <h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><path d="M12 3.2c2.6 3 6 7 6 10.3a6 6 0 0 1-12 0C6 10.2 9.4 6.2 12 3.2z" fill="currentColor"/></svg> Agua de hoy</h3>
     <div id="waterModalBody"></div>
+  </div>
+</div>
+
+<div class="modal-bg" id="guiaModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('guiaModal')">×</button>
+    <h3>Guía rápida de la sesión</h3>
+    <div style="font-size:14px;line-height:1.55">
+      <div class="kv"><span><b>Peso y reps</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Escribe el peso que usaste y cuántas repeticiones hiciste. Los números de tu última sesión se cargan solos: solo ajústalos.</p>
+      <div class="kv"><span><b>RIR</b> · repeticiones en reserva</span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Cuántas repes "te guardaste". 0 = llegaste al fallo; 2 = podías hacer 2 más. Si no lo sabes, déjalo vacío.</p>
+      <div class="kv"><span><b>Tipos de serie</b> · toca el número de la serie</span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Tocando el numerito de cada serie cambias su tipo: <b style="color:#28303B;background:#C7CDD6;padding:0 6px;border-radius:5px">C</b> calentamiento (no cuenta para tu volumen) · <b style="color:#fff;background:#FF453A;padding:0 6px;border-radius:5px">F</b> al fallo · <b style="color:#3a2600;background:#FF9F0A;padding:0 6px;border-radius:5px">D</b> dropset (bajadas de peso sin descanso).</p>
+      <div class="kv"><span><b>Superserie</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Agrupa 2 o más ejercicios que haces seguidos sin descanso. Los del mismo grupo comparten letra (A, B, C…).</p>
+      <div class="kv"><span><b>L/D</b> · izquierda / derecha</span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Para ejercicios a un brazo o pierna: registra las reps de cada lado y la app te avisa si un lado se queda atrás.</p>
+      <div class="kv"><span><b>Tonelaje y 1RM est.</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Tonelaje = peso × reps de todas tus series (tu volumen de trabajo). 1RM est. = el peso máximo estimado que podrías levantar 1 vez.</p>
+    </div>
   </div>
 </div>
 
