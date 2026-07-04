@@ -38,7 +38,10 @@ function load(){
   if(!Array.isArray(state.exercises) || !state.exercises.length) state.exercises = DEFAULT_EXERCISES.map(e=>({...e}));
   // migración: añadir ejercicios de fábrica nuevos sin tocar los del usuario
   DEFAULT_EXERCISES.forEach(de=>{ if(!state.exercises.some(e=>e.id===de.id)) state.exercises.push({...de}); });
-  if(!Array.isArray(state.templates) || !state.templates.length) state.templates = DEFAULT_TEMPLATES.map(t=>({...t, exercises:t.exercises.map(x=>({...x}))}));
+  // sin plantillas de fábrica: cada quien crea las suyas o las importa por link (los usuarios existentes conservan las que ya tienen guardadas)
+  if(!Array.isArray(state.templates)) state.templates = [];
+  if(!state.lastPortions) state.lastPortions = {};   // última porción usada por alimento
+  if(state.prefs && state.prefs.restSec==null) state.prefs.restSec = 90;   // timer de descanso (0 = apagado)
   if(!Array.isArray(state.workouts)) state.workouts = [];
   if(!Array.isArray(state.measurements)) state.measurements = [];
   if(!state.prefs) state.prefs = { unit:"kg" };
@@ -1007,7 +1010,19 @@ function renderPlan(){
     `<span class="num" style="font-size:26px;background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent">${r0(dt.cal)} kcal</span>
      <span style="color:var(--muted);font-size:12px;margin-left:10px">P ${r1(dt.protein)}g · C ${r1(dt.carbs)}g · G ${r1(dt.fat)}g · Fib ${r1(dt.fiber)}g</span>`;
 }
-function removePlanItem(slot,i){ state.plan.slots[slot].splice(i,1); save(); refreshAfterPlanChange(); }
+/* borrar con "Deshacer" (5 s) en vez de borrar sin aviso */
+function undoToast(msg,fn){
+  const t=document.getElementById("toast"); if(!t) return;
+  t.innerHTML=`${msg} <button onclick="window.__undoFn&&window.__undoFn()" style="margin-left:10px;background:var(--accent);color:#fff;border:none;border-radius:9px;padding:5px 12px;font-weight:700;font-size:12px;cursor:pointer">Deshacer</button>`;
+  window.__undoFn=()=>{ try{fn();}finally{ t.classList.remove("show"); window.__undoFn=null; } };
+  t.classList.add("show");
+  clearTimeout(toastT); toastT=setTimeout(()=>{ t.classList.remove("show"); window.__undoFn=null; },5000);
+}
+function removePlanItem(slot,i){
+  const arr=state.plan.slots[slot]; if(!arr||!arr[i]) return;
+  const it=arr.splice(i,1)[0]; save(); refreshAfterPlanChange();
+  undoToast(`Quitado: ${it.name}`, ()=>{ const a=state.plan.slots[slot]||(state.plan.slots[slot]=[]); a.splice(Math.min(i,a.length),0,it); save(); refreshAfterPlanChange(); toast("Restaurado ✓"); });
+}
 
 let addSel=null;   // {type:'food'|'dish', id}
 let addUnit="g";   // 'g' | 'pza' | clave de PORTIONS
@@ -1082,7 +1097,13 @@ function renderAddResults(){
 }
 function toggleFav(id){ if(!state.favFoods)state.favFoods=[]; const i=state.favFoods.indexOf(id); if(i>=0)state.favFoods.splice(i,1); else state.favFoods.unshift(id); save(); renderAddResults(); }
 function addRecent(id){ if(!state.recentFoods)state.recentFoods=[]; state.recentFoods=[id,...state.recentFoods.filter(x=>x!==id)].slice(0,12); }
-function selectAddItem(id){ addSel={type:val("apType"),id}; renderAddResults(); renderAddQty(); }
+function selectAddItem(id){ addSel={type:val("apType"),id};
+  // porción inteligente: sugiere la última cantidad/unidad que usaste con este alimento
+  const lp=(!editingPlan && val("apType")==="food" && state.lastPortions)?state.lastPortions[id]:null;
+  if(lp && lp.unit){ const f=foodById(id); if(lp.unit==="g" || PORTIONS[lp.unit] || (lp.unit==="pza"&&f&&f.piece)) addUnit=lp.unit; }
+  renderAddResults(); renderAddQty();
+  if(lp && lp.qty>0){ set("apQtyVal",lp.qty); renderAddPreview(); }
+}
 function setAddUnit(u){ addUnit=u; renderAddQty(); }
 function renderAddQty(){
   const el=document.getElementById("apQty");
@@ -1140,7 +1161,7 @@ function confirmAddToPlan(){
   if(!addSel) return toast("Busca y elige un alimento");
   if(num("apQtyVal")<=0) return toast("Cantidad inválida");
   const c=addComputed(), qty=num("apQtyVal");
-  if(addSel.type==="food") addRecent(addSel.id);
+  if(addSel.type==="food"){ addRecent(addSel.id); if(!state.lastPortions)state.lastPortions={}; state.lastPortions[addSel.id]={qty,unit:addUnit}; }
   const item = addSel.type==="food"
     ? {type:"food",refId:addSel.id,name:c.f.name,label:c.label,macros:c.macros,qty,unit:addUnit}
     : {type:"dish",refId:addSel.id,name:c.d.name,label:c.label,macros:c.macros,qty,unit:(addUnit==="rac"?"rac":"pct")};
@@ -1943,7 +1964,7 @@ function startSession(){
   };
   closeModal("startModal"); renderSesion();
 }
-function cancelSession(){ if(confirm(sessionDraft&&sessionDraft.editingId?"¿Descartar los cambios?":"¿Descartar la sesión en curso?")){ sessionDraft=null; renderSesion(); } }
+function cancelSession(){ if(confirm(sessionDraft&&sessionDraft.editingId?"¿Descartar los cambios?":"¿Descartar la sesión en curso?")){ sessionDraft=null; stopRestTimer(); renderSesion(); } }
 function moveSessionEx(i,dir){ const a=sessionDraft.entries; const j=i+dir; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; renderSesion(); }
 function setExNote(i,v){ if(sessionDraft&&sessionDraft.entries[i]){ sessionDraft.entries[i].exNote=v; persistDraft(); } }
 function toggleUni(i){ const e=sessionDraft&&sessionDraft.entries[i]; if(!e) return;
@@ -1952,7 +1973,7 @@ function toggleUni(i){ const e=sessionDraft&&sessionDraft.entries[i]; if(!e) ret
     else { s.reps=Math.max(s.repsL||0,s.repsR||0)||s.reps||0; delete s.repsL; delete s.repsR; } });
   renderSesion(); }
 function updateSetRepsL(i,j,v){ const s=sessionDraft.entries[i].sets[j]; s.repsL=Math.max(0,parseInt(v)||0); renderSesion(); }
-function updateSetRepsR(i,j,v){ const s=sessionDraft.entries[i].sets[j]; s.repsR=Math.max(0,parseInt(v)||0); renderSesion(); }
+function updateSetRepsR(i,j,v){ const s=sessionDraft.entries[i].sets[j]; s.repsR=Math.max(0,parseInt(v)||0); if(parseInt(v)>0) startRestTimer(); renderSesion(); }
 /* desbalance izq/der de un ejercicio unilateral (promedio de reps) */
 function uniImbalance(e){ if(!e.uni) return null; const ss=e.sets.filter(s=>(s.weight||0)>0&&((s.repsL||0)>0||(s.repsR||0)>0));
   if(!ss.length) return null; const L=ss.reduce((a,s)=>a+(s.repsL||0),0)/ss.length, R=ss.reduce((a,s)=>a+(s.repsR||0),0)/ss.length;
@@ -2003,7 +2024,32 @@ function saveSessAsTpl(){
 }
 
 function updateSetWeight(i,j,v){ sessionDraft.entries[i].sets[j].weight = toKg(Math.max(0,parseFloat(v)||0)); renderSesion(); }
-function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); renderSesion(); }
+/* ---- timer de descanso: arranca solo al anotar las reps de una serie ---- */
+let restIv=null, restEnd=0;
+function restStr(s){ s=Math.max(0,s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function startRestTimer(){
+  const secs=(state.prefs&&state.prefs.restSec)||0; if(!secs||!sessionDraft) return;
+  restEnd=Date.now()+secs*1000;
+  let b=document.getElementById("restBar");
+  if(!b){ b=document.createElement("div"); b.id="restBar";
+    b.innerHTML=`<span style="color:var(--muted);font-weight:600;font-size:12px">Descanso</span><b id="restLeft">0:00</b><button class="btn-ghost btn-sm" onclick="restEnd+=30000;tickRest()">+30s</button><button class="btn-ghost btn-sm" onclick="stopRestTimer()">Saltar</button>`;
+    document.body.appendChild(b); }
+  b.style.display="flex"; tickRest();
+  clearInterval(restIv); restIv=setInterval(tickRest,500);
+}
+function tickRest(){
+  const left=Math.round((restEnd-Date.now())/1000);
+  const el=document.getElementById("restLeft"); if(el) el.textContent=restStr(left);
+  if(left<=0){ stopRestTimer(); try{ if(navigator.vibrate) navigator.vibrate([200,120,200]); }catch(e){} toast("¡Descanso listo! Siguiente serie"); }
+}
+function stopRestTimer(){ clearInterval(restIv); restIv=null; const b=document.getElementById("restBar"); if(b) b.style.display="none"; }
+function editRestSec(){
+  const v=prompt("Segundos de descanso entre series (0 = sin timer):", (state.prefs&&state.prefs.restSec)!=null?state.prefs.restSec:90);
+  if(v==null) return; const s=Math.max(0,Math.min(600,parseInt(v)||0));
+  if(!state.prefs) state.prefs={}; state.prefs.restSec=s; save(); renderSesion();
+  toast(s?("Descanso entre series: "+s+" s"):"Timer de descanso apagado");
+}
+function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); if(parseInt(v)>0) startRestTimer(); renderSesion(); }
 function updateSetRir(i,j,v){ sessionDraft.entries[i].sets[j].rir = v; persistDraft(); }
 const SET_TAGS={
   n:{title:"Serie normal",bg:"var(--surface3)",fg:"var(--muted)",short:""},
@@ -2096,6 +2142,7 @@ function renderSesion(){
       </div>
       <div class="row" style="margin-top:10px;gap:6px">
         <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">${ic('save',15)} Guardar como plantilla</button>
+        <button class="btn-ghost btn-sm" title="El timer arranca solo al anotar tus reps" onclick="editRestSec()">${ic('clock',14)} Descanso ${(state.prefs&&state.prefs.restSec)?state.prefs.restSec+'s':'off'}</button>
       </div>
       <textarea id="sessNote" placeholder="Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
       <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openModal('guiaModal')">${ic('bulb',15)} ¿Cómo registrar mis series? · Guía rápida</button>
@@ -2208,7 +2255,7 @@ function saveSession(){
   const clean=JSON.parse(JSON.stringify(d)); delete clean.editingId;
   if(editingId){ const idx=state.workouts.findIndex(w=>w.id===editingId); if(idx>=0) state.workouts[idx]=clean; else state.workouts.push(clean); }
   else state.workouts.push(clean);
-  sessionDraft=null; save(); renderSesion();
+  sessionDraft=null; stopRestTimer(); save(); renderSesion();
   toast(editingId ? "Sesión actualizada ✓" : (prHits.length ? "¡Nuevo PR! "+prHits.slice(0,2).join(", ") : "Sesión guardada"));
 }
 function deleteWorkout(id){
@@ -2418,7 +2465,7 @@ function renderTemplateList(){
   const fs=state.folders||[];
   const inFolder=fid=>state.templates.filter(t=>(t.folder||null)===fid);
   const newFolderBtn=`<div class="row" style="margin-bottom:10px;gap:6px"><button class="btn-ghost btn-sm" onclick="newFolder()">${folderIcon(14)} Nueva carpeta</button><button class="btn-ghost btn-sm" onclick="openSetAnalysis()">${ic('chart',15)} Analizar semana</button></div>`;
-  if(!state.templates.length){ el.innerHTML=newFolderBtn+`<div class="empty">Sin días. Crea uno o restaura los del Excel.</div>`; return; }
+  if(!state.templates.length){ el.innerHTML=newFolderBtn+`<div class="empty">Aún no tienes rutinas.<br>Crea un día con “+ Nuevo” o abre un link de rutina compartida y se guardará aquí.</div>`; return; }
   let html=newFolderBtn;
   fs.forEach(f=>{
     const items=inFolder(f.id), col=collapsedFolders[f.id];

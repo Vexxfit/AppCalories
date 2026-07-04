@@ -131,7 +131,7 @@
   <!-- ============ METAS ============ -->
   <section class="view" id="view-metas">
     <h2 class="section-title">Metas</h2>
-    <p class="section-desc">Calculadora TDEE (Mifflin-St Jeor) y split de macros.</p>
+    <p class="section-desc">Calcula tus calorías y macros según tu cuerpo y tu objetivo. <span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="openModal('metasGuiaModal')">¿Qué significan estos términos?</span></p>
     <div class="grid" style="grid-template-columns:1fr 1fr" id="metasGrid">
       <div class="card">
         <h3>Calculadora TDEE</h3>
@@ -596,6 +596,29 @@
       <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Para ejercicios a un brazo o pierna: registra las reps de cada lado y la app te avisa si un lado se queda atrás.</p>
       <div class="kv"><span><b>Tonelaje y 1RM est.</b></span></div>
       <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Tonelaje = peso × reps de todas tus series (tu volumen de trabajo). 1RM est. = el peso máximo estimado que podrías levantar 1 vez.</p>
+    </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="metasGuiaModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('metasGuiaModal')">×</button>
+    <h3>Guía rápida de Metas</h3>
+    <div style="font-size:14px;line-height:1.55">
+      <div class="kv"><span><b>TMB</b> · tasa metabólica basal</span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Las calorías que tu cuerpo gasta en reposo total, solo por existir. Es tu piso: nunca comas por debajo de esto.</p>
+      <div class="kv"><span><b>Mantenimiento (TDEE)</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Lo que gastas en un día normal contando tu actividad. Si comes esto, tu peso se mantiene.</p>
+      <div class="kv"><span><b>Déficit y superávit</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Déficit = comer menos que tu mantenimiento (bajas grasa). Superávit = comer más (subes músculo). Con ~500 kcal de déficit al día bajas ~0.5 kg por semana.</p>
+      <div class="kv"><span><b>Macros</b> · proteína, carbohidratos y grasa</span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Proteína: construye y protege tu músculo. Carbohidratos: tu energía para entrenar. Grasa: hormonas y salud. Las calorías salen de la suma de los tres.</p>
+      <div class="kv"><span><b>Fibra</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Te llena, ayuda a tu digestión y controla el azúcar en sangre. Vive en verduras, frutas, avena y frijoles.</p>
+      <div class="kv"><span><b>Candados</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 12px">Bloquean un macro para que NO cambie al recalcular tu meta; los demás se ajustan solos.</p>
+      <div class="kv"><span><b>Ciclado de calorías</b></span></div>
+      <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Comer distinto según el día (más en días de entreno, menos en descanso) manteniendo el promedio de la semana.</p>
     </div>
   </div>
 </div>
