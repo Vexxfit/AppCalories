@@ -14,7 +14,7 @@
 <meta name="format-detection" content="telephone=no">
 <link rel="apple-touch-icon" href="icon.png">
 <link rel="icon" href="icon.png">
-<link rel="manifest" href='data:application/manifest+json,{"name":"VEXX Nutrici%C3%B3n","short_name":"VEXX","start_url":"./","scope":"./","display":"standalone","orientation":"portrait","background_color":"%23FFFFFF","theme_color":"%23FFFFFF","icons":[{"src":"icon.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}]}'>
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -327,6 +327,12 @@
       <div class="card" style="margin-top:16px">
         <h3>Records personales (PR)</h3>
         <div class="table-wrap"><div id="prTable"></div></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Predicción de PR</h3>
+        <p class="card-sub">Elige un ejercicio y te digo cuándo romperás tu próximo récord al ritmo que llevas.</p>
+        <div class="field"><label>Ejercicio (mín. 3 sesiones)</label><select id="prPredSel" onchange="renderPRPred()"></select></div>
+        <div id="prPredBox"></div>
       </div>
     </div>
 

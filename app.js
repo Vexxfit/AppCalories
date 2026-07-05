@@ -2457,6 +2457,15 @@ function confirmImportRoutine(){
   (p.templates||[]).forEach((t,k)=>{ state.templates.push({id:"t_"+Date.now()+"_"+k+"_"+Math.floor(Math.random()*1e4), name:t.name, exercises:(t.exercises||[]).map(x=>({...x})), folder:folderId}); });
   save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno"); subEntreno("plantillas"); toast("Guardado en tus plantillas ✓");
 }
+/* ----- accesos rápidos: ?a=comida|agua|entreno (shortcuts del ícono o marcadores) ----- */
+function handleQuickAction(){
+  const m=(location.search||"").match(/[?&]a=(comida|agua|entreno)\b/);
+  if(!m) return;
+  history.replaceState(null,"",location.pathname+location.hash);
+  if(m[1]==="comida") setTimeout(()=>openAdd(),150);
+  else if(m[1]==="agua") setTimeout(()=>openWaterModal(),150);
+  else { nav("entreno"); setTimeout(()=>openStartModal(),150); }
+}
 /* ----- importar pasos desde la URL (Atajo de Apple Salud / Health Connect) ----- */
 function importStepsFromURL(){
   try{ const sp=new URLSearchParams(location.search); const st=sp.get("steps");
@@ -2963,7 +2972,44 @@ function computeExercisePRs(workouts){
   }));
   return pr;
 }
+/* ---- predicción de PR: regresión lineal sobre tu 1RM estimado ---- */
+function prPredCandidates(){
+  const m={}; (state.workouts||[]).forEach(w=>w.entries.forEach(e=>{ if((e.sets||[]).some(s=>(s.weight||0)>0&&!isWarmup(s))) (m[e.exId]=m[e.exId]||new Set()).add(w.date); }));
+  return Object.keys(m).filter(id=>m[id].size>=3 && exById(id)).sort((a,b)=>exById(a).name.localeCompare(exById(b).name,'es'));
+}
+function predictPR(exId){
+  const pts=[]; (state.workouts||[]).forEach(w=>{ const e=w.entries.find(x=>x.exId===exId); if(!e) return; const orm=entryBest1RM(e); if(orm>0) pts.push({t:new Date(w.date+"T00:00:00").getTime()/86400000, y:orm}); });
+  pts.sort((a,b)=>a.t-b.t);
+  if(pts.length<3) return {enough:false,n:pts.length};
+  const n=pts.length, sx=pts.reduce((a,p)=>a+p.t,0), sy=pts.reduce((a,p)=>a+p.y,0), sxx=pts.reduce((a,p)=>a+p.t*p.t,0), sxy=pts.reduce((a,p)=>a+p.t*p.y,0);
+  const den=n*sxx-sx*sx; if(!den) return {enough:false,n};
+  const b=(n*sxy-sx*sy)/den, a=(sy-b*sx)/n;
+  const tNow=new Date(todayStr()+"T00:00:00").getTime()/86400000;
+  const now=a+b*tNow, best=Math.max(...pts.map(p=>p.y)), span=Math.round(pts[n-1].t-pts[0].t);
+  if(b<=0.001) return {enough:true, flat:true, best, n, span};
+  const stepKg=2.5, milestone=Math.floor(Math.max(best,now)/stepKg)*stepKg+stepKg;
+  const days=Math.max(1,Math.round((milestone-now)/b));
+  return {enough:true, flat:false, best, milestone, days, date:dayShift(todayStr(),days), perWeek:b*7, n, span};
+}
+function renderPRPred(){
+  const sel=document.getElementById("prPredSel"), box=document.getElementById("prPredBox"); if(!sel||!box) return;
+  const id=sel.value;
+  if(!id){ box.innerHTML=`<div class="empty" style="margin:0">Registra al menos 3 sesiones de un ejercicio para ver tu proyección.</div>`; return; }
+  const p=predictPR(id), ex=exById(id);
+  if(!p.enough){ box.innerHTML=`<div class="empty" style="margin:0">Registra ${3-p.n} sesión(es) más de ${ex?ex.name:'este ejercicio'}.</div>`; return; }
+  if(p.flat){ box.innerHTML=`<div class="kv"><span>Tu mejor 1RM estimado</span><b>${fmtW(p.best)}</b></div>
+    <div style="font-size:12px;color:var(--muted);margin-top:8px">Tu tendencia está plana o bajando (normal en déficit). Cuando vuelva a subir, aquí verás la fecha estimada de tu próximo récord.</div>`; return; }
+  box.innerHTML=`<div class="kv"><span>Tu mejor 1RM estimado</span><b>${fmtW(p.best)}</b></div>
+    <div class="kv"><span>Ritmo actual</span><b style="color:var(--ok)">+${r1(fromKg(p.perWeek))} ${unit()}/sem</b></div>
+    <div class="kv"><span>Próximo hito: ${fmtW(p.milestone)}</span><b style="color:var(--accent)">${p.days>180?"en 6+ meses":"≈ "+p.date}</b></div>
+    <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Proyección con tus ${p.n} sesiones de los últimos ${p.span} días. Es una estimación — duerme y come bien y la adelantas.</div>`;
+}
 function renderRecords(){
+  // predicción de PR: llenar selector
+  const ps=document.getElementById("prPredSel");
+  if(ps){ const cands=prPredCandidates(), cur=ps.value;
+    ps.innerHTML=cands.length?cands.map(id=>`<option value="${id}" ${id===cur?"selected":""}>${exById(id).name}</option>`).join(""):`<option value="">(aún sin datos suficientes)</option>`;
+    renderPRPred(); }
   // gráfica de tonelaje total por semana
   const {rows}=weeklyRows();
   const chart=document.getElementById("tonnageChart");
@@ -3545,6 +3591,7 @@ function init(){
   importStepsFromURL();
   checkRollover();
   nav("hoy");
+  handleQuickAction();             // accesos rápidos del ícono / URL (?a=comida|agua|entreno)
   initFirebase();                  // antes de importar, para que los links #s= (nube) funcionen
   importRoutineFromHash();
   window.addEventListener("hashchange", importRoutineFromHash);   // importar aunque la app ya esté abierta

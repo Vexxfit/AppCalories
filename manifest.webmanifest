@@ -1,0 +1,16 @@
+{
+  "name": "VEXX Nutrición",
+  "short_name": "VEXX",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "icons": [{ "src": "icon.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }],
+  "shortcuts": [
+    { "name": "Registrar comida", "url": "./?a=comida", "icons": [{ "src": "icon.png", "sizes": "512x512" }] },
+    { "name": "Registrar agua", "url": "./?a=agua", "icons": [{ "src": "icon.png", "sizes": "512x512" }] },
+    { "name": "Empezar entreno", "url": "./?a=entreno", "icons": [{ "src": "icon.png", "sizes": "512x512" }] }
+  ]
+}

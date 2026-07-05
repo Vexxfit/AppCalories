@@ -7,8 +7,8 @@
    - No toca localStorage: tus datos están a salvo.
    Lo único que NO funciona sin internet es el escáner de código de barras
    (consulta Open Food Facts) y la sincronización en la nube. */
-const CACHE = "vexx-cache-v4";
-const SHELL = ["./", "./index.html", "./styles.css", "./data.js", "./app.js", "./icon.png"];
+const CACHE = "vexx-cache-v5";
+const SHELL = ["./", "./index.html", "./styles.css", "./data.js", "./app.js", "./icon.png", "./manifest.webmanifest"];
 /* recursos externos que conviene tener en caché para abrir sin internet */
 const EXTRA = [
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
