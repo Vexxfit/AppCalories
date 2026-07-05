@@ -166,6 +166,7 @@ function cloudCardHTML(){
     return `<div class="card" style="margin-bottom:14px"><div class="flex-between"><h3 style="margin:0">${ic('cloud',18)} Cuenta en la nube</h3><span class="pill">conectado</span></div>
       <div class="kv"><span>Sesión</span><b style="font-size:13px">${fbUser.email||"—"}</b></div>
       <div class="kv"><span>Última sincronización</span><b style="font-size:13px">${cloudLastSync||"—"}</b></div>
+      <div class="kv"><span>Código de amigo (ranking)</span><b style="letter-spacing:2px;color:var(--accent);cursor:pointer" title="Tocar para copiar" onclick="copyFriendCode()">${myFriendCode()||"—"}</b></div>
       <div class="row" style="margin-top:10px"><button class="btn-primary" onclick="fbSyncNow()">Sincronizar ahora</button><button class="btn-ghost" onclick="fbSignOut()">Cerrar sesión</button></div></div>`;
   return `<div class="card" style="margin-bottom:14px"><h3>${ic('cloud',18)} Cuenta en la nube</h3>
     <p class="card-sub">Inicia sesión para respaldar tu progreso y verlo en otros dispositivos.</p>
@@ -307,6 +308,7 @@ const VIEW_META={
   hoy:{title:"VEXX",tab:"hoy"},
   entreno:{title:"Entrenamiento",tab:"entreno"},
   historial:{title:"Progreso",tab:"progreso"},
+  ranking:{title:"Ranking",tab:"progreso",parent:"historial"},
   ajustes:{title:"Ajustes",tab:"ajustes"},
   alimentos:{title:"Alimentos",tab:"ajustes",parent:"ajustes"},
   platillos:{title:"Platillos",tab:"ajustes",parent:"ajustes"},
@@ -335,6 +337,7 @@ function nav(view){
   if(view==="metas") renderGoalsTab();
   if(view==="sustituciones") renderSubSource();
   if(view==="historial") renderHistory();
+  if(view==="ranking") renderRanking();
   if(view==="entreno") renderEntreno();
   if(view==="ajustes") renderAjustes();
   if(view==="comidas") renderComidas();
@@ -1832,44 +1835,60 @@ function weekStats(){ const today=todayStr(); let ton=0, n=0;
   const s=computeStreak();
   return {ton:Math.round(ton), workouts:n, streak:(s&&s.streak)||0};
 }
-function publishProfile(){
-  if(!fbUser||!fbDb) return;
-  const name=((state.prefs&&state.prefs.displayName)||"").trim();
-  fbDb.collection("users_public").doc(fbUser.uid).set({name:name||("Atleta "+myFriendCode().slice(0,3)), code:myFriendCode(), week:weekStats(), ach:Object.keys(state.achievements||{}).length, updatedAt:Date.now()},{merge:true}).catch(()=>{});
+/* perfiles del ranking en la colección "shared" (misma que los links: NO requiere reglas nuevas) */
+function copyFriendCode(){ const c=myFriendCode(); if(!c) return; if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(c).then(()=>toast("Código copiado: "+c)).catch(()=>toast("Tu código: "+c)); } else toast("Tu código: "+c); }
+/* cada publicación crea un doc nuevo con id ordenable (compatible con reglas solo-crear);
+   el más reciente se encuentra por rango de id, sin índices ni reglas nuevas */
+function profPrefix(code){ return "p_"+code+"_"; }
+function latestProfile(code){
+  const FP=firebase.firestore.FieldPath.documentId();
+  return fbDb.collection("shared").where(FP,">=",profPrefix(code)).where(FP,"<=",profPrefix(code)+"\\uf8ff").limit(1).get()
+    .then(q=> (q.empty||((q.docs[0].data()||{}).t!=="prof")) ? null : q.docs[0].data())
+    .catch(()=>null);
 }
-function setDisplayName(){ const v=prompt("Tu nombre para el ranking:", (state.prefs&&state.prefs.displayName)||""); if(v==null) return; if(!state.prefs)state.prefs={}; state.prefs.displayName=v.trim().slice(0,20); save(); publishProfile(); setTimeout(renderRanking,700); }
+function publishProfile(force){
+  if(!fbUser||!fbDb) return;
+  const wk=weekStats(), last=state._profPub||{};
+  if(!force && last.at && (Date.now()-last.at)<2*3600e3 && last.ton===wk.ton && last.n===wk.workouts) return;   // no spamear: solo si cambió o pasaron 2 h
+  const code=myFriendCode();
+  const name=((state.prefs&&state.prefs.displayName)||"").trim()||("Atleta "+code.slice(0,3));
+  const id=profPrefix(code)+String(1e13-Date.now()).padStart(13,"0");   // id decreciente → el más nuevo queda primero
+  fbDb.collection("shared").doc(id).set({t:"prof", name, code, week:wk, ach:Object.keys(state.achievements||{}).length, at:Date.now()})
+    .then(()=>{ state._profPub={at:Date.now(), ton:wk.ton, n:wk.workouts}; saveLocal(); }).catch(()=>{});
+}
+function setDisplayName(){ const v=prompt("Tu nombre para el ranking:", (state.prefs&&state.prefs.displayName)||""); if(v==null) return; if(!state.prefs)state.prefs={}; state.prefs.displayName=v.trim().slice(0,20); save(); publishProfile(true); setTimeout(renderRanking,900); }
 function addFriendByCode(){
   if(!fbUser||!fbDb) return toast("Inicia sesión en la nube (Ajustes)");
   const v=prompt("Código de tu amigo (6 caracteres):",""); if(!v) return;
   const code=v.trim().toUpperCase(); if(code===myFriendCode()) return toast("Ese es tu propio código");
-  fbDb.collection("users_public").where("code","==",code).limit(1).get().then(q=>{
-    if(q.empty) return toast("No encontré ese código: tu amigo debe abrir su pestaña Progreso al menos una vez");
-    const doc=q.docs[0];
+  latestProfile(code).then(p=>{
+    if(!p) return toast("No encontré ese código: tu amigo debe abrir su Ranking una vez");
     if(!state.friends) state.friends=[];
-    if(state.friends.some(f=>f.uid===doc.id)) return toast("Ya son amigos");
-    state.friends.push({uid:doc.id, code, name:(doc.data()||{}).name||code});
+    if(state.friends.some(f=>f.code===code)) return toast("Ya son amigos");
+    state.friends.push({code, name:p.name||code});
     save(); toast("Amigo agregado ✓"); renderRanking();
-  }).catch(()=>toast("Error de permisos: hay que pegar la regla de users_public en Firebase"));
+  });
 }
-function removeFriend(uid){ if(!confirm("¿Quitar a este amigo del ranking?")) return; state.friends=(state.friends||[]).filter(f=>f.uid!==uid); save(); renderRanking(); }
+function removeFriend(code){ if(!confirm("¿Quitar a este amigo del ranking?")) return; state.friends=(state.friends||[]).filter(f=>f.code!==code); save(); renderRanking(); }
 function renderRanking(){
   const el=document.getElementById("rankingBox"); if(!el) return;
   if(!fbUser||!fbDb){ el.innerHTML=`<div class="empty" style="margin:0">Inicia sesión en la nube (Ajustes → Cuenta) para competir con tus amigos.</div>`; return; }
   publishProfile();
-  const ids=[fbUser.uid, ...((state.friends||[]).map(f=>f.uid))];
+  const myCode=myFriendCode();
+  const codes=[myCode, ...((state.friends||[]).filter(f=>f.code).map(f=>f.code))];
   el.innerHTML=`<div class="empty" style="margin:0">Cargando ranking…</div>`;
-  Promise.all(ids.map(id=>fbDb.collection("users_public").doc(id).get().catch(()=>null))).then(snaps=>{
-    const rows=snaps.filter(s=>s&&s.exists).map(s=>({uid:s.id, ...(s.data()||{})}));
+  Promise.all(codes.map(c=>latestProfile(c))).then(profs=>{
+    const rows=profs.filter(Boolean);
     rows.sort((a,b)=>((b.week&&b.week.ton)||0)-((a.week&&a.week.ton)||0));
     el.innerHTML=
-      `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tu código: <b style="color:var(--accent);letter-spacing:1.5px">${myFriendCode()}</b> — compártelo para que te agreguen · <span style="color:var(--accent);cursor:pointer" onclick="setDisplayName()">✎ mi nombre</span></div>`+
-      rows.map((r,i)=>`<div class="kv"><span><b style="margin-right:7px;color:${i===0?'var(--accent)':'var(--muted)'}">${i+1}º</b>${r.name||r.code}${r.uid===fbUser.uid?' <span style="color:var(--accent);font-size:11px">(tú)</span>':''}</span><b>${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()} <span style="color:var(--muted);font-size:11px">· ${(r.week&&r.week.workouts)||0} entr. · racha ${(r.week&&r.week.streak)||0}</span>${r.uid!==fbUser.uid?` <span style="color:var(--bad);cursor:pointer;margin-left:6px" onclick="removeFriend('${r.uid}')">×</span>`:''}</b></div>`).join("")+
+      `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tu código: <b style="color:var(--accent);letter-spacing:2px;cursor:pointer" onclick="copyFriendCode()">${myCode}</b> (tócalo para copiar) — compártelo para que te agreguen · <span style="color:var(--accent);cursor:pointer" onclick="setDisplayName()">✎ mi nombre</span></div>`+
+      (rows.length?rows.map((r,i)=>`<div class="kv"><span><b style="margin-right:7px;color:${i===0?'var(--accent)':'var(--muted)'}">${i+1}º</b>${r.name||r.code}${r.code===myCode?' <span style="color:var(--accent);font-size:11px">(tú)</span>':''}</span><b>${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()} <span style="color:var(--muted);font-size:11px">· ${(r.week&&r.week.workouts)||0} entr. · racha ${(r.week&&r.week.streak)||0}</span>${r.code!==myCode?` <span style="color:var(--bad);cursor:pointer;margin-left:6px" onclick="removeFriend('${r.code}')">×</span>`:''}</b></div>`).join(""):`<div class="empty" style="margin:0">Aún sin datos: entrena esta semana y agrega amigos.</div>`)+
       `<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="addFriendByCode()">+ Agregar amigo por código</button>
-       <div style="font-size:11px;color:var(--muted);margin-top:8px">Tonelaje de los últimos 7 días. Se actualiza cuando cada quien abre su app.</div>`;
+       <div style="font-size:11px;color:var(--muted);margin-top:8px">Tonelaje de los últimos 7 días. Se actualiza cuando cada quien abre su app. Solo se comparte nombre, código y números de la semana.</div>`;
   });
 }
 function renderHistory(){
-  renderAchievements(); renderRanking();
+  renderAchievements();
   const data=state.history.slice(0,30);
   // gráfica de barras SVG
   const chart=document.getElementById("historyChart");
@@ -3116,11 +3135,15 @@ function predictPR(exId){
   const den=n*sxx-sx*sx; if(!den) return {enough:false,n};
   const b=(n*sxy-sx*sy)/den, a=(sy-b*sx)/n;
   const tNow=new Date(todayStr()+"T00:00:00").getTime()/86400000;
-  const now=a+b*tNow, best=Math.max(...pts.map(p=>p.y)), span=Math.round(pts[n-1].t-pts[0].t);
-  if(b<=0.001) return {enough:true, flat:true, best, n, span};
+  const now=a+b*tNow, bestEst=Math.max(...pts.map(p=>p.y)), span=Math.round(pts[n-1].t-pts[0].t);
+  // tu PR REAL registrado manda: el próximo hito siempre está por encima de él
+  const mpr=(state.manualPRs||{})[exId];
+  const manual1=mpr?((mpr.reps||1)<=1?(mpr.weight||0):epley(mpr.weight||0,mpr.reps)):0;   // a 1 rep, tu PR ES el peso (sin inflar)
+  const best=Math.max(bestEst,manual1), isReal=manual1>=bestEst&&manual1>0;
+  if(b<=0.001) return {enough:true, flat:true, best, isReal, n, span};
   const stepKg=2.5, milestone=Math.floor(Math.max(best,now)/stepKg)*stepKg+stepKg;
   const days=Math.max(1,Math.round((milestone-now)/b));
-  return {enough:true, flat:false, best, milestone, days, date:dayShift(todayStr(),days), perWeek:b*7, n, span};
+  return {enough:true, flat:false, best, isReal, milestone, days, date:dayShift(todayStr(),days), perWeek:b*7, n, span};
 }
 function renderPRPred(){
   const sel=document.getElementById("prPredSel"), box=document.getElementById("prPredBox"); if(!sel||!box) return;
@@ -3128,9 +3151,10 @@ function renderPRPred(){
   if(!id){ box.innerHTML=`<div class="empty" style="margin:0">Registra al menos 3 sesiones de un ejercicio para ver tu proyección.</div>`; return; }
   const p=predictPR(id), ex=exById(id);
   if(!p.enough){ box.innerHTML=`<div class="empty" style="margin:0">Registra ${3-p.n} sesión(es) más de ${ex?ex.name:'este ejercicio'}.</div>`; return; }
-  if(p.flat){ box.innerHTML=`<div class="kv"><span>Tu mejor 1RM estimado</span><b>${fmtW(p.best)}</b></div>
+  const bestLbl = p.isReal ? "Tu mejor marca (PR real registrado)" : "Tu mejor 1RM estimado";
+  if(p.flat){ box.innerHTML=`<div class="kv"><span>${bestLbl}</span><b>${fmtW(p.best)}</b></div>
     <div style="font-size:12px;color:var(--muted);margin-top:8px">Tu tendencia está plana o bajando (normal en déficit). Cuando vuelva a subir, aquí verás la fecha estimada de tu próximo récord.</div>`; return; }
-  box.innerHTML=`<div class="kv"><span>Tu mejor 1RM estimado</span><b>${fmtW(p.best)}</b></div>
+  box.innerHTML=`<div class="kv"><span>${bestLbl}</span><b>${fmtW(p.best)}</b></div>
     <div class="kv"><span>Ritmo actual</span><b style="color:var(--ok)">+${r1(fromKg(p.perWeek))} ${unit()}/sem</b></div>
     <div class="kv"><span>Próximo hito: ${fmtW(p.milestone)}</span><b style="color:var(--accent)">${p.days>180?"en 6+ meses":"≈ "+p.date}</b></div>
     <div style="font-size:11.5px;color:var(--muted);margin-top:8px">Proyección con tus ${p.n} sesiones de los últimos ${p.span} días. Es una estimación — duerme y come bien y la adelantas.</div>`;
