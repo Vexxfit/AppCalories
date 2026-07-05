@@ -257,19 +257,25 @@
       <div class="flex-between"><h3 style="margin:0">Resumen mensual</h3><span id="monthLabel" style="font-size:12px;color:var(--muted)"></span></div>
       <div id="monthlySummary" style="margin-top:10px"></div>
     </div>
-    <button class="btn-ghost" style="width:100%;margin-top:16px;display:flex;align-items:center;justify-content:space-between;padding:15px 18px" onclick="nav('ranking')"><span style="font-weight:700">Ranking semanal de amigos</span><span style="color:var(--muted)">›</span></button>
-    <div class="card" style="margin-top:16px">
-      <h3>Logros</h3>
-      <div id="logrosBox"></div>
-    </div>
+    <button class="btn-ghost" style="width:100%;margin-top:16px;display:flex;align-items:center;justify-content:space-between;padding:15px 18px" onclick="nav('perfil')"><span style="font-weight:700">Tu perfil · marcas e insignias</span><span style="color:var(--muted)">›</span></button>
+    <button class="btn-ghost" style="width:100%;margin-top:10px;display:flex;align-items:center;justify-content:space-between;padding:15px 18px" onclick="nav('ranking')"><span style="font-weight:700">Ranking de amigos</span><span style="color:var(--muted)">›</span></button>
   </section>
 
   <!-- ============ RANKING DE AMIGOS ============ -->
   <section class="view" id="view-ranking">
     <h2 class="section-title">Ranking</h2>
-    <p class="section-desc">Compite con tus amigos: tonelaje movido en los últimos 7 días.</p>
+    <p class="section-desc">Compite con tus amigos por ejercicio: elige el levantamiento y compara.</p>
     <button class="btn-ghost btn-sm" style="margin-bottom:14px" onclick="nav('historial')">← Volver a Progreso</button>
     <div class="card"><div id="rankingBox"></div></div>
+  </section>
+
+  <!-- ============ TU PERFIL ============ -->
+  <section class="view" id="view-perfil">
+    <h2 class="section-title">Tu perfil</h2>
+    <p class="section-desc">Tu foto, tus mejores marcas y tus insignias.</p>
+    <button class="btn-ghost btn-sm" style="margin-bottom:14px" onclick="nav('historial')">← Volver a Progreso</button>
+    <div id="perfilContent"></div>
+    <input type="file" id="profilePhotoInput" accept="image/*" style="display:none" onchange="onProfilePhoto(this)">
   </section>
 
   <!-- ============ ENTRENO ============ -->

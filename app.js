@@ -309,6 +309,7 @@ const VIEW_META={
   entreno:{title:"Entrenamiento",tab:"entreno"},
   historial:{title:"Progreso",tab:"progreso"},
   ranking:{title:"Ranking",tab:"progreso",parent:"historial"},
+  perfil:{title:"Tu perfil",tab:"progreso",parent:"historial"},
   ajustes:{title:"Ajustes",tab:"ajustes"},
   alimentos:{title:"Alimentos",tab:"ajustes",parent:"ajustes"},
   platillos:{title:"Platillos",tab:"ajustes",parent:"ajustes"},
@@ -338,6 +339,7 @@ function nav(view){
   if(view==="sustituciones") renderSubSource();
   if(view==="historial") renderHistory();
   if(view==="ranking") renderRanking();
+  if(view==="perfil") renderPerfil();
   if(view==="entreno") renderEntreno();
   if(view==="ajustes") renderAjustes();
   if(view==="comidas") renderComidas();
@@ -1790,19 +1792,58 @@ function checkRollover(){
 function totalTonnage(){ return (state.workouts||[]).reduce((a,w)=>a+workoutTonnage(w),0); }
 function weekWorkoutsCount(){ const today=todayStr(); let n=0; for(let i=0;i<7;i++){ const d=dayShift(today,-i); n+=(state.workouts||[]).filter(w=>w.date===d).length; } return n; }
 function waterStreakDays(){ const goal=waterGoalMl(); let n=0, d=todayStr(); if(((state.waterLog&&state.waterLog[d])||0)<goal) d=dayShift(d,-1); while(((state.waterLog&&state.waterLog[d])||0)>=goal){ n++; d=dayShift(d,-1); } return n; }
+/* levantamientos básicos con los que se compite en el ranking */
+const KEY_LIFTS=[
+ {id:'e_pressbanca',   lbl:'Press banca'},
+ {id:'e_sentadilla',   lbl:'Sentadilla'},
+ {id:'e_pesomuerto',   lbl:'Peso muerto'},
+ {id:'e_pressmil',     lbl:'Press militar'},
+ {id:'e_remobarra',    lbl:'Remo con barra'},
+ {id:'e_hipthrust',    lbl:'Hip thrust'},
+ {id:'e_pressincbarra',lbl:'Press inclinado'},
+ {id:'e_prensa',       lbl:'Prensa'},
+];
+/* tu mejor peso levantado en un ejercicio: mejor serie registrada o PR manual (el que sea mayor) */
+function bestLift(exId){
+  let w=0,r=0;
+  (state.workouts||[]).forEach(wk=>{ const e=wk.entries.find(x=>x.exId===exId); if(!e) return;
+    (e.sets||[]).forEach(s=>{ if(isWarmup(s)) return; const reps=s.reps||s.repsL||s.repsR||0;
+      if((s.weight||0)>0&&reps>0&&(s.weight>w||(s.weight===w&&reps>r))){ w=s.weight; r=reps; } }); });
+  const m=(state.manualPRs||{})[exId];
+  if(m&&(m.weight||0)>=w){ w=m.weight; r=m.reps||1; }
+  return w>0?{w:Math.round(w*10)/10,r}:null;
+}
+function stepsStreakDays(){ const g=(state.goals&&state.goals.steps)||0; if(!g) return 0; let n=0,d=todayStr(); if(((state.steps&&state.steps[d])||0)<g) d=dayShift(d,-1); while(((state.steps&&state.steps[d])||0)>=g){ n++; d=dayShift(d,-1); } return n; }
+const _club=(exId,kg)=>()=>{ const b=bestLift(exId); return !!b&&b.w>=kg; };
 const ACH_DEFS=[
  {id:'w1',   n:'Primer entreno',  d:'Tu primera sesión registrada',           icn:'dumbbell', t:()=>(state.workouts||[]).length>=1},
  {id:'w10',  n:'Constancia',      d:'10 sesiones registradas',                icn:'dumbbell', t:()=>(state.workouts||[]).length>=10},
+ {id:'w25',  n:'Disciplina',      d:'25 sesiones registradas',                icn:'dumbbell', t:()=>(state.workouts||[]).length>=25},
  {id:'w50',  n:'Imparable',       d:'50 sesiones registradas',                icn:'trophy',   t:()=>(state.workouts||[]).length>=50},
  {id:'t10',  n:'10 toneladas',    d:'10,000 kg movidos en total',             icn:'scale',    t:()=>totalTonnage()>=10000},
  {id:'t50',  n:'50 toneladas',    d:'50,000 kg movidos en total',             icn:'scale',    t:()=>totalTonnage()>=50000},
  {id:'t100', n:'100 toneladas',   d:'100,000 kg movidos en total',            icn:'trophy',   t:()=>totalTonnage()>=100000},
  {id:'s3',   n:'Racha de 3',      d:'3 días seguidos en tu meta de calorías', icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=3;}},
  {id:'s7',   n:'Semana perfecta', d:'7 días seguidos en tu meta',             icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=7;}},
+ {id:'s14',  n:'Dos semanas',     d:'14 días seguidos en tu meta',            icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=14;}},
  {id:'s30',  n:'Mes de hierro',   d:'30 días seguidos en tu meta',            icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=30;}},
  {id:'pr1',  n:'Primer récord',   d:'Registra 2+ sesiones y marca tu primer PR', icn:'trophy', t:()=>(state.workouts||[]).length>=2&&Object.keys(computeExercisePRs(state.workouts||[])).length>=1},
  {id:'agua7',n:'Bien hidratado',  d:'7 días seguidos cumpliendo tu agua',     icn:'water',    t:()=>waterStreakDays()>=7},
+ {id:'agua30',n:'Pez',            d:'30 días seguidos cumpliendo tu agua',    icn:'water',    t:()=>waterStreakDays()>=30},
+ {id:'steps7',n:'Caminante',      d:'7 días seguidos cumpliendo tus pasos',   icn:'steps',    t:()=>stepsStreakDays()>=7},
  {id:'plan', n:'Semana cumplida', d:'Tantos entrenos como planeaste (7 días)',icn:'target',   t:()=>!!(state.goals&&state.goals.trainDays)&&weekWorkoutsCount()>=state.goals.trainDays},
+ {id:'food30',n:'Diario fiel',    d:'30 días con tu comida registrada',       icn:'note',     t:()=>(state.history||[]).filter(h=>h.calories>0).length>=30},
+ {id:'amigo1',n:'Social',         d:'Agrega a tu primer amigo al ranking',    icn:'share',    t:()=>(state.friends||[]).length>=1},
+ {id:'uni1', n:'Simétrico',       d:'Registra un ejercicio izquierda/derecha',icn:'scale',    t:()=>(state.workouts||[]).some(w=>w.entries.some(e=>(e.sets||[]).some(s=>s.repsL!=null)))},
+ {id:'bb60', n:'Club 60 · banca', d:'60 kg en press banca',                   icn:'dumbbell', t:_club('e_pressbanca',60)},
+ {id:'bb80', n:'Club 80 · banca', d:'80 kg en press banca',                   icn:'dumbbell', t:_club('e_pressbanca',80)},
+ {id:'bb100',n:'Club 100 · banca',d:'100 kg en press banca',                  icn:'trophy',   t:_club('e_pressbanca',100)},
+ {id:'sq100',n:'Club 100 · sentadilla', d:'100 kg en sentadilla',             icn:'dumbbell', t:_club('e_sentadilla',100)},
+ {id:'sq140',n:'Club 140 · sentadilla', d:'140 kg en sentadilla',             icn:'trophy',   t:_club('e_sentadilla',140)},
+ {id:'dl100',n:'Club 100 · peso muerto',d:'100 kg en peso muerto',            icn:'dumbbell', t:_club('e_pesomuerto',100)},
+ {id:'dl140',n:'Club 140 · peso muerto',d:'140 kg en peso muerto',            icn:'dumbbell', t:_club('e_pesomuerto',140)},
+ {id:'dl180',n:'Club 180 · peso muerto',d:'180 kg en peso muerto',            icn:'trophy',   t:_club('e_pesomuerto',180)},
+ {id:'hip100',n:'Club 100 · hip thrust',d:'100 kg en hip thrust',             icn:'dumbbell', t:_club('e_hipthrust',100)},
 ];
 let _achBusy=false;
 function checkAchievements(){
@@ -1815,7 +1856,7 @@ function checkAchievements(){
   } finally { _achBusy=false; }
 }
 function renderAchievements(){
-  const el=document.getElementById("logrosBox"); if(!el) return;
+  const el=document.getElementById("perfilLogros"); if(!el) return;
   checkAchievements();
   const un=state.achievements||{};
   const nUn=ACH_DEFS.filter(a=>un[a.id]).length;
@@ -1852,8 +1893,11 @@ function publishProfile(force){
   if(!force && last.at && (Date.now()-last.at)<2*3600e3 && last.ton===wk.ton && last.n===wk.workouts) return;   // no spamear: solo si cambió o pasaron 2 h
   const code=myFriendCode();
   const name=((state.prefs&&state.prefs.displayName)||"").trim()||("Atleta "+code.slice(0,3));
+  const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLift(k.id); if(b) lifts[k.id]=b; });
+  const doc={t:"prof", name, code, week:wk, lifts, ach:Object.keys(state.achievements||{}), at:Date.now()};
+  if(state.profilePhoto && state.profilePhoto.length<24000) doc.photo=state.profilePhoto;
   const id=profPrefix(code)+String(1e13-Date.now()).padStart(13,"0");   // id decreciente → el más nuevo queda primero
-  fbDb.collection("shared").doc(id).set({t:"prof", name, code, week:wk, ach:Object.keys(state.achievements||{}).length, at:Date.now()})
+  fbDb.collection("shared").doc(id).set(doc)
     .then(()=>{ state._profPub={at:Date.now(), ton:wk.ton, n:wk.workouts}; saveLocal(); }).catch(()=>{});
 }
 function setDisplayName(){ const v=prompt("Tu nombre para el ranking:", (state.prefs&&state.prefs.displayName)||""); if(v==null) return; if(!state.prefs)state.prefs={}; state.prefs.displayName=v.trim().slice(0,20); save(); publishProfile(true); setTimeout(renderRanking,900); }
@@ -1870,25 +1914,148 @@ function addFriendByCode(){
   });
 }
 function removeFriend(code){ if(!confirm("¿Quitar a este amigo del ranking?")) return; state.friends=(state.friends||[]).filter(f=>f.code!==code); save(); renderRanking(); }
+/* ===== niveles de fuerza (estilo Strength Level): 1RM estimado / peso corporal, por sexo ===== */
+const LIFT_STD={ // multiplicadores de peso corporal: [Principiante, Novato, Intermedio, Avanzado, Élite]
+  e_pressbanca:{m:[0.50,0.75,1.25,1.75,2.00], f:[0.25,0.50,0.75,1.00,1.50]},
+  e_sentadilla:{m:[0.75,1.25,1.50,2.25,2.75], f:[0.50,0.75,1.25,1.50,2.00]},
+  e_pesomuerto:{m:[1.00,1.50,2.00,2.50,3.00], f:[0.50,1.00,1.25,1.75,2.50]},
+  e_pressmil:  {m:[0.35,0.55,0.80,1.10,1.40], f:[0.20,0.35,0.50,0.75,1.00]},
+  e_remobarra: {m:[0.50,0.75,1.00,1.50,1.75], f:[0.25,0.40,0.65,0.90,1.20]},
+  e_hipthrust: {m:[0.75,1.25,1.75,2.50,3.00], f:[0.50,1.00,1.50,2.00,2.50]},
+};
+const LIFT_LVL_NAMES=["Principiante","Novato","Intermedio","Avanzado","Élite"];
+function liftLevel(exId,b){
+  const std=LIFT_STD[exId]; const bw=(state.goals&&state.goals.weight)||0;
+  if(!std||!bw||!b) return null;
+  const sex=(state.goals&&state.goals.sex)==="female"?"f":"m";
+  const orm=(b.r||1)<=1?b.w:epley(b.w,b.r);
+  const ratio=orm/bw; const arr=std[sex];
+  let lvl=-1; for(let i=0;i<arr.length;i++){ if(ratio>=arr[i]) lvl=i; }
+  return lvl>=0?{lvl,name:LIFT_LVL_NAMES[lvl],ratio:Math.round(ratio*100)/100}:{lvl:-1,name:"—",ratio:Math.round(ratio*100)/100};
+}
+/* mi perfil con datos locales (siempre frescos) */
+function localProfile(){
+  const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLift(k.id); if(b) lifts[k.id]=b; });
+  return { t:"prof", name:((state.prefs&&state.prefs.displayName)||"").trim()||"Tú",
+    code:(fbUser?myFriendCode():null), week:weekStats(), lifts,
+    ach:Object.keys(state.achievements||{}), photo:state.profilePhoto||null };
+}
+function avatarHtml(p,size){ size=size||34;
+  return p&&p.photo ? `<img src="${p.photo}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
+    : `<div style="width:${size}px;height:${size}px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.round(size*0.42)}px;flex:0 0 auto">${(((p&&p.name)||"?")[0]||"?").toUpperCase()}</div>`;
+}
+/* ===== ranking por levantamiento (estilo Hevy: leaderboard por ejercicio entre amigos) ===== */
+let rankMetric="e_pressbanca", __rankRows=[];
+function setRankMetric(m){ rankMetric=m; drawRanking(); }
+function metricValue(r,m){
+  if(m==="ton") return (r.week&&r.week.ton)||0;
+  if(m==="streak") return (r.week&&r.week.streak)||0;
+  if(m==="ach") return Array.isArray(r.ach)?r.ach.length:(r.ach||0);
+  const b=r.lifts&&r.lifts[m]; return b?b.w:0;
+}
+function metricLabel(r,m){
+  if(m==="ton") return nfmt(fromKg((r.week&&r.week.ton)||0))+" "+unit();
+  if(m==="streak") return (((r.week&&r.week.streak)||0)+" días");
+  if(m==="ach") return (Array.isArray(r.ach)?r.ach.length:(r.ach||0))+" insignias";
+  const b=r.lifts&&r.lifts[m]; return b?`${uw(b.w)} ${unit()} × ${b.r}`:"—";
+}
 function renderRanking(){
   const el=document.getElementById("rankingBox"); if(!el) return;
   if(!fbUser||!fbDb){ el.innerHTML=`<div class="empty" style="margin:0">Inicia sesión en la nube (Ajustes → Cuenta) para competir con tus amigos.</div>`; return; }
   publishProfile();
-  const myCode=myFriendCode();
-  const codes=[myCode, ...((state.friends||[]).filter(f=>f.code).map(f=>f.code))];
+  const me=localProfile();
+  const codes=((state.friends||[]).filter(f=>f.code).map(f=>f.code));
   el.innerHTML=`<div class="empty" style="margin:0">Cargando ranking…</div>`;
   Promise.all(codes.map(c=>latestProfile(c))).then(profs=>{
-    const rows=profs.filter(Boolean);
-    rows.sort((a,b)=>((b.week&&b.week.ton)||0)-((a.week&&a.week.ton)||0));
-    el.innerHTML=
-      `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tu código: <b style="color:var(--accent);letter-spacing:2px;cursor:pointer" onclick="copyFriendCode()">${myCode}</b> (tócalo para copiar) — compártelo para que te agreguen · <span style="color:var(--accent);cursor:pointer" onclick="setDisplayName()">✎ mi nombre</span></div>`+
-      (rows.length?rows.map((r,i)=>`<div class="kv"><span><b style="margin-right:7px;color:${i===0?'var(--accent)':'var(--muted)'}">${i+1}º</b>${r.name||r.code}${r.code===myCode?' <span style="color:var(--accent);font-size:11px">(tú)</span>':''}</span><b>${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()} <span style="color:var(--muted);font-size:11px">· ${(r.week&&r.week.workouts)||0} entr. · racha ${(r.week&&r.week.streak)||0}</span>${r.code!==myCode?` <span style="color:var(--bad);cursor:pointer;margin-left:6px" onclick="removeFriend('${r.code}')">×</span>`:''}</b></div>`).join(""):`<div class="empty" style="margin:0">Aún sin datos: entrena esta semana y agrega amigos.</div>`)+
-      `<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="addFriendByCode()">+ Agregar amigo por código</button>
-       <div style="font-size:11px;color:var(--muted);margin-top:8px">Tonelaje de los últimos 7 días. Se actualiza cuando cada quien abre su app. Solo se comparte nombre, código y números de la semana.</div>`;
+    __rankRows=[me, ...profs.filter(Boolean)];
+    drawRanking();
   });
 }
-function renderHistory(){
+function drawRanking(){
+  const el=document.getElementById("rankingBox"); if(!el) return;
+  const me=__rankRows[0]||localProfile(), myCode=me.code;
+  const opts=[...KEY_LIFTS.map(k=>({v:k.id,l:k.lbl})),{v:"ton",l:"Tonelaje (7 días)"},{v:"streak",l:"Racha de dieta"},{v:"ach",l:"Insignias"}];
+  const rows=[...__rankRows].sort((a,b)=>metricValue(b,rankMetric)-metricValue(a,rankMetric));
+  el.innerHTML=
+    `<div style="display:flex;align-items:center;gap:11px;margin-bottom:12px">
+       <span style="cursor:pointer" onclick="nav('perfil')">${avatarHtml(me,44)}</span>
+       <div style="flex:1;min-width:0"><div style="font-weight:700">${me.name}</div>
+         <div style="font-size:12px;color:var(--muted)">Tu código: <b style="color:var(--accent);letter-spacing:1.5px;cursor:pointer" onclick="copyFriendCode()">${myCode||"—"}</b> · <span style="color:var(--accent);cursor:pointer" onclick="nav('perfil')">mi perfil</span></div></div></div>
+     <div class="field" style="margin-bottom:12px"><label>Competir en</label>
+       <select onchange="setRankMetric(this.value)">${opts.map(o=>`<option value="${o.v}" ${o.v===rankMetric?"selected":""}>${o.l}</option>`).join("")}</select></div>`+
+    (rows.length?rows.map((r,i)=>{ const val=metricValue(r,rankMetric), isMe=r.code===myCode;
+      return `<div class="kv" style="cursor:${isMe?'default':'pointer'}" ${isMe?'':`onclick="headToHead('${r.code}')"`}>
+        <span style="display:flex;align-items:center;gap:9px;min-width:0"><b style="color:${i===0&&val>0?'var(--accent)':'var(--muted)'};width:24px">${i+1}º</b>${avatarHtml(r,30)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name||r.code}${isMe?' <span style="color:var(--accent);font-size:11px">(tú)</span>':''}</span></span>
+        <b style="white-space:nowrap">${metricLabel(r,rankMetric)}${!isMe?` <span style="color:var(--bad);cursor:pointer;margin-left:5px" onclick="event.stopPropagation();removeFriend('${r.code}')">×</span>`:''}</b></div>`; }).join("")
+     :`<div class="empty" style="margin:0">Agrega amigos con su código.</div>`)+
+    `<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="addFriendByCode()">+ Agregar amigo por código</button>
+     <div style="font-size:11px;color:var(--muted);margin-top:8px">Mejor peso levantado por ejercicio (serie real o PR manual). Toca a un amigo para el 1 a 1. Solo se comparte nombre, foto, marcas e insignias.</div>`;
+}
+/* comparación 1 a 1 (estilo Hevy "Comparison"): tus básicos vs los suyos */
+function headToHead(code){
+  const me=__rankRows[0]||localProfile();
+  const r=__rankRows.find(x=>x.code===code); if(!r) return;
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent="Tú vs "+(r.name||r.code);
+  let wins=0,losses=0;
+  const rows=KEY_LIFTS.map(k=>{
+    const a=me.lifts&&me.lifts[k.id], o=r.lifts&&r.lifts[k.id];
+    if(!a&&!o) return "";
+    const av=a?a.w:0, ov=o?o.w:0;
+    let mark; if(av>ov){ mark='<span style="color:var(--ok);font-size:11px">✓ tú</span>'; wins++; }
+    else if(ov>av){ mark='<span style="color:var(--bad);font-size:11px">✓ él</span>'; losses++; }
+    else mark='<span style="color:var(--muted);font-size:11px">=</span>';
+    return `<div class="kv"><span>${k.lbl}</span><b>${a?`${uw(a.w)}×${a.r}`:"—"} vs ${o?`${uw(o.w)}×${o.r}`:"—"} ${mark}</b></div>`;
+  }).join("");
+  const meAch=Array.isArray(me.ach)?me.ach.length:0, rAch=Array.isArray(r.ach)?r.ach.length:(r.ach||0);
+  const theirBadges=(Array.isArray(r.ach)?r.ach:[]).map(id=>{const d=ACH_DEFS.find(x=>x.id===id);return d?d.n:null;}).filter(Boolean).slice(0,4).join(" · ");
+  b.innerHTML=`<div style="display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 14px">
+      ${avatarHtml(me,52)}<b style="font-size:18px;color:var(--muted)">vs</b>${avatarHtml(r,52)}</div>`+
+    rows+
+    `<div class="kv"><span>Tonelaje (7 días)</span><b>${nfmt(fromKg((me.week&&me.week.ton)||0))} vs ${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()}</b></div>
+     <div class="kv"><span>Racha de dieta</span><b>${(me.week&&me.week.streak)||0} vs ${(r.week&&r.week.streak)||0} días</b></div>
+     <div class="kv"><span>Insignias</span><b>${meAch} vs ${rAch}</b></div>
+     ${theirBadges?`<div style="font-size:12px;color:var(--muted);margin-top:8px">Sus insignias: ${theirBadges}</div>`:""}
+     <div style="margin-top:12px;font-weight:800;text-align:center">${wins>losses?`Vas ganando ${wins}–${losses}`:(losses>wins?`Te va ganando ${losses}–${wins}`:`Empate ${wins}–${losses}`)} en básicos</div>`;
+  openModal("exInfoModal");
+}
+/* ===== Tu perfil ===== */
+function renderPerfil(){
+  const el=document.getElementById("perfilContent"); if(!el) return;
+  checkAchievements();
+  const p=localProfile();
+  const lifts=KEY_LIFTS.map(k=>{ const b=p.lifts[k.id]; const lv=b?liftLevel(k.id,b):null;
+    return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}`:"—"}</b></div>`; }).join("");
+  el.innerHTML=`
+   <div class="card" style="display:flex;align-items:center;gap:16px">
+     <div style="cursor:pointer;position:relative" onclick="pickProfilePhoto()">${avatarHtml(p,84)}<div style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px">✎</div></div>
+     <div style="flex:1;min-width:0">
+       <div style="font-size:20px;font-weight:800;cursor:pointer" onclick="setDisplayName()">${p.name} <span style="font-size:12px;color:var(--accent);font-weight:600">✎</span></div>
+       <div style="font-size:12px;color:var(--muted);margin-top:3px">${p.code?`Código: <b style="letter-spacing:1.5px;color:var(--accent);cursor:pointer" onclick="copyFriendCode()">${p.code}</b> (tocar = copiar)`:"Inicia sesión en la nube (Ajustes) para tener código"}</div>
+       <div style="font-size:12px;color:var(--muted);margin-top:3px">${(state.workouts||[]).length} entrenos · ${nfmt(fromKg(totalTonnage()))} ${unit()} movidos en total</div>
+     </div></div>
+   <div class="card" style="margin-top:14px"><h3>Tus básicos · mejor peso</h3>${lifts}
+     <small class="hint" style="display:block;margin-top:8px">Tu mejor serie registrada o tu PR manual (Records), lo que sea mayor. El nivel compara tu 1RM estimado contra tu peso corporal (estilo Strength Level). Con estos números compites en el ranking.</small></div>
+   <div class="card" style="margin-top:14px"><h3>Logros</h3><div id="perfilLogros"></div></div>
+   <button class="btn-primary" style="width:100%;margin-top:14px" onclick="nav('ranking')">Ver ranking de amigos</button>`;
   renderAchievements();
+}
+function pickProfilePhoto(){ const i=document.getElementById("profilePhotoInput"); if(i) i.click(); }
+function onProfilePhoto(input){
+  const f=input.files&&input.files[0]; if(!f) return;
+  const rd=new FileReader();
+  rd.onload=e=>{ const img=new Image();
+    img.onload=()=>{ const S=96,c=document.createElement("canvas"); c.width=S;c.height=S;
+      const x=c.getContext("2d"), m=Math.min(img.width,img.height);
+      x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,S,S);
+      state.profilePhoto=c.toDataURL("image/jpeg",0.72);
+      save(); publishProfile(true); renderPerfil(); toast("Foto actualizada");
+    };
+    img.src=e.target.result; };
+  rd.readAsDataURL(f); input.value="";
+}
+
+function renderHistory(){
   const data=state.history.slice(0,30);
   // gráfica de barras SVG
   const chart=document.getElementById("historyChart");
