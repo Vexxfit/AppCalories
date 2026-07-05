@@ -734,6 +734,7 @@ function openFoodDetail(id){
   const piece = f.piece?`<div style="font-size:12px;color:var(--muted);margin-top:10px">1 ${f.pieceName||'pza'} ≈ ${f.piece} g</div>`:"";
   document.getElementById("foodDetailBody").innerHTML=
     `<div class="pill" style="margin-bottom:10px">${f.cat}</div>${macros}${microSection}${piece}
+     <div style="font-size:12px;color:var(--muted);margin-top:8px">≈ ${nfmt(kcalToSteps(f.cal))} pasos de caminata por 100 g</div>
      <button class="btn-primary" style="width:100%;margin-top:14px" onclick="closeModal('foodDetailModal');quickAddFoodToPlan('${f.id}')">+ Agregar a mi día</button>`;
   openModal("foodDetailModal");
 }
@@ -1150,10 +1151,71 @@ function addComputed(){
   const sc=v/100;
   return {d,scale:sc,macros:dishMacros(d,sc),label:`${r0(v)}%`};
 }
+/* equivalencia en pasos de caminata (~0.0005 kcal por kg de peso por paso) */
+function kcalToSteps(cal){ const w=(state.goals&&state.goals.weight)||75; return Math.round((cal||0)/(w*0.0005)); }
 function renderAddPreview(){
   const p=document.getElementById("apPreview"); if(!p||!addSel) return;
   const m=addComputed().macros;
-  p.innerHTML=`<b style="color:var(--accent)">${r0(m.cal)} kcal</b> · P ${r1(m.protein)} · C ${r1(m.carbs)} · G ${r1(m.fat)} · Fib ${r1(m.fiber)}`;
+  p.innerHTML=`<b style="color:var(--accent)">${r0(m.cal)} kcal</b> · P ${r1(m.protein)} · C ${r1(m.carbs)} · G ${r1(m.fat)} · Fib ${r1(m.fiber)}<br><span style="font-size:12px">≈ ${nfmt(kcalToSteps(m.cal))} pasos de caminata</span>`;
+}
+/* ---- registro por texto libre: "2 huevos y una tortilla" ---- */
+function _norm(s){ return (s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,""); }
+const NUM_WORDS={un:1,una:1,uno:1,dos:2,tres:3,cuatro:4,cinco:5,seis:6,siete:7,ocho:8,nueve:9,diez:10,media:0.5,medio:0.5};
+function parseFreeFood(text){
+  const parts=String(text||"").split(/\s*(?:,|;| y | con | mas |\+)\s*/i).filter(p=>p.trim());
+  return parts.map(raw=>{
+    let t=_norm(raw).trim(), qty=null, unit=null;
+    const nm=t.match(/^(\d+(?:[.,]\d+)?|1\/2)\s*/);
+    if(nm){ qty=nm[1]==="1/2"?0.5:parseFloat(nm[1].replace(",",".")); t=t.slice(nm[0].length); }
+    else { const w=t.split(/\s+/)[0]; if(NUM_WORDS[w]!=null){ qty=NUM_WORDS[w]; t=t.slice(w.length).trim(); } }
+    const um=t.match(/^(gramos?|grs?|g|piezas?|pzas?|tazas?|vasos?|cucharaditas?|cditas?|cucharadas?|cdas?|rebanadas?|reb|puñados?|punados?)\b\s*(de\s+)?/);
+    if(um){ const u=um[1]; t=t.slice(um[0].length).trim();
+      if(/^g/.test(u)&&!/^gran/.test(u)) unit="g";
+      else if(/^(pieza|pza)/.test(u)) unit="pza";
+      else if(/^taza/.test(u)) unit="taza";
+      else if(/^vaso/.test(u)) unit="vaso";
+      else if(/^(cucharadita|cdita)/.test(u)) unit="cdita";
+      else if(/^(cucharada|cda)/.test(u)) unit="cda";
+      else if(/^(rebanada|reb)/.test(u)) unit="pza";
+      else if(/^pu/.test(u)) unit="punado";
+    }
+    t=t.replace(/^de\s+/,"").trim();
+    if(!t) return {raw, miss:true};
+    const cand=allFoods().map(f=>{ const fn=_norm(f.name); let score=0;
+      if(fn===t) score=100; else if(fn.startsWith(t)) score=80; else if(fn.includes(t)) score=60;
+      else { const toks=t.split(/\s+/).filter(x=>x.length>2);
+        const hits=toks.filter(x=>fn.includes(x)||fn.includes(x.replace(/e?s$/,""))).length;
+        if(hits>0) score=40+hits*10-fn.length*0.01; }
+      return {f,score}; }).filter(c=>c.score>0).sort((a,b)=>b.score-a.score);
+    if(!cand.length) return {raw, miss:true};
+    const f=cand[0].f;
+    if(!unit) unit=(qty!=null && f.piece && qty<=12)?"pza":"g";
+    if(qty==null) qty = unit==="g" ? 100 : 1;
+    const P=PORTIONS[unit];
+    const grams = unit==="pza" ? qty*(f.piece||100) : (P ? qty*P.g : qty);
+    const label = unit==="pza" ? `${qty} ${f.pieceName||"pza"} (${r0(grams)} g)` : (P?`${qty} ${P.lbl} (~${r0(grams)} g)`:`${r0(grams)} g`);
+    return {raw, f, qty, unit, grams, label, macros:foodMacros(f,grams)};
+  });
+}
+let freeParsed=null;
+function openFreeFood(){ set("ffText",""); document.getElementById("ffResults").innerHTML=""; openModal("freeFoodModal"); setTimeout(()=>{const el=document.getElementById("ffText"); if(el) el.focus();},80); }
+function runFreeFood(){
+  freeParsed=parseFreeFood(val("ffText"));
+  const el=document.getElementById("ffResults");
+  if(!freeParsed.length){ el.innerHTML=`<div class="empty">Escribe algo como “2 huevos y una tortilla”.</div>`; return; }
+  const okN=freeParsed.filter(p=>!p.miss).length;
+  el.innerHTML=freeParsed.map(p=>p.miss
+    ? `<div class="kv"><span style="color:var(--bad)">“${p.raw}”</span><b style="color:var(--muted);font-size:12px">no lo encontré</b></div>`
+    : `<div class="kv"><span>${p.f.name} <span style="color:var(--muted);font-size:12px">· ${p.label}</span></span><b>${r0(p.macros.cal)} kcal</b></div>`).join("")
+    +(okN?`<button class="btn-primary" style="width:100%;margin-top:12px" onclick="confirmFreeFood()">Agregar ${okN} a mi día</button>`:"");
+}
+function confirmFreeFood(){
+  const ok=(freeParsed||[]).filter(p=>!p.miss); if(!ok.length) return toast("Nada que agregar");
+  const slot=val("apSlot")||state.meals[0].id;
+  if(!state.plan.slots[slot]) state.plan.slots[slot]=[];
+  ok.forEach(p=>{ state.plan.slots[slot].push({type:"food",refId:p.f.id,name:p.f.name,label:p.label,macros:p.macros,qty:p.qty,unit:p.unit}); addRecent(p.f.id); if(!state.lastPortions)state.lastPortions={}; state.lastPortions[p.f.id]={qty:p.qty,unit:p.unit}; });
+  save(); closeModal("freeFoodModal"); closeModal("planModal"); refreshAfterPlanChange();
+  toast(`${ok.length} alimento${ok.length>1?'s':''} agregado${ok.length>1?'s':''} ✓`);
 }
 function confirmAddToPlan(){
   const slot=val("apSlot");

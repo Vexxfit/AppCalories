@@ -465,6 +465,7 @@
     <div class="row" style="gap:8px;margin-bottom:8px">
       <button class="btn-ghost btn-sm" onclick="openScanner()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><path d="M4 6v12M7.5 6v12M11 6v12M14 6v12M17 6v12M20 6v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Escanear</button>
       <button class="btn-ghost btn-sm" onclick="openFoodSearch()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.8"/><path d="M3.6 12h16.8M12 3.6c2.6 2.4 2.6 14.4 0 16.8M12 3.6c-2.6 2.4-2.6 14.4 0 16.8" stroke="currentColor" stroke-width="1.6"/></svg> Buscar online</button>
+      <button class="btn-ghost btn-sm" onclick="openFreeFood()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Escribir</button>
     </div>
     <div id="apResults" class="add-results"></div>
     <div id="apQty"></div>
@@ -597,6 +598,17 @@
       <div class="kv"><span><b>Tonelaje y 1RM est.</b></span></div>
       <p style="color:var(--muted);font-size:13px;margin:6px 0 0">Tonelaje = peso × reps de todas tus series (tu volumen de trabajo). 1RM est. = el peso máximo estimado que podrías levantar 1 vez.</p>
     </div>
+  </div>
+</div>
+
+<div class="modal-bg" id="freeFoodModal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal('freeFoodModal')">×</button>
+    <h3>Escribe tu comida</h3>
+    <p class="card-sub" style="margin:4px 0 10px">Ej.: “2 huevos y una tortilla” o “150 g de pollo, media taza de arroz”.</p>
+    <textarea id="ffText" placeholder="2 huevos y una tortilla…" style="width:100%;min-height:64px;background:var(--bg2);border:none;border-radius:12px;padding:12px 14px;font-family:inherit;font-size:16px;resize:vertical"></textarea>
+    <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="runFreeFood()">Analizar</button>
+    <div id="ffResults" style="margin-top:10px"></div>
   </div>
 </div>
 
