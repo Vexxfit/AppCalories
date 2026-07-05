@@ -1986,13 +1986,48 @@ function addWarmups(i){ const e=sessionDraft&&sessionDraft.entries[i]; if(!e) re
   e.sets=[...warm, ...e.sets]; renderSesion(); toast("Calentamiento agregado"); }
 let swapExIdx=null;
 function openSwapEx(i){ swapExIdx=i; set("swapExSearch",""); renderSwapList(""); openModal("swapExModal"); setTimeout(()=>{const el=document.getElementById("swapExSearch"); if(el)el.focus();},80); }
+/* modo "gimnasio lleno": sustitutos rankeados por músculos equivalentes (modelo EMG) + tu historial en cada uno */
 function renderSwapList(q){ q=(q||"").toLowerCase().trim(); const e=sessionDraft&&sessionDraft.entries[swapExIdx]; const grp=e?e.group:null;
-  const list=[...state.exercises].filter(x=>!q||x.name.toLowerCase().includes(q)||(x.group||"").toLowerCase().includes(q))
-    .sort((a,b)=>((a.group===grp?0:1)-(b.group===grp?0:1))||a.name.localeCompare(b.name,'es')).slice(0,40);
+  const orig=e?exMuscles(exById(e.exId)||{group:e.group}):null;
+  const overlap=x=>{ if(!orig) return 0; const m=exMuscles(x); let s=0; for(const k in m) if(orig[k]) s+=Math.min(m[k],orig[k]); return s; };
+  const list=[...state.exercises].filter(x=>x.id!==(e&&e.exId) && (!q||x.name.toLowerCase().includes(q)||(x.group||"").toLowerCase().includes(q)))
+    .map(x=>({x,ov:overlap(x)}))
+    .sort((a,b)=>(b.ov-a.ov)||((a.x.group===grp?0:1)-(b.x.group===grp?0:1))||a.x.name.localeCompare(b.x.name,'es')).slice(0,40);
   const el=document.getElementById("swapExList"); if(!el) return;
   const rs="display:block;width:100%;text-align:left;background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:11px 13px;margin-bottom:9px;color:var(--text);cursor:pointer;min-height:44px;font:inherit";
-  el.innerHTML=list.length?list.map(x=>`<button style="${rs}" onclick="doSwapEx('${x.id}')"><b style="font-weight:600">${x.name}</b> <span style="font-size:11px;color:var(--muted)">${x.group||''}${x.group===grp?' · mismo grupo':''}</span></button>`).join(""):`<div class="empty">Sin resultados.</div>`; }
-function doSwapEx(id){ const ex=exById(id), e=sessionDraft&&sessionDraft.entries[swapExIdx]; if(ex&&e){ e.exId=ex.id; e.name=ex.name; e.group=ex.group; if(!e.repRange)e.repRange=ex.repRange; if(!e.rir)e.rir=ex.rir; } closeModal("swapExModal"); renderSesion(); toast("Ejercicio cambiado"); }
+  el.innerHTML=list.length?list.map(o=>{ const x=o.x, last=lastSetsFor(x.id);
+    const ls=last?last.filter(s=>(s.weight||0)>0&&!isWarmup(s)):null;
+    const top=ls&&ls.length?ls.reduce((m,s)=>s.weight>m.weight?s:m,ls[0]):null;
+    const eq=o.ov>=0.9?'≈ equivalente':(o.ov>=0.45?'parecido':'');
+    return `<button style="${rs}" onclick="doSwapEx('${x.id}')"><b style="font-weight:600">${x.name}</b> <span style="font-size:11px;color:var(--muted)">${x.group||''}${eq?` · <b style="color:var(--ok)">${eq}</b>`:''}</span><br><span style="font-size:11px;color:${top?'var(--accent)':'var(--muted)'}">${top?`tu última vez: ${uw(top.weight)} ${unit()} × ${top.reps||top.repsL||0}`:'primera vez — empieza ligero'}</span></button>`; }).join(""):`<div class="empty">Sin resultados.</div>`; }
+function doSwapEx(id){ const ex=exById(id), e=sessionDraft&&sessionDraft.entries[swapExIdx];
+  if(ex&&e){ e.exId=ex.id; e.name=ex.name; e.group=ex.group; if(!e.repRange)e.repRange=ex.repRange; if(!e.rir)e.rir=ex.rir;
+    // los pesos del ejercicio anterior no sirven: precarga TU historial del nuevo, o deja en blanco
+    const last=lastSetsFor(ex.id);
+    if(last&&last.length){ e.sets=last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||e.rir||"", type:s.type, drops:s.drops?s.drops.map(dp=>({weight:dp.weight||0,reps:dp.reps||0})):undefined, repsL:s.repsL, repsR:s.repsR})); e.prefilled=true; e.uni=last.some(s=>s.repsL!=null||s.repsR!=null); }
+    else { e.sets=e.sets.map(()=>({weight:0,reps:0,rir:e.rir||""})); e.prefilled=false; e.uni=false; }
+  }
+  closeModal("swapExModal"); renderSesion(); toast("Ejercicio cambiado"); }
+/* mini-historial del ejercicio dentro de la sesión (toca el nombre) */
+function openExMiniHist(exId){
+  const ex=exById(exId); const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent=ex?ex.name:"Ejercicio";
+  const ws=(state.workouts||[]).filter(w=>w.entries.some(x=>x.exId===exId&&(x.sets||[]).some(s=>(s.weight||0)>0))).sort((a,b)=>a.date<b.date?1:-1).slice(0,6);
+  const tip=(typeof EX_TIPS!=="undefined"&&EX_TIPS[exId])?`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin-top:12px;line-height:1.5"><b style="color:var(--text)">Técnica:</b> ${EX_TIPS[exId]}</div>`:"";
+  if(!ws.length){ b.innerHTML=`<div class="empty">Aún no registras este ejercicio.</div>`+tip; openModal("exInfoModal"); return; }
+  const rows=ws.map(w=>{ const en=w.entries.find(x=>x.exId===exId);
+    const sets=(en.sets||[]).filter(s=>(s.weight||0)>0&&!isWarmup(s));
+    const top=sets.reduce((m,s)=>(!m||s.weight>m.weight)?s:m,null);
+    return {date:w.date, name:w.name, top, ton:entryTonnage(en)}; });
+  b.innerHTML=`<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Tus últimas veces</div>`+
+    rows.map((r,k)=>{ const prev=rows[k+1]; const d=(prev&&prev.ton>0)?(r.ton-prev.ton)/prev.ton*100:null; const st=trendStatus(d);
+      return `<div class="kv"><span>${r.date} <span style="color:var(--muted);font-size:11px">· ${r.name}</span></span><b>${r.top?`${uw(r.top.weight)} ${unit()} × ${r.top.reps||r.top.repsL||0}`:'—'}${d!=null?` <span style="color:${st.color};font-size:11px">${st.txt}</span>`:''}</b></div>`; }).join("")+tip;
+  openModal("exInfoModal");
+}
+function openExTip(exId){ const ex=exById(exId); const tip=(typeof EX_TIPS!=="undefined")&&EX_TIPS[exId]; if(!tip) return;
+  document.getElementById("exInfoTitle").textContent=ex?ex.name:"Técnica";
+  document.getElementById("exInfoBody").innerHTML=`<div style="font-size:14.5px;line-height:1.6">${tip}</div>`;
+  openModal("exInfoModal"); }
 function editWorkout(id){
   if(sessionDraft){ if(!confirm("Tienes una sesión en el editor. ¿Reemplazarla por esta?")) return; }
   const w=state.workouts.find(x=>x.id===id); if(!w) return;
@@ -2042,6 +2077,9 @@ function startChrono(){
 function tickChrono(){ const el=document.getElementById("chronoTime"); if(el) el.textContent=chronoStr(Math.round((Date.now()-chronoStart)/1000)); }
 function stopChrono(){ clearInterval(chronoIv); chronoIv=null; const b=document.getElementById("chronoBar"); if(b) b.style.display="none"; }
 function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); if(parseInt(v)>0 && chronoOn()){ chronoStart=Date.now(); tickChrono(); } renderSesion(); }
+/* marcar serie como hecha: feedback visual + arranca/reinicia el cronómetro de descanso */
+function toggleSetDone(i,j){ const s=sessionDraft&&sessionDraft.entries[i]&&sessionDraft.entries[i].sets[j]; if(!s) return;
+  s.done=!s.done; if(s.done) startChrono(); renderSesion(); }
 function updateSetRir(i,j,v){ sessionDraft.entries[i].sets[j].rir = v; persistDraft(); }
 const SET_TAGS={
   n:{title:"Serie normal",bg:"var(--surface3)",fg:"var(--muted)",short:""},
@@ -2146,12 +2184,12 @@ function renderSesion(){
       const ssCol = e.sg ? (SS_COLORS[e.sg]||"var(--accent)") : null;
       return `<div class="ex-block" style="${ssCol?`border-left:4px solid ${ssCol};`:''}">
         <div class="exh">
-          <div><div class="exname">${e.name}${e.sg?` <span class="pill" style="background:${ssCol};color:#fff;font-size:10px;padding:1px 8px">${ic('link',12)} Superserie ${e.sg}</span>`:''}</div>
-            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.tempo?` · tempo ${e.tempo}`:''}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div>
+          <div><div class="exname" style="cursor:pointer" title="Ver tu historial de este ejercicio" onclick="openExMiniHist('${e.exId}')">${e.name}${e.sg?` <span class="pill" style="background:${ssCol};color:#fff;font-size:10px;padding:1px 8px">${ic('link',12)} Superserie ${e.sg}</span>`:''}</div>
+            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.tempo?` · tempo ${e.tempo}`:''}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}${(typeof EX_TIPS!=='undefined'&&EX_TIPS[e.exId])?` · <span style="color:var(--accent);cursor:pointer" onclick="openExTip('${e.exId}')">técnica</span>`:''}</div>
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
-        <div class="set-head"><span></span><span>Peso (${unit()})</span><span>${e.uni?"Izq":"Reps"}</span><span>${e.uni?"Der":"RIR"}</span><span></span></div>
+        <div class="set-head"><span></span><span>Peso (${unit()})</span><span>${e.uni?"Izq":"Reps"}</span><span>${e.uni?"Der":"RIR"}</span><span></span><span></span></div>
         ${e.sets.map((s,j)=>{
           const tg=SET_TAGS[s.type||"n"];
           let cShort,cBg,cFg;
@@ -2165,6 +2203,7 @@ function renderSesion(){
               <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
               <input type="number" inputmode="numeric" value="${s.repsL!=null?s.repsL:""}" placeholder="izq" onchange="updateSetRepsL(${i},${j},this.value)">
               <input type="number" inputmode="numeric" value="${s.repsR!=null?s.repsR:""}" placeholder="der" onchange="updateSetRepsR(${i},${j},this.value)">
+              <button class="sdone${s.done?' on':''}" title="Serie hecha" onclick="toggleSetDone(${i},${j})">✓</button>
               <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
             </div>`;
           }
@@ -2186,6 +2225,7 @@ function renderSesion(){
             <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
             <input type="number" inputmode="numeric" value="${s.reps||""}" placeholder="0" onchange="updateSetReps(${i},${j},this.value)">
             <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)" ${s.type==="f"?'disabled title="Al fallo = RIR 0"':''}>
+            <button class="sdone${s.done?' on':''}" title="Serie hecha" onclick="toggleSetDone(${i},${j})">✓</button>
             <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
           </div>`;
         }).join("")}
@@ -2243,6 +2283,7 @@ function saveSession(){
     return (s.weight||0)>0 && (s.reps||0)>0;
   }); });
   d.entries = d.entries.filter(e=>e.sets.length);
+  d.entries.forEach(e=>e.sets.forEach(s=>{ delete s.done; }));   // "hecha" es solo de la sesión en curso
   const editingId=d.editingId;
   const clean=JSON.parse(JSON.stringify(d)); delete clean.editingId;
   if(editingId){ const idx=state.workouts.findIndex(w=>w.id===editingId); if(idx>=0) state.workouts[idx]=clean; else state.workouts.push(clean); }
@@ -2595,6 +2636,7 @@ function renderExTable(){
       <div class="lr-main"><div class="lr-title">${e.name} ${e.custom?'<span class="badge" style="background:var(--accent-soft);color:var(--accent)">propio</span>':''}</div>
         <div class="lr-sub">${e.repRange} reps · RIR ${e.rir}</div></div>
       <span class="pill">${e.group}</span>
+      ${(typeof EX_TIPS!=='undefined'&&EX_TIPS[e.id])?`<button class="icon-btn" title="Técnica" style="color:var(--accent)" onclick="openExTip('${e.id}')">${ic('bulb',16)}</button>`:''}
       <button class="icon-btn" onclick="openExModal('${e.id}')" aria-label="Editar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L18.5 9.5a2 2 0 00-3-3L5 17v3z"/></svg></button>
       ${e.custom?`<button class="icon-btn" style="color:var(--bad)" onclick="deleteExercise('${e.id}')" aria-label="Eliminar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg></button>`:''}
     </div>`).join("") : `<div class="empty">Sin ejercicios.</div>`;

@@ -445,7 +445,10 @@ nav button{min-height:46px;justify-content:center}
    ==================================================================== */
 /* 1 · Series de la sesión: inputs más altos, columna "Der" igual de ancha
    que "Izq", y más separación entre filas (también aplica al calentamiento) */
-.set-row,.set-head{grid-template-columns:30px 1fr 1fr 1fr 30px!important;gap:11px!important;align-items:center}
+.set-row,.set-head{grid-template-columns:30px 1fr 1fr 1fr 26px 26px!important;gap:9px!important;align-items:center}
+/* botón "serie hecha" */
+.set-row .sdone{width:26px;height:26px;min-height:0;padding:0;border-radius:50%;border:1.5px solid var(--border);background:var(--bg2);color:transparent;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.set-row .sdone.on{background:var(--ok);border-color:var(--ok);color:#fff}
 .set-head{margin-bottom:9px!important}
 .set-row{margin-bottom:11px!important}
 .set-row input{padding:10px 8px!important}
