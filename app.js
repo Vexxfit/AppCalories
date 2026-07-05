@@ -2398,10 +2398,10 @@ function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.fo
   return out; }
 /* esquema compacto (arrays) para acortar al máximo el link */
 function compactShare(p){ const ex=e=>[e.exId,e.sets,e.repRange,e.rir], ce=x=>[x.id,x.name,x.group,x.repRange,x.rir];
-  if(p.type==="folder") return [2,p.name,p.templates.map(t=>[t.name,t.exercises.map(ex)]),(p.exercises||[]).map(ce),p.note||""];
+  if(p.type==="folder") return [2,p.name,p.templates.map(t=>[t.name,t.exercises.map(ex)]),(p.exercises||[]).map(ce),p.note||"",p.key||"",p.changelog||""];
   return [1,p.name,p.templates[0].exercises.map(ex),(p.exercises||[]).map(ce)]; }
 function expandShare(a){ const ex=t=>({exId:t[0],sets:t[1],repRange:t[2],rir:t[3]}), ce=c=>({id:c[0],name:c[1],group:c[2],repRange:c[3],rir:c[4],custom:true});
-  if(a[0]===2) return {type:"folder",name:a[1],templates:(a[2]||[]).map(t=>({name:t[0],exercises:(t[1]||[]).map(ex)})),exercises:(a[3]||[]).map(ce),note:a[4]||""};
+  if(a[0]===2) return {type:"folder",name:a[1],templates:(a[2]||[]).map(t=>({name:t[0],exercises:(t[1]||[]).map(ex)})),exercises:(a[3]||[]).map(ce),note:a[4]||"",key:a[5]||"",changelog:a[6]||""};
   return {type:"tpl",name:a[1],templates:[{name:a[1],exercises:(a[2]||[]).map(ex)}],exercises:(a[3]||[]).map(ce)}; }
 function loadLZ(){ return new Promise(res=>{ if(window.LZString) return res(); const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"; s.onload=res; s.onerror=res; document.head.appendChild(s); }); }
 function shortId(){ const c="abcdefghijkmnpqrstuvwxyz23456789"; let s=""; for(let i=0;i<7;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
@@ -2425,7 +2425,10 @@ function shareTemplate(id){ const t=tplById(id); if(!t) return;
   buildAndShare({v:1,type:"tpl",name:t.name,templates:[{name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))}],exercises:customExsFor([t])}, t.name); }
 function shareFolder(fid){ const f=(state.folders||[]).find(x=>x.id===fid); const tpls=state.templates.filter(t=>(t.folder||null)===fid);
   if(!tpls.length) return toast("La carpeta está vacía");
-  buildAndShare({v:1,type:"folder",name:(f?f.name:"Carpeta"),note:(f&&f.note)||"",templates:tpls.map(t=>({name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))})),exercises:customExsFor(tpls)}, (f?f.name:"Carpeta")); }
+  let changelog="";
+  if(f){ if(!f.shareKey){ f.shareKey=shortId(); save(); }   // clave estable: los re-envíos actualizan en vez de duplicar
+    else { const v=prompt("¿Es una actualización? Escribe qué cambiaste (se le mostrará a quien ya tiene esta rutina). Deja vacío si no aplica:",""); if(v&&v.trim()) changelog=v.trim(); } }
+  buildAndShare({v:1,type:"folder",name:(f?f.name:"Carpeta"),note:(f&&f.note)||"",key:(f&&f.shareKey)||"",changelog,templates:tpls.map(t=>({name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))})),exercises:customExsFor(tpls)}, (f?f.name:"Carpeta")); }
 function copyShareLink(){ const u=val("shareLinkUrl");
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(()=>toast("Link copiado ✓")).catch(()=>fallbackCopy()); } else fallbackCopy();
   function fallbackCopy(){ const i=document.getElementById("shareLinkUrl"); i.select(); try{document.execCommand("copy");toast("Link copiado ✓");}catch(e){toast("Copia el link a mano");} } }
@@ -2442,20 +2445,59 @@ async function importRoutineFromHash(){
   } else if(m=h.match(/^#r=(.+)$/)){ try{ payload=JSON.parse(b64d(m[1])); }catch(e){} }
   if(!payload||!Array.isArray(payload.templates)||!payload.templates.length){ if(/^#[scr]=/.test(h)) history.replaceState(null,"",location.pathname); return; }
   pendingImport=payload; const n=payload.templates.length;
+  const updFolder = payload.key ? (state.folders||[]).find(fd=>fd.shareKey===payload.key) : null;
   document.getElementById("importRoutineBody").innerHTML=
-    `<p class="card-sub" style="margin-bottom:10px">Te compartieron ${payload.type==="folder"?`la carpeta <b>${payload.name}</b> (${n} rutina${n>1?'s':''})`:`la rutina <b>${payload.name}</b>`}. ¿Guardarla en tus plantillas?</p>`+
+    (updFolder
+      ? `<p class="card-sub" style="margin-bottom:10px">Te mandaron una <b>actualización</b> de tu rutina <b>${updFolder.name}</b>. Al aceptar se actualiza (no se duplica) y tu historial se conserva.</p>`
+      : `<p class="card-sub" style="margin-bottom:10px">Te compartieron ${payload.type==="folder"?`la carpeta <b>${payload.name}</b> (${n} rutina${n>1?'s':''})`:`la rutina <b>${payload.name}</b>`}. ¿Guardarla en tus plantillas?</p>`)+
+    (updFolder&&payload.changelog?`<div style="font-size:12.5px;background:var(--accent-soft);color:var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:10px;line-height:1.5"><b>Qué cambió:</b> ${payload.changelog}</div>`:"")+
     payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("")+
-    (payload.note?`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin-top:12px;line-height:1.5">${ic('note',13)} ${payload.note}</div>`:"");
+    (payload.note?`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin-top:12px;line-height:1.5">${ic('note',13)} ${payload.note}</div>`:"")+
+    ((state.templates||[]).length?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="duelRoutines()">${ic('scale',14)} Duelo: comparar con MI rutina</button>`:"");
   openModal("importRoutineModal");
   history.replaceState(null,"",location.pathname);
 }
 function confirmImportRoutine(){
   const p=pendingImport; if(!p) return;
   (p.exercises||[]).forEach(ex=>{ if(ex&&ex.id&&!exById(ex.id)) state.exercises.push({...ex}); });
-  let folderId=null;
-  if(p.type==="folder"){ if(!state.folders)state.folders=[]; folderId="f_"+Date.now(); const nf={id:folderId,name:(p.name||"Carpeta importada")}; if(p.note) nf.note=p.note; state.folders.push(nf); }
-  (p.templates||[]).forEach((t,k)=>{ state.templates.push({id:"t_"+Date.now()+"_"+k+"_"+Math.floor(Math.random()*1e4), name:t.name, exercises:(t.exercises||[]).map(x=>({...x})), folder:folderId}); });
-  save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno"); subEntreno("plantillas"); toast("Guardado en tus plantillas ✓");
+  let folderId=null, updated=false;
+  const updFolder = p.key ? (state.folders||[]).find(fd=>fd.shareKey===p.key) : null;
+  if(updFolder){
+    // ACTUALIZACIÓN en sitio: conserva la carpeta; reusa el id de las rutinas con el mismo nombre (tu historial sigue ligado)
+    folderId=updFolder.id; updated=true;
+    updFolder.name=p.name||updFolder.name; if(p.note) updFolder.note=p.note;
+    const oldByName={}; state.templates.filter(t=>(t.folder||null)===folderId).forEach(t=>{ oldByName[t.name]=t.id; });
+    state.templates=state.templates.filter(t=>(t.folder||null)!==folderId);
+    (p.templates||[]).forEach((t,k)=>{ state.templates.push({id:oldByName[t.name]||("t_"+Date.now()+"_"+k+"_"+Math.floor(Math.random()*1e4)), name:t.name, exercises:(t.exercises||[]).map(x=>({...x})), folder:folderId}); });
+  } else {
+    if(p.type==="folder"){ if(!state.folders)state.folders=[]; folderId="f_"+Date.now(); const nf={id:folderId,name:(p.name||"Carpeta importada")}; if(p.note) nf.note=p.note; if(p.key) nf.shareKey=p.key; state.folders.push(nf); }
+    (p.templates||[]).forEach((t,k)=>{ state.templates.push({id:"t_"+Date.now()+"_"+k+"_"+Math.floor(Math.random()*1e4), name:t.name, exercises:(t.exercises||[]).map(x=>({...x})), folder:folderId}); });
+  }
+  save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno"); subEntreno("plantillas"); toast(updated?"Rutina actualizada ✓":"Guardado en tus plantillas ✓");
+}
+/* duelo de rutinas: tu semana (todas tus rutinas × frecuencia) vs la rutina compartida */
+function duelRoutines(){
+  const p=pendingImport; if(!p||!Array.isArray(p.templates)) return;
+  const exLookup=id=>exById(id)||(p.exercises||[]).find(c=>c.id===id)||null;
+  const theirs={}; p.templates.forEach(t=>(t.exercises||[]).forEach(te=>{ const ex=exLookup(te.exId); if(!ex) return; const inv=exMuscles(ex); const eff=effFactor(te.rir)*(te.sets||0); for(const k in inv) theirs[k]=(theirs[k]||0)+eff*inv[k]; }));
+  const mine={}; (state.templates||[]).forEach(t=>{ const m=plannedVolByTemplate(t), mult=t.freqWeek||1; for(const k in m) mine[k]=(mine[k]||0)+m[k]*mult; });
+  if(!Object.keys(mine).length) return toast("Aún no tienes rutinas para comparar");
+  let wins=0, losses=0, ties=0;
+  const rows=SUBMUSCLES.filter(([k])=>(mine[k]||0)>0.3||(theirs[k]||0)>0.3).map(([k,lbl])=>{
+    const a=mine[k]||0, b=theirs[k]||0, r=MV_SUB[k]||[0,6,16,25];
+    const score=v=> v<r[1] ? v/Math.max(r[1],1) : (v<=r[2] ? 1 : Math.max(0,1-(v-r[2])/Math.max(r[2],1)));
+    const sa=score(a), sb=score(b);
+    let res; if(Math.abs(sa-sb)<0.08){ res="="; ties++; } else if(sa>sb){ res="tú"; wins++; } else { res=p.name?"él":"otro"; losses++; }
+    return `<div class="kv"><span>${lbl}</span><b>${r1(a)} vs ${r1(b)}<span style="font-size:11px;margin-left:8px;color:${res==="tú"?"var(--ok)":(res==="="?"var(--muted)":"var(--bad)")}">${res==="="?"=":"✓ "+res}</span></b></div>`;
+  }).join("");
+  const verdict = wins>losses ? `Tu semana cubre mejor los músculos (${wins}–${losses}${ties?`, ${ties} empates`:""}) 💪`.replace(" 💪","")
+    : (losses>wins ? `“${p.name}” cubre mejor los músculos (${losses}–${wins}${ties?`, ${ties} empates`:""}).` : `Van parejos (${wins}–${losses}).`);
+  document.getElementById("routineAnalysisTitle").textContent="Duelo · tú vs "+(p.name||"rutina");
+  document.getElementById("routineAnalysisBody").innerHTML=
+    `<div style="font-size:12px;color:var(--muted);margin-bottom:8px">Series efectivas semanales por músculo: <b>tú</b> (todas tus rutinas, con su frecuencia) contra <b>${p.name||"la rutina compartida"}</b>. Gana quien queda más cerca del rango recomendado (MEV–MAV): más no siempre es mejor.</div>`+
+    rows+`<div style="margin-top:12px;font-weight:700">${verdict}</div>
+    <button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="closeModal('routineAnalysisModal');openModal('importRoutineModal')">Volver a la importación</button>`;
+  closeModal("importRoutineModal"); openModal("routineAnalysisModal");
 }
 /* ----- accesos rápidos: ?a=comida|agua|entreno (shortcuts del ícono o marcadores) ----- */
 function handleQuickAction(){
