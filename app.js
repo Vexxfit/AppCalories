@@ -41,6 +41,8 @@ function load(){
   // sin plantillas de fábrica: cada quien crea las suyas o las importa por link (los usuarios existentes conservan las que ya tienen guardadas)
   if(!Array.isArray(state.templates)) state.templates = [];
   if(!state.lastPortions) state.lastPortions = {};   // última porción usada por alimento
+  if(!state.achievements) state.achievements = {};   // logros desbloqueados {id:fecha}
+  if(!Array.isArray(state.friends)) state.friends = [];   // amigos del ranking [{uid,code,name}]
   if(!Array.isArray(state.workouts)) state.workouts = [];
   if(!Array.isArray(state.measurements)) state.measurements = [];
   if(!state.prefs) state.prefs = { unit:"kg" };
@@ -1781,7 +1783,93 @@ function checkRollover(){
     save();
   }
 }
+/* ==================== LOGROS (insignias locales) ==================== */
+function totalTonnage(){ return (state.workouts||[]).reduce((a,w)=>a+workoutTonnage(w),0); }
+function weekWorkoutsCount(){ const today=todayStr(); let n=0; for(let i=0;i<7;i++){ const d=dayShift(today,-i); n+=(state.workouts||[]).filter(w=>w.date===d).length; } return n; }
+function waterStreakDays(){ const goal=waterGoalMl(); let n=0, d=todayStr(); if(((state.waterLog&&state.waterLog[d])||0)<goal) d=dayShift(d,-1); while(((state.waterLog&&state.waterLog[d])||0)>=goal){ n++; d=dayShift(d,-1); } return n; }
+const ACH_DEFS=[
+ {id:'w1',   n:'Primer entreno',  d:'Tu primera sesión registrada',           icn:'dumbbell', t:()=>(state.workouts||[]).length>=1},
+ {id:'w10',  n:'Constancia',      d:'10 sesiones registradas',                icn:'dumbbell', t:()=>(state.workouts||[]).length>=10},
+ {id:'w50',  n:'Imparable',       d:'50 sesiones registradas',                icn:'trophy',   t:()=>(state.workouts||[]).length>=50},
+ {id:'t10',  n:'10 toneladas',    d:'10,000 kg movidos en total',             icn:'scale',    t:()=>totalTonnage()>=10000},
+ {id:'t50',  n:'50 toneladas',    d:'50,000 kg movidos en total',             icn:'scale',    t:()=>totalTonnage()>=50000},
+ {id:'t100', n:'100 toneladas',   d:'100,000 kg movidos en total',            icn:'trophy',   t:()=>totalTonnage()>=100000},
+ {id:'s3',   n:'Racha de 3',      d:'3 días seguidos en tu meta de calorías', icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=3;}},
+ {id:'s7',   n:'Semana perfecta', d:'7 días seguidos en tu meta',             icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=7;}},
+ {id:'s30',  n:'Mes de hierro',   d:'30 días seguidos en tu meta',            icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=30;}},
+ {id:'pr1',  n:'Primer récord',   d:'Registra 2+ sesiones y marca tu primer PR', icn:'trophy', t:()=>(state.workouts||[]).length>=2&&Object.keys(computeExercisePRs(state.workouts||[])).length>=1},
+ {id:'agua7',n:'Bien hidratado',  d:'7 días seguidos cumpliendo tu agua',     icn:'water',    t:()=>waterStreakDays()>=7},
+ {id:'plan', n:'Semana cumplida', d:'Tantos entrenos como planeaste (7 días)',icn:'target',   t:()=>!!(state.goals&&state.goals.trainDays)&&weekWorkoutsCount()>=state.goals.trainDays},
+];
+let _achBusy=false;
+function checkAchievements(){
+  if(_achBusy) return; _achBusy=true;
+  try{
+    if(!state.achievements) state.achievements={};
+    const nuevos=[];
+    ACH_DEFS.forEach(a=>{ if(!state.achievements[a.id]){ let ok=false; try{ ok=a.t(); }catch(e){} if(ok){ state.achievements[a.id]=todayStr(); nuevos.push(a); } } });
+    if(nuevos.length){ saveLocal(); toast("Logro desbloqueado: "+nuevos[0].n+(nuevos.length>1?` (+${nuevos.length-1})`:"")); }
+  } finally { _achBusy=false; }
+}
+function renderAchievements(){
+  const el=document.getElementById("logrosBox"); if(!el) return;
+  checkAchievements();
+  const un=state.achievements||{};
+  const nUn=ACH_DEFS.filter(a=>un[a.id]).length;
+  el.innerHTML=`<div class="card-sub" style="margin:0 0 10px">${nUn} de ${ACH_DEFS.length} desbloqueados</div>
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">`+
+   ACH_DEFS.map(a=>{ const got=!!un[a.id];
+     return `<div style="background:${got?'var(--accent-soft)':'var(--bg2)'};border-radius:14px;padding:11px 8px;text-align:center;${got?'':'opacity:.55'}">
+       <div style="color:${got?'var(--accent)':'var(--muted)'}">${ic(a.icn,20)}</div>
+       <div style="font-size:12px;font-weight:700;margin-top:5px">${a.n}</div>
+       <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.3">${got?a.d:a.d}</div></div>`; }).join("")+`</div>`;
+}
+/* ==================== RANKING SEMANAL DE AMIGOS (por código) ==================== */
+function myFriendCode(){ if(!fbUser) return null; let h=0; const s=fbUser.uid; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; }
+  const c="ABCDEFGHJKMNPQRSTUVWXYZ23456789"; let out=""; let x=h||1; for(let i=0;i<6;i++){ out+=c[x%c.length]; x=Math.floor(x/c.length)+((i+1)*2654435761)%c.length; } return out; }
+function weekStats(){ const today=todayStr(); let ton=0, n=0;
+  for(let i=0;i<7;i++){ const d=dayShift(today,-i); (state.workouts||[]).filter(w=>w.date===d).forEach(w=>{ ton+=workoutTonnage(w); n++; }); }
+  const s=computeStreak();
+  return {ton:Math.round(ton), workouts:n, streak:(s&&s.streak)||0};
+}
+function publishProfile(){
+  if(!fbUser||!fbDb) return;
+  const name=((state.prefs&&state.prefs.displayName)||"").trim();
+  fbDb.collection("users_public").doc(fbUser.uid).set({name:name||("Atleta "+myFriendCode().slice(0,3)), code:myFriendCode(), week:weekStats(), ach:Object.keys(state.achievements||{}).length, updatedAt:Date.now()},{merge:true}).catch(()=>{});
+}
+function setDisplayName(){ const v=prompt("Tu nombre para el ranking:", (state.prefs&&state.prefs.displayName)||""); if(v==null) return; if(!state.prefs)state.prefs={}; state.prefs.displayName=v.trim().slice(0,20); save(); publishProfile(); setTimeout(renderRanking,700); }
+function addFriendByCode(){
+  if(!fbUser||!fbDb) return toast("Inicia sesión en la nube (Ajustes)");
+  const v=prompt("Código de tu amigo (6 caracteres):",""); if(!v) return;
+  const code=v.trim().toUpperCase(); if(code===myFriendCode()) return toast("Ese es tu propio código");
+  fbDb.collection("users_public").where("code","==",code).limit(1).get().then(q=>{
+    if(q.empty) return toast("No encontré ese código: tu amigo debe abrir su pestaña Progreso al menos una vez");
+    const doc=q.docs[0];
+    if(!state.friends) state.friends=[];
+    if(state.friends.some(f=>f.uid===doc.id)) return toast("Ya son amigos");
+    state.friends.push({uid:doc.id, code, name:(doc.data()||{}).name||code});
+    save(); toast("Amigo agregado ✓"); renderRanking();
+  }).catch(()=>toast("Error de permisos: hay que pegar la regla de users_public en Firebase"));
+}
+function removeFriend(uid){ if(!confirm("¿Quitar a este amigo del ranking?")) return; state.friends=(state.friends||[]).filter(f=>f.uid!==uid); save(); renderRanking(); }
+function renderRanking(){
+  const el=document.getElementById("rankingBox"); if(!el) return;
+  if(!fbUser||!fbDb){ el.innerHTML=`<div class="empty" style="margin:0">Inicia sesión en la nube (Ajustes → Cuenta) para competir con tus amigos.</div>`; return; }
+  publishProfile();
+  const ids=[fbUser.uid, ...((state.friends||[]).map(f=>f.uid))];
+  el.innerHTML=`<div class="empty" style="margin:0">Cargando ranking…</div>`;
+  Promise.all(ids.map(id=>fbDb.collection("users_public").doc(id).get().catch(()=>null))).then(snaps=>{
+    const rows=snaps.filter(s=>s&&s.exists).map(s=>({uid:s.id, ...(s.data()||{})}));
+    rows.sort((a,b)=>((b.week&&b.week.ton)||0)-((a.week&&a.week.ton)||0));
+    el.innerHTML=
+      `<div style="font-size:12px;color:var(--muted);margin-bottom:10px">Tu código: <b style="color:var(--accent);letter-spacing:1.5px">${myFriendCode()}</b> — compártelo para que te agreguen · <span style="color:var(--accent);cursor:pointer" onclick="setDisplayName()">✎ mi nombre</span></div>`+
+      rows.map((r,i)=>`<div class="kv"><span><b style="margin-right:7px;color:${i===0?'var(--accent)':'var(--muted)'}">${i+1}º</b>${r.name||r.code}${r.uid===fbUser.uid?' <span style="color:var(--accent);font-size:11px">(tú)</span>':''}</span><b>${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()} <span style="color:var(--muted);font-size:11px">· ${(r.week&&r.week.workouts)||0} entr. · racha ${(r.week&&r.week.streak)||0}</span>${r.uid!==fbUser.uid?` <span style="color:var(--bad);cursor:pointer;margin-left:6px" onclick="removeFriend('${r.uid}')">×</span>`:''}</b></div>`).join("")+
+      `<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="addFriendByCode()">+ Agregar amigo por código</button>
+       <div style="font-size:11px;color:var(--muted);margin-top:8px">Tonelaje de los últimos 7 días. Se actualiza cuando cada quien abre su app.</div>`;
+  });
+}
 function renderHistory(){
+  renderAchievements(); renderRanking();
   const data=state.history.slice(0,30);
   // gráfica de barras SVG
   const chart=document.getElementById("historyChart");
@@ -2351,6 +2439,7 @@ function saveSession(){
   if(editingId){ const idx=state.workouts.findIndex(w=>w.id===editingId); if(idx>=0) state.workouts[idx]=clean; else state.workouts.push(clean); }
   else state.workouts.push(clean);
   sessionDraft=null; stopChrono(); save(); renderSesion();
+  checkAchievements(); publishProfile();
   toast(editingId ? "Sesión actualizada ✓" : (prHits.length ? "¡Nuevo PR! "+prHits.slice(0,2).join(", ") : "Sesión guardada"));
 }
 function deleteWorkout(id){
