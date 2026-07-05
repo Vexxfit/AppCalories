@@ -1,4 +1,0 @@
-﻿Nutricion: registro por texto libre + costo en pasos
-
-- Escribir comida en texto libre ("2 huevos y una tortilla", "150 g de pollo, media taza de arroz"): boton Escribir en el modal de agregar; entiende cantidades (numeros y palabras), unidades (g, pza, taza, vaso, cda, reb...) y busca en tu base sin importar acentos. Muestra lo que entendio y agrega todo con un boton.
-- Costo en pasos: cada alimento muestra su equivalente en pasos de caminata (segun tu peso) en la vista previa al agregar y en su tarjeta de detalle.
