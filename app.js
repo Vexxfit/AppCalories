@@ -41,7 +41,6 @@ function load(){
   // sin plantillas de fábrica: cada quien crea las suyas o las importa por link (los usuarios existentes conservan las que ya tienen guardadas)
   if(!Array.isArray(state.templates)) state.templates = [];
   if(!state.lastPortions) state.lastPortions = {};   // última porción usada por alimento
-  if(state.prefs && state.prefs.restSec==null) state.prefs.restSec = 90;   // timer de descanso (0 = apagado)
   if(!Array.isArray(state.workouts)) state.workouts = [];
   if(!Array.isArray(state.measurements)) state.measurements = [];
   if(!state.prefs) state.prefs = { unit:"kg" };
@@ -1964,7 +1963,7 @@ function startSession(){
   };
   closeModal("startModal"); renderSesion();
 }
-function cancelSession(){ if(confirm(sessionDraft&&sessionDraft.editingId?"¿Descartar los cambios?":"¿Descartar la sesión en curso?")){ sessionDraft=null; stopRestTimer(); renderSesion(); } }
+function cancelSession(){ if(confirm(sessionDraft&&sessionDraft.editingId?"¿Descartar los cambios?":"¿Descartar la sesión en curso?")){ sessionDraft=null; stopChrono(); renderSesion(); } }
 function moveSessionEx(i,dir){ const a=sessionDraft.entries; const j=i+dir; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; renderSesion(); }
 function setExNote(i,v){ if(sessionDraft&&sessionDraft.entries[i]){ sessionDraft.entries[i].exNote=v; persistDraft(); } }
 function toggleUni(i){ const e=sessionDraft&&sessionDraft.entries[i]; if(!e) return;
@@ -1973,7 +1972,7 @@ function toggleUni(i){ const e=sessionDraft&&sessionDraft.entries[i]; if(!e) ret
     else { s.reps=Math.max(s.repsL||0,s.repsR||0)||s.reps||0; delete s.repsL; delete s.repsR; } });
   renderSesion(); }
 function updateSetRepsL(i,j,v){ const s=sessionDraft.entries[i].sets[j]; s.repsL=Math.max(0,parseInt(v)||0); renderSesion(); }
-function updateSetRepsR(i,j,v){ const s=sessionDraft.entries[i].sets[j]; s.repsR=Math.max(0,parseInt(v)||0); if(parseInt(v)>0) startRestTimer(); renderSesion(); }
+function updateSetRepsR(i,j,v){ const s=sessionDraft.entries[i].sets[j]; s.repsR=Math.max(0,parseInt(v)||0); if(parseInt(v)>0 && chronoOn()){ chronoStart=Date.now(); tickChrono(); } renderSesion(); }
 /* desbalance izq/der de un ejercicio unilateral (promedio de reps) */
 function uniImbalance(e){ if(!e.uni) return null; const ss=e.sets.filter(s=>(s.weight||0)>0&&((s.repsL||0)>0||(s.repsR||0)>0));
   if(!ss.length) return null; const L=ss.reduce((a,s)=>a+(s.repsL||0),0)/ss.length, R=ss.reduce((a,s)=>a+(s.repsR||0),0)/ss.length;
@@ -2024,32 +2023,25 @@ function saveSessAsTpl(){
 }
 
 function updateSetWeight(i,j,v){ sessionDraft.entries[i].sets[j].weight = toKg(Math.max(0,parseFloat(v)||0)); renderSesion(); }
-/* ---- timer de descanso: arranca solo al anotar las reps de una serie ---- */
-let restIv=null, restEnd=0;
-function restStr(s){ s=Math.max(0,s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
-function startRestTimer(){
-  const secs=(state.prefs&&state.prefs.restSec)||0; if(!secs||!sessionDraft) return;
-  restEnd=Date.now()+secs*1000;
-  let b=document.getElementById("restBar");
-  if(!b){ b=document.createElement("div"); b.id="restBar";
-    b.innerHTML=`<span style="color:var(--muted);font-weight:600;font-size:12px">Descanso</span><b id="restLeft">0:00</b><button class="btn-ghost btn-sm" onclick="restEnd+=30000;tickRest()">+30s</button><button class="btn-ghost btn-sm" onclick="stopRestTimer()">Saltar</button>`;
+/* ---- cronómetro de descanso (manual): se enciende con su botón en la sesión;
+   muestra el tiempo transcurrido en una tarjeta flotante arriba. Si está activo,
+   al anotar las reps de una serie se reinicia solo (tiempo desde tu última serie). ---- */
+let chronoIv=null, chronoStart=0;
+function chronoStr(s){ s=Math.max(0,s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function chronoOn(){ const b=document.getElementById("chronoBar"); return !!b && b.style.display!=="none"; }
+function toggleChrono(){ if(chronoOn()) stopChrono(); else startChrono(); }
+function startChrono(){
+  chronoStart=Date.now();
+  let b=document.getElementById("chronoBar");
+  if(!b){ b=document.createElement("div"); b.id="chronoBar";
+    b.innerHTML=`<span style="color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Descanso</span><b id="chronoTime">0:00</b><button class="btn-ghost btn-sm" onclick="chronoStart=Date.now();tickChrono()">Reiniciar</button><button class="btn-ghost btn-sm" onclick="stopChrono()">✕</button>`;
     document.body.appendChild(b); }
-  b.style.display="flex"; tickRest();
-  clearInterval(restIv); restIv=setInterval(tickRest,500);
+  b.style.display="flex"; tickChrono();
+  clearInterval(chronoIv); chronoIv=setInterval(tickChrono,500);
 }
-function tickRest(){
-  const left=Math.round((restEnd-Date.now())/1000);
-  const el=document.getElementById("restLeft"); if(el) el.textContent=restStr(left);
-  if(left<=0){ stopRestTimer(); try{ if(navigator.vibrate) navigator.vibrate([200,120,200]); }catch(e){} toast("¡Descanso listo! Siguiente serie"); }
-}
-function stopRestTimer(){ clearInterval(restIv); restIv=null; const b=document.getElementById("restBar"); if(b) b.style.display="none"; }
-function editRestSec(){
-  const v=prompt("Segundos de descanso entre series (0 = sin timer):", (state.prefs&&state.prefs.restSec)!=null?state.prefs.restSec:90);
-  if(v==null) return; const s=Math.max(0,Math.min(600,parseInt(v)||0));
-  if(!state.prefs) state.prefs={}; state.prefs.restSec=s; save(); renderSesion();
-  toast(s?("Descanso entre series: "+s+" s"):"Timer de descanso apagado");
-}
-function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); if(parseInt(v)>0) startRestTimer(); renderSesion(); }
+function tickChrono(){ const el=document.getElementById("chronoTime"); if(el) el.textContent=chronoStr(Math.round((Date.now()-chronoStart)/1000)); }
+function stopChrono(){ clearInterval(chronoIv); chronoIv=null; const b=document.getElementById("chronoBar"); if(b) b.style.display="none"; }
+function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); if(parseInt(v)>0 && chronoOn()){ chronoStart=Date.now(); tickChrono(); } renderSesion(); }
 function updateSetRir(i,j,v){ sessionDraft.entries[i].sets[j].rir = v; persistDraft(); }
 const SET_TAGS={
   n:{title:"Serie normal",bg:"var(--surface3)",fg:"var(--muted)",short:""},
@@ -2142,7 +2134,7 @@ function renderSesion(){
       </div>
       <div class="row" style="margin-top:10px;gap:6px">
         <button class="btn-ghost btn-sm" onclick="openSaveSessTpl()">${ic('save',15)} Guardar como plantilla</button>
-        <button class="btn-ghost btn-sm" title="El timer arranca solo al anotar tus reps" onclick="editRestSec()">${ic('clock',14)} Descanso ${(state.prefs&&state.prefs.restSec)?state.prefs.restSec+'s':'off'}</button>
+        <button class="btn-ghost btn-sm" title="Cronómetro de descanso: enciéndelo y arriba verás el tiempo desde tu última serie" onclick="toggleChrono()">${ic('clock',14)} Cronómetro</button>
       </div>
       <textarea id="sessNote" placeholder="Notas de la sesión (cómo te sentiste, molestias, barra nueva…)" oninput="updateSessionNote(this.value)" style="width:100%;margin-top:10px;min-height:44px;resize:vertical;background:var(--surface2);border:1px solid var(--border-soft);color:var(--text);border-radius:10px;padding:9px 11px;font-family:inherit;font-size:14px">${(d.note||"").replace(/</g,"&lt;").replace(/"/g,"&quot;")}</textarea>
       <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openModal('guiaModal')">${ic('bulb',15)} ¿Cómo registrar mis series? · Guía rápida</button>
@@ -2255,7 +2247,7 @@ function saveSession(){
   const clean=JSON.parse(JSON.stringify(d)); delete clean.editingId;
   if(editingId){ const idx=state.workouts.findIndex(w=>w.id===editingId); if(idx>=0) state.workouts[idx]=clean; else state.workouts.push(clean); }
   else state.workouts.push(clean);
-  sessionDraft=null; stopRestTimer(); save(); renderSesion();
+  sessionDraft=null; stopChrono(); save(); renderSesion();
   toast(editingId ? "Sesión actualizada ✓" : (prHits.length ? "¡Nuevo PR! "+prHits.slice(0,2).join(", ") : "Sesión guardada"));
 }
 function deleteWorkout(id){
@@ -2285,6 +2277,10 @@ function folderSelectChange(sel){
 }
 function newFolder(){ const n=prompt("Nombre de la carpeta:"); if(!n||!n.trim())return; if(!state.folders)state.folders=[]; state.folders.push({id:"f_"+Date.now(),name:n.trim()}); save(); renderTemplateList(); }
 function renameFolder(fid){ const f=(state.folders||[]).find(x=>x.id===fid); if(!f)return; const n=prompt("Nuevo nombre:",f.name); if(n&&n.trim()){f.name=n.trim();save();renderTemplateList();} }
+function editFolderNote(fid){ const f=(state.folders||[]).find(x=>x.id===fid); if(!f)return;
+  const v=prompt("Nota de la rutina (se muestra bajo la carpeta y viaja en el link al compartir):", f.note||"");
+  if(v==null) return; const t=v.trim(); if(t) f.note=t; else delete f.note;
+  save(); renderTemplateList(); toast(t?"Nota guardada":"Nota quitada"); }
 function deleteFolder(fid){ if(!confirm("¿Eliminar la carpeta? Los días pasan a 'Sin carpeta' (no se borran)."))return; state.folders=(state.folders||[]).filter(x=>x.id!==fid); state.templates.forEach(t=>{ if(t.folder===fid) t.folder=null; }); save(); renderTemplateList(); }
 let movingTplId=null;
 function openMoveFolder(id){ movingTplId=id; const t=tplById(id); renderFolderSelect("moveFolderSelect", t?t.folder:null); openModal("moveFolderModal"); }
@@ -2299,10 +2295,10 @@ function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.fo
   return out; }
 /* esquema compacto (arrays) para acortar al máximo el link */
 function compactShare(p){ const ex=e=>[e.exId,e.sets,e.repRange,e.rir], ce=x=>[x.id,x.name,x.group,x.repRange,x.rir];
-  if(p.type==="folder") return [2,p.name,p.templates.map(t=>[t.name,t.exercises.map(ex)]),(p.exercises||[]).map(ce)];
+  if(p.type==="folder") return [2,p.name,p.templates.map(t=>[t.name,t.exercises.map(ex)]),(p.exercises||[]).map(ce),p.note||""];
   return [1,p.name,p.templates[0].exercises.map(ex),(p.exercises||[]).map(ce)]; }
 function expandShare(a){ const ex=t=>({exId:t[0],sets:t[1],repRange:t[2],rir:t[3]}), ce=c=>({id:c[0],name:c[1],group:c[2],repRange:c[3],rir:c[4],custom:true});
-  if(a[0]===2) return {type:"folder",name:a[1],templates:(a[2]||[]).map(t=>({name:t[0],exercises:(t[1]||[]).map(ex)})),exercises:(a[3]||[]).map(ce)};
+  if(a[0]===2) return {type:"folder",name:a[1],templates:(a[2]||[]).map(t=>({name:t[0],exercises:(t[1]||[]).map(ex)})),exercises:(a[3]||[]).map(ce),note:a[4]||""};
   return {type:"tpl",name:a[1],templates:[{name:a[1],exercises:(a[2]||[]).map(ex)}],exercises:(a[3]||[]).map(ce)}; }
 function loadLZ(){ return new Promise(res=>{ if(window.LZString) return res(); const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"; s.onload=res; s.onerror=res; document.head.appendChild(s); }); }
 function shortId(){ const c="abcdefghijkmnpqrstuvwxyz23456789"; let s=""; for(let i=0;i<7;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
@@ -2326,7 +2322,7 @@ function shareTemplate(id){ const t=tplById(id); if(!t) return;
   buildAndShare({v:1,type:"tpl",name:t.name,templates:[{name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))}],exercises:customExsFor([t])}, t.name); }
 function shareFolder(fid){ const f=(state.folders||[]).find(x=>x.id===fid); const tpls=state.templates.filter(t=>(t.folder||null)===fid);
   if(!tpls.length) return toast("La carpeta está vacía");
-  buildAndShare({v:1,type:"folder",name:(f?f.name:"Carpeta"),templates:tpls.map(t=>({name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))})),exercises:customExsFor(tpls)}, (f?f.name:"Carpeta")); }
+  buildAndShare({v:1,type:"folder",name:(f?f.name:"Carpeta"),note:(f&&f.note)||"",templates:tpls.map(t=>({name:t.name,exercises:t.exercises.map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))})),exercises:customExsFor(tpls)}, (f?f.name:"Carpeta")); }
 function copyShareLink(){ const u=val("shareLinkUrl");
   if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(u).then(()=>toast("Link copiado ✓")).catch(()=>fallbackCopy()); } else fallbackCopy();
   function fallbackCopy(){ const i=document.getElementById("shareLinkUrl"); i.select(); try{document.execCommand("copy");toast("Link copiado ✓");}catch(e){toast("Copia el link a mano");} } }
@@ -2345,7 +2341,8 @@ async function importRoutineFromHash(){
   pendingImport=payload; const n=payload.templates.length;
   document.getElementById("importRoutineBody").innerHTML=
     `<p class="card-sub" style="margin-bottom:10px">Te compartieron ${payload.type==="folder"?`la carpeta <b>${payload.name}</b> (${n} rutina${n>1?'s':''})`:`la rutina <b>${payload.name}</b>`}. ¿Guardarla en tus plantillas?</p>`+
-    payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("");
+    payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("")+
+    (payload.note?`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin-top:12px;line-height:1.5">${ic('note',13)} ${payload.note}</div>`:"");
   openModal("importRoutineModal");
   history.replaceState(null,"",location.pathname);
 }
@@ -2353,7 +2350,7 @@ function confirmImportRoutine(){
   const p=pendingImport; if(!p) return;
   (p.exercises||[]).forEach(ex=>{ if(ex&&ex.id&&!exById(ex.id)) state.exercises.push({...ex}); });
   let folderId=null;
-  if(p.type==="folder"){ if(!state.folders)state.folders=[]; folderId="f_"+Date.now(); state.folders.push({id:folderId,name:(p.name||"Carpeta importada")}); }
+  if(p.type==="folder"){ if(!state.folders)state.folders=[]; folderId="f_"+Date.now(); const nf={id:folderId,name:(p.name||"Carpeta importada")}; if(p.note) nf.note=p.note; state.folders.push(nf); }
   (p.templates||[]).forEach((t,k)=>{ state.templates.push({id:"t_"+Date.now()+"_"+k+"_"+Math.floor(Math.random()*1e4), name:t.name, exercises:(t.exercises||[]).map(x=>({...x})), folder:folderId}); });
   save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno"); subEntreno("plantillas"); toast("Guardado en tus plantillas ✓");
 }
@@ -2473,8 +2470,10 @@ function renderTemplateList(){
       <span style="cursor:pointer;font-weight:700;font-size:14px;flex:1;min-width:0" onclick="toggleFolder('${f.id}')">${col?'▸':'▾'} ${folderIcon(15)} ${f.name} <span style="color:var(--muted);font-weight:400;font-size:12px">(${items.length})</span></span>
       <span title="Analizar carpeta" style="cursor:pointer;font-size:13px" onclick="analyzeFolder('${f.id}')">${ic('chart',15)}</span>
       <span title="Compartir carpeta por link" style="cursor:pointer;font-size:13px" onclick="shareFolder('${f.id}')">${ic('share',15)}</span>
+      <span title="Nota de la rutina" style="color:${f.note?'var(--accent)':'var(--muted)'};cursor:pointer" onclick="editFolderNote('${f.id}')">${ic('note',14)}</span>
       <span style="color:var(--muted);cursor:pointer" onclick="renameFolder('${f.id}')">✎</span>
       <span style="color:var(--bad);cursor:pointer" onclick="deleteFolder('${f.id}')">×</span></div>`;
+    if(!col && f.note) html+=`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin:0 0 10px;line-height:1.5">${f.note}</div>`;
     if(!col) html += items.length ? items.map(tplCard).join("") : `<div class="empty" style="margin:0 0 10px">Carpeta vacía · usa ${folderIcon(13)} en un día para moverlo aquí.</div>`;
   });
   const none=inFolder(null);

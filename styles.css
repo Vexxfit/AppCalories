@@ -518,8 +518,8 @@ input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3.5px var(--accent-soft
 /* pequeños refinamientos de lista */
 .settings-row{padding:15px 16px}
 .list-row{border-radius:16px}
-/* timer de descanso flotante (sesión de entreno) */
-#restBar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(168px + env(safe-area-inset-bottom));z-index:60;display:none;align-items:center;gap:10px;background:rgba(255,255,255,.95);backdrop-filter:saturate(180%) blur(14px);-webkit-backdrop-filter:saturate(180%) blur(14px);box-shadow:var(--shadow-lg);border:.5px solid rgba(0,0,0,.05);border-radius:18px;padding:9px 12px;white-space:nowrap}
-#restBar b{font-size:18px;font-variant-numeric:tabular-nums;letter-spacing:-.01em;min-width:44px;text-align:center}
-#restBar .btn-sm{min-height:32px;padding:5px 10px}
-html[data-theme="dark"] #restBar{background:rgba(31,26,46,.95);border-color:rgba(255,255,255,.08)}
+/* cronómetro de descanso flotante (tarjeta arriba, estilo "Tonelaje del día") */
+#chronoBar{position:fixed;left:50%;transform:translateX(-50%);top:calc(64px + env(safe-area-inset-top));z-index:60;display:none;align-items:center;gap:10px;background:rgba(255,255,255,.92);backdrop-filter:saturate(180%) blur(16px);-webkit-backdrop-filter:saturate(180%) blur(16px);box-shadow:var(--shadow);border:.5px solid rgba(0,0,0,.05);border-radius:18px;padding:10px 14px;white-space:nowrap}
+#chronoBar b{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em;min-width:58px;text-align:center}
+#chronoBar .btn-sm{min-height:32px;padding:5px 10px}
+html[data-theme="dark"] #chronoBar{background:rgba(31,26,46,.95);border-color:rgba(255,255,255,.08)}
