@@ -1794,14 +1794,14 @@ function weekWorkoutsCount(){ const today=todayStr(); let n=0; for(let i=0;i<7;i
 function waterStreakDays(){ const goal=waterGoalMl(); let n=0, d=todayStr(); if(((state.waterLog&&state.waterLog[d])||0)<goal) d=dayShift(d,-1); while(((state.waterLog&&state.waterLog[d])||0)>=goal){ n++; d=dayShift(d,-1); } return n; }
 /* levantamientos básicos con los que se compite en el ranking */
 const KEY_LIFTS=[
- {id:'e_pressbanca',   lbl:'Press banca'},
- {id:'e_sentadilla',   lbl:'Sentadilla'},
- {id:'e_pesomuerto',   lbl:'Peso muerto'},
- {id:'e_pressmil',     lbl:'Press militar'},
- {id:'e_remobarra',    lbl:'Remo con barra'},
- {id:'e_hipthrust',    lbl:'Hip thrust'},
- {id:'e_pressincbarra',lbl:'Press inclinado'},
- {id:'e_prensa',       lbl:'Prensa'},
+ {id:'e_pressbanca',   lbl:'Press banca',    short:'Banca'},
+ {id:'e_sentadilla',   lbl:'Sentadilla',     short:'Sentadilla'},
+ {id:'e_pesomuerto',   lbl:'Peso muerto',    short:'P. muerto'},
+ {id:'e_pressmil',     lbl:'Press militar',  short:'Militar'},
+ {id:'e_remobarra',    lbl:'Remo con barra', short:'Remo'},
+ {id:'e_hipthrust',    lbl:'Hip thrust',     short:'Hip thrust'},
+ {id:'e_pressincbarra',lbl:'Press inclinado',short:'Inclinado'},
+ {id:'e_prensa',       lbl:'Prensa',         short:'Prensa'},
 ];
 /* tu mejor peso levantado en un ejercicio: mejor serie registrada o PR manual (el que sea mayor) */
 function bestLift(exId){
@@ -1974,22 +1974,43 @@ function renderRanking(){
 function drawRanking(){
   const el=document.getElementById("rankingBox"); if(!el) return;
   const me=__rankRows[0]||localProfile(), myCode=me.code;
-  const opts=[...KEY_LIFTS.map(k=>({v:k.id,l:k.lbl})),{v:"ton",l:"Tonelaje (7 días)"},{v:"streak",l:"Racha de dieta"},{v:"ach",l:"Insignias"}];
+  const opts=[...KEY_LIFTS.map(k=>({v:k.id,l:k.lbl,s:k.short||k.lbl})),
+    {v:"ton",l:"Tonelaje (7 días)",s:"Tonelaje"},{v:"streak",l:"Racha de dieta",s:"Racha"},{v:"ach",l:"Insignias",s:"Insignias"}];
+  const cur=opts.find(o=>o.v===rankMetric)||opts[0];
   const rows=[...__rankRows].sort((a,b)=>metricValue(b,rankMetric)-metricValue(a,rankMetric));
-  el.innerHTML=
-    `<div style="display:flex;align-items:center;gap:11px;margin-bottom:12px">
-       <span style="cursor:pointer" onclick="nav('perfil')">${avatarHtml(me,44)}</span>
-       <div style="flex:1;min-width:0"><div style="font-weight:700">${me.name}</div>
-         <div style="font-size:12px;color:var(--muted)">Tu código: <b style="color:var(--accent);letter-spacing:1.5px;cursor:pointer" onclick="copyFriendCode()">${myCode||"—"}</b> · <span style="color:var(--accent);cursor:pointer" onclick="nav('perfil')">mi perfil</span></div></div></div>
-     <div class="field" style="margin-bottom:12px"><label>Competir en</label>
-       <select onchange="setRankMetric(this.value)">${opts.map(o=>`<option value="${o.v}" ${o.v===rankMetric?"selected":""}>${o.l}</option>`).join("")}</select></div>`+
-    (rows.length?rows.map((r,i)=>{ const val=metricValue(r,rankMetric), isMe=r.code===myCode;
-      return `<div class="kv" style="cursor:${isMe?'default':'pointer'}" ${isMe?'':`onclick="headToHead('${r.code}')"`}>
-        <span style="display:flex;align-items:center;gap:9px;min-width:0"><b style="color:${i===0&&val>0?'var(--accent)':'var(--muted)'};width:24px">${i+1}º</b>${avatarHtml(r,30)}<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.name||r.code}${isMe?' <span style="color:var(--accent);font-size:11px">(tú)</span>':''}</span></span>
-        <b style="white-space:nowrap">${metricLabel(r,rankMetric)}${!isMe?` <span style="color:var(--bad);cursor:pointer;margin-left:5px" onclick="event.stopPropagation();removeFriend('${r.code}')">×</span>`:''}</b></div>`; }).join("")
-     :`<div class="empty" style="margin:0">Agrega amigos con su código.</div>`)+
-    `<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="addFriendByCode()">+ Agregar amigo por código</button>
-     <div style="font-size:11px;color:var(--muted);margin-top:8px">Mejor peso levantado por ejercicio (serie real o PR manual). Toca a un amigo para el 1 a 1. Solo se comparte nombre, foto, marcas e insignias.</div>`;
+  const maxVal=Math.max(1,...rows.map(r=>metricValue(r,rankMetric)));
+  const chips=`<div class="rk-chips">${opts.map(o=>`<button class="rk-chip${o.v===rankMetric?' on':''}" onclick="setRankMetric('${o.v}')">${o.s}</button>`).join("")}</div>`;
+  // podio: hasta 3 con marca > 0, orden 2º · 1º · 3º
+  const top=rows.filter(r=>metricValue(r,rankMetric)>0).slice(0,3);
+  let podium="";
+  if(top.length>=2){
+    const layout=[top[1],top[0],top[2]].filter(Boolean);
+    podium=`<div class="rk-podium">${layout.map(p=>{const idx=top.indexOf(p),first=idx===0,isMe=p.code===myCode;
+      return `<div class="rk-pod${first?' first':''}"${isMe?'':` onclick="headToHead('${p.code}')"`}>
+        <div class="rk-medal p${idx+1}">${idx+1}</div>${avatarHtml(p,first?66:50)}
+        <div class="rk-pn">${(p.name||p.code||'?')}${isMe&&(p.name||'')!=='Tú'?' <i>tú</i>':''}</div>
+        <div class="rk-pv">${metricLabel(p,rankMetric)}</div></div>`;}).join("")}</div>`;
+  }
+  const list=rows.length?`<div class="rk-list">`+rows.map((r,i)=>{const val=metricValue(r,rankMetric),isMe=r.code===myCode,pct=Math.round(val/maxVal*100);
+    return `<div class="rk-row${isMe?' me':''}"${isMe?'':` onclick="headToHead('${r.code}')"`}>
+      <span class="rk-num${i<3?' m'+(i+1):''}">${i+1}</span>${avatarHtml(r,38)}
+      <div class="rk-main"><div class="rk-name">${r.name||r.code}${isMe&&(r.name||'')!=='Tú'?' <span class="rk-you">TÚ</span>':''}</div>
+        <div class="rk-bar"><i style="width:${pct}%"></i></div></div>
+      <div class="rk-val">${metricLabel(r,rankMetric)}</div>
+      ${isMe?'':`<span class="rk-x" onclick="event.stopPropagation();removeFriend('${r.code}')">×</span>`}</div>`;}).join("")+`</div>`
+    :`<div class="empty" style="margin:10px 0">Aún no tienes amigos aquí. Agrega a alguien con su código de 6 letras para competir.</div>`;
+  el.innerHTML=`
+    <div class="rk-head">
+      <span onclick="nav('perfil')" style="cursor:pointer">${avatarHtml(me,46)}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${me.name}</div>
+        <div style="font-size:12px;color:var(--muted)">Tu código <b class="rk-code" onclick="copyFriendCode()">${myCode||'—'}</b></div>
+      </div>
+      <button class="rk-add" onclick="addFriendByCode()">+ Amigo</button>
+    </div>
+    <div class="rk-sub">Comparando · <b>${cur.l}</b></div>
+    ${chips}${podium}${list}
+    <div class="rk-foot">Mejor peso por ejercicio (serie real o PR manual). Toca a un amigo para el 1&nbsp;a&nbsp;1. Solo se comparte nombre, foto, marcas e insignias.</div>`;
 }
 /* comparación 1 a 1 (estilo Hevy "Comparison"): tus básicos vs los suyos */
 function headToHead(code){
