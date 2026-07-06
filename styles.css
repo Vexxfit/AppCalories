@@ -526,3 +526,14 @@ input:focus,select:focus,textarea:focus{box-shadow:0 0 0 3.5px var(--accent-soft
 #chronoBar b{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:-.01em;min-width:58px;text-align:center}
 #chronoBar .btn-sm{min-height:32px;padding:5px 10px}
 html[data-theme="dark"] #chronoBar{background:rgba(31,26,46,.95);border-color:rgba(255,255,255,.08)}
+
+/* ====================================================================
+   BARRA DE 6 PESTAÑAS (Hoy · Entreno · Ranking · + · Progreso · Perfil · Ajustes)
+   ==================================================================== */
+.tabbar{gap:1px;padding:6px 6px;max-width:calc(100vw - 12px)}
+nav button{padding:7px 4px;font-size:9px;min-width:0;gap:1px}
+nav button svg{width:22px;height:22px}
+nav button span{font-size:8.5px;letter-spacing:-.02em}
+.add-fab{width:48px;height:48px;margin:0 3px}
+.add-fab svg{width:23px;height:23px}
+@media(max-width:360px){ nav button span{display:none} nav button{min-height:44px} }

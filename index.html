@@ -257,15 +257,12 @@
       <div class="flex-between"><h3 style="margin:0">Resumen mensual</h3><span id="monthLabel" style="font-size:12px;color:var(--muted)"></span></div>
       <div id="monthlySummary" style="margin-top:10px"></div>
     </div>
-    <button class="btn-ghost" style="width:100%;margin-top:16px;display:flex;align-items:center;justify-content:space-between;padding:15px 18px" onclick="nav('perfil')"><span style="font-weight:700">Tu perfil · marcas e insignias</span><span style="color:var(--muted)">›</span></button>
-    <button class="btn-ghost" style="width:100%;margin-top:10px;display:flex;align-items:center;justify-content:space-between;padding:15px 18px" onclick="nav('ranking')"><span style="font-weight:700">Ranking de amigos</span><span style="color:var(--muted)">›</span></button>
   </section>
 
   <!-- ============ RANKING DE AMIGOS ============ -->
   <section class="view" id="view-ranking">
     <h2 class="section-title">Ranking</h2>
     <p class="section-desc">Compite con tus amigos por ejercicio: elige el levantamiento y compara.</p>
-    <button class="btn-ghost btn-sm" style="margin-bottom:14px" onclick="nav('historial')">← Volver a Progreso</button>
     <div class="card"><div id="rankingBox"></div></div>
   </section>
 
@@ -273,7 +270,6 @@
   <section class="view" id="view-perfil">
     <h2 class="section-title">Tu perfil</h2>
     <p class="section-desc">Tu foto, tus mejores marcas y tus insignias.</p>
-    <button class="btn-ghost btn-sm" style="margin-bottom:14px" onclick="nav('historial')">← Volver a Progreso</button>
     <div id="perfilContent"></div>
     <input type="file" id="profilePhotoInput" accept="image/*" style="display:none" onchange="onProfilePhoto(this)">
   </section>
@@ -430,8 +426,10 @@
   <div class="tabbar">
     <button data-tab="hoy" class="active" onclick="nav('hoy')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 001 1h12a1 1 0 001-1V9.5"/></svg><span>Hoy</span></button>
     <button data-tab="entreno" onclick="nav('entreno')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 9.5v5M6.8 6.8v10.4M17.2 6.8v10.4M20.5 9.5v5M6.8 12h10.4"/></svg><span>Entreno</span></button>
+    <button data-tab="ranking" onclick="nav('ranking')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.7V17c0 .6-.5 1-1 1.2C7.9 18.8 7 20.2 7 22M14 14.7V17c0 .6.5 1 1 1.2 1.1.6 2 2 2 3.8M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg><span>Ranking</span></button>
     <button class="add-fab" onclick="fabAction()" aria-label="Acción rápida"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
     <button data-tab="progreso" onclick="nav('historial')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 16l3.5-4 3 2.5L20 8"/></svg><span>Progreso</span></button>
+    <button data-tab="perfil" onclick="nav('perfil')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M5.5 20a6.5 6.5 0 0 1 13 0"/></svg><span>Perfil</span></button>
     <button data-tab="ajustes" onclick="nav('ajustes')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.6 1.6 0 00.32 1.79l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.6 1.6 0 00-2.73 1.13V21a2 2 0 01-4 0v-.09A1.6 1.6 0 007.3 19.4l-.06.06a2 2 0 11-2.83-2.83l.06-.06A1.6 1.6 0 004.6 15a1.6 1.6 0 00-1.51-1H3a2 2 0 010-4h.09A1.6 1.6 0 004.6 9a1.6 1.6 0 00-.32-1.79l-.06-.06a2 2 0 112.83-2.83l.06.06A1.6 1.6 0 009 4.6a1.6 1.6 0 001-1.51V3a2 2 0 014 0v.09a1.6 1.6 0 001 1.51 1.6 1.6 0 001.79-.32l.06-.06a2 2 0 112.83 2.83l-.06.06A1.6 1.6 0 0019.4 9V9a1.6 1.6 0 001.51 1H21a2 2 0 010 4h-.09a1.6 1.6 0 00-1.51 1z"/></svg><span>Ajustes</span></button>
   </div>
 </nav>
