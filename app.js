@@ -416,14 +416,14 @@ function renderHoy(){
     const itemsHtml=items.length?`<div class="meal-items">${items.map((it,i)=>`
       <div class="meal-item"><span class="mi-name">${it.name} <span style="color:var(--muted)">· ${it.label}</span></span>
         <span class="mi-kcal">${r0(it.macros.cal)} kcal</span>
-        <span class="mi-edit" title="Editar" onclick="event.stopPropagation();editPlanItem('${key}',${i})">✎</span>
-        <span class="mi-del" title="Quitar" onclick="event.stopPropagation();removePlanItem('${key}',${i})">×</span></div>`).join("")}</div>`:"";
+        <span class="mi-edit" title="Editar" onclick="event.stopPropagation();editPlanItem('${key}',${i})">${ic('pencil',15)}</span>
+        <span class="mi-del" title="Quitar" onclick="event.stopPropagation();removePlanItem('${key}',${i})">${ic('x',15)}</span></div>`).join("")}</div>`:"";
     const goalLab=mealGoalLabel(m, st);
     const sub = items.length ? `${items.length} ${items.length===1?'elemento':'elementos'} · P ${r0(st.protein)} · C ${r0(st.carbs)} · G ${r0(st.fat)}${goalLab}`
       : (prevHas ? `Toca para agregar · <span style="color:var(--accent)" onclick="event.stopPropagation();copyMealFromPrev('${key}')">copiar de ayer</span>${goalLab}` : 'Toca para agregar'+goalLab);
     return `<div class="meal-group">
       <button class="meal-row" onclick="openAdd('${key}')">
-        <div class="meal-ic">${m.icon||"🍴"}</div>
+        <div class="meal-ic">${mealIcon(m)}</div>
         <div class="meal-main"><div class="meal-name"${items.length?` style="cursor:pointer" onclick="event.stopPropagation();openMealDash('${key}')"`:''}>${label}${items.length?' <span style="color:var(--accent)">'+ic('chart',13)+'</span>':''}</div>
           <div class="meal-sub">${sub}</div></div>
         <div class="meal-kcal">${r0(st.cal)}</div><div class="meal-add">+</div>
@@ -433,7 +433,7 @@ function renderHoy(){
   const cycleLine = (eg&&eg.cycled)?`<div style="text-align:center;font-size:12px;color:var(--accent);font-weight:600;margin-top:8px">${ic('cycle',14)} Hoy${eg.type&&CYCLE_TYPES[eg.type]?" · "+CYCLE_TYPES[eg.type].lbl:""}: ${nfmt(eg.cal)} kcal</div>`:"";
   const microLine = (t.sugar>0||t.sodium>0)?`<div style="text-align:center;font-size:12px;color:var(--muted);margin-top:10px">Azúcar ${r1(t.sugar)} g · Sodio ${nfmt(t.sodium)} mg</div>`:"";
   const dayWarnHTML = microWarnings(t,true).map(wn=>`<div style="text-align:center;font-size:12px;color:var(--warn);font-weight:600;margin-top:4px">${wn}</div>`).join("");
-  const copyDayBtn = prev ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">↻ Copiar mi día de ayer</button>` : "";
+  const copyDayBtn = prev ? `<button class="btn-ghost btn-sm" style="width:100%;margin-bottom:10px" onclick="copyPrevDay()">${ic('copy',15)} Copiar mi día de ayer</button>` : "";
   document.getElementById("hoyContent").innerHTML=`
     <div style="margin:4px 2px 18px"><div class="greet">${greet}</div><div class="subtle">${fecha}</div></div>
     ${starterCardHTML()}
@@ -454,7 +454,7 @@ function waterCardHTML(){
     <div class="flex-between" style="margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:10px"><span style="font-size:22px">${ic('water',20)}</span>
         <div><div style="font-weight:700;font-size:16px">Agua</div>
-          <div style="font-size:13px;color:var(--muted)">${(ml/1000).toFixed(2).replace(/\\.?0+$/,'')} / ${(goal/1000)} L <span style="color:var(--accent);cursor:pointer" onclick="editWaterGoal()">✎ meta</span></div></div></div>
+          <div style="font-size:13px;color:var(--muted)">${(ml/1000).toFixed(2).replace(/\\.?0+$/,'')} / ${(goal/1000)} L <span style="color:var(--accent);cursor:pointer" onclick="editWaterGoal()">${ic('pencil',12)} meta</span></div></div></div>
       <div style="display:flex;gap:6px">
         <button class="btn-ghost btn-sm" onclick="addWater(250)">+250</button>
         <button class="btn-ghost btn-sm" onclick="addWater(500)">+500</button>
@@ -464,7 +464,7 @@ function waterCardHTML(){
     <div style="height:8px;background:var(--bg2);border-radius:5px;overflow:hidden"><div style="height:100%;width:${pct*100}%;background:#34C7FF;border-radius:5px"></div></div>
     <div class="flex-between" style="margin-top:12px;font-size:13px">
       <span style="color:var(--muted)">${ic('steps',14)} Pasos hoy: <b style="color:var(--text)">${nfmt(stepsToday())}</b>${state.goals&&state.goals.steps?` / ${nfmt(state.goals.steps)}`:""}</span>
-      <span style="color:var(--accent);cursor:pointer" onclick="editStepsToday()">✎ registrar</span>
+      <span style="color:var(--accent);cursor:pointer" onclick="editStepsToday()">${ic('pencil',12)} registrar</span>
     </div>
   </div>`;
 }
@@ -2049,9 +2049,9 @@ function renderPerfil(){
     return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}`:"—"}</b></div>`; }).join("");
   el.innerHTML=`
    <div class="card" style="display:flex;align-items:center;gap:16px">
-     <div style="cursor:pointer;position:relative" onclick="pickProfilePhoto()">${avatarHtml(p,84)}<div style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px">✎</div></div>
+     <div style="cursor:pointer;position:relative" onclick="pickProfilePhoto()">${avatarHtml(p,84)}<div style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center">${ic('pencil',13,'#fff')}</div></div>
      <div style="flex:1;min-width:0">
-       <div style="font-size:20px;font-weight:800;cursor:pointer" onclick="setDisplayName()">${p.name} <span style="font-size:12px;color:var(--accent);font-weight:600">✎</span></div>
+       <div style="font-size:20px;font-weight:800;cursor:pointer" onclick="setDisplayName()">${p.name} <span style="color:var(--accent)">${ic('pencil',13)}</span></div>
        <div style="font-size:12px;color:var(--muted);margin-top:3px">${p.code?`Código: <b style="letter-spacing:1.5px;color:var(--accent);cursor:pointer" onclick="copyFriendCode()">${p.code}</b> (tocar = copiar)`:"Inicia sesión en la nube (Ajustes) para tener código"}</div>
        <div style="font-size:12px;color:var(--muted);margin-top:3px">${(state.workouts||[]).length} entrenos · ${nfmt(fromKg(totalTonnage()))} ${unit()} movidos en total</div>
      </div></div>
@@ -2091,9 +2091,9 @@ function renderHistory(){
       const x=pad + i*((W-pad*2)/recent.length) + ((W-pad*2)/recent.length-bw)/2;
       const h=(d.calories/maxCal)*(H-pad*2);
       const y=H-pad-h;
-      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="4" fill="#5C16C5">
+      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="4" fill="var(--accent)">
         <title>${d.date}: ${d.calories} kcal</title></rect>`;
-      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.min(h,5)}" rx="4" fill="#9147FF"/>`;
+      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.min(h,5)}" rx="4" fill="var(--accent2)"/>`;
       if(i%Math.ceil(recent.length/10||1)===0||recent.length<=12)
         bars+=`<text x="${x+bw/2}" y="${H-8}" fill="var(--muted)" font-size="8" text-anchor="middle">${d.date.slice(5)}</text>`;
     });
@@ -2117,7 +2117,7 @@ function renderHistory(){
     if(state.steps&&state.steps[dd]!=null&&state.steps[dd]>0){ ssum+=state.steps[dd]; sd++; } }
   const waterRow=wd?`<div class="kv"><span>${ic('water',14)} Agua promedio</span><b style="color:#34C7FF">${(wsum/wd/1000).toFixed(2)} L</b></div>`:"";
   const stepsRow=sd?`<div class="kv"><span>${ic('steps',14)} Pasos promedio</span><b>${nfmt(ssum/sd)}</b></div>`:"";
-  const logEditBtn=`<button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openLogEdit()">✎ Editar agua / pasos</button>`;
+  const logEditBtn=`<button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openLogEdit()">${ic('pencil',14)} Editar agua / pasos</button>`;
   if(!week.length){ ws.innerHTML = ((waterRow||stepsRow) ? (waterRow+stepsRow) : `<div class="empty" style="margin-bottom:4px">Sin datos de la semana.</div>`) + logEditBtn; }
   else{
     const avg=k=>r0(week.reduce((a,d)=>a+(d[k]||0),0)/week.length);
@@ -2426,7 +2426,7 @@ function startChrono(){
   chronoStart=Date.now();
   let b=document.getElementById("chronoBar");
   if(!b){ b=document.createElement("div"); b.id="chronoBar";
-    b.innerHTML=`<span style="color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Descanso</span><b id="chronoTime">0:00</b><button class="btn-ghost btn-sm" onclick="chronoStart=Date.now();tickChrono()">Reiniciar</button><button class="btn-ghost btn-sm" onclick="stopChrono()">✕</button>`;
+    b.innerHTML=`<span style="color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Descanso</span><b id="chronoTime">0:00</b><button class="btn-ghost btn-sm" onclick="chronoStart=Date.now();tickChrono()">Reiniciar</button><button class="btn-ghost btn-sm" onclick="stopChrono()">${ic('x',14)}</button>`;
     document.body.appendChild(b); }
   b.style.display="flex"; tickChrono();
   clearInterval(chronoIv); chronoIv=setInterval(tickChrono,500);
@@ -2524,7 +2524,7 @@ function renderSesion(){
         <div><span class="bebas" style="font-size:24px">${d.name}</span>
           <span class="pill" style="margin-left:8px">Sem ${d.week}</span>
           <span style="color:var(--muted);font-size:12px;margin-left:6px">${d.date}</span>
-          ${d.editingId?'<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px">✎ Editando sesión guardada</div>':''}</div>
+          ${d.editingId?'<div style="font-size:12px;color:var(--accent);font-weight:600;margin-top:4px">'+ic('pencil',12)+' Editando sesión guardada</div>':''}</div>
         <button class="btn-ghost btn-sm" onclick="cancelSession()">${d.editingId?"Descartar":"Cancelar"}</button>
       </div>
       <div class="row" style="margin-top:10px;gap:6px">
@@ -2889,10 +2889,19 @@ function ic(name,s,color){ s=s||16; color=color||"currentColor";
     battery:`<rect x="3" y="8" width="16" height="9" rx="2.2" ${st} stroke-width="1.8"/><path d="M21.5 11.5v3" ${st} stroke-width="1.8"/><path d="M6.5 11.5v3" stroke="${color}" stroke-width="2.6" stroke-linecap="round"/>`,
     download:`<path d="M12 4v10m0 0 3.5-3.5M12 14l-3.5-3.5M5 19h14" ${st} stroke-width="1.9"/>`,
     upload:`<path d="M12 20V10m0 0 3.5 3.5M12 10l-3.5 3.5M5 5h14" ${st} stroke-width="1.9"/>`,
-    cloud:`<path d="M7 18.5a4.2 4.2 0 0 1-.5-8.37 5.6 5.6 0 0 1 10.8-1.05A3.75 3.75 0 0 1 17.2 18.5z" ${st} stroke-width="1.8"/>`
+    cloud:`<path d="M7 18.5a4.2 4.2 0 0 1-.5-8.37 5.6 5.6 0 0 1 10.8-1.05A3.75 3.75 0 0 1 17.2 18.5z" ${st} stroke-width="1.8"/>`,
+    pencil:`<path d="M4 20l.9-3.6L15.6 5.7a2 2 0 0 1 2.8 0l-.1-.1a2 2 0 0 1 0 2.8L7.6 19.1 4 20z" ${st} stroke-width="1.8"/>`,
+    x:`<path d="M6.5 6.5l11 11M17.5 6.5l-11 11" ${st} stroke-width="2"/>`,
+    copy:`<rect x="9" y="9" width="11" height="11" rx="2.5" ${st} stroke-width="1.8"/><path d="M5.5 14.5A2.5 2.5 0 0 1 4 12.2V6.5A2.5 2.5 0 0 1 6.5 4h5.7a2.5 2.5 0 0 1 2.3 1.5" ${st} stroke-width="1.8"/>`,
+    chev:`<path d="M9 5.5l6.5 6.5L9 18.5" ${st} stroke-width="2"/>`,
+    coffee:`<path d="M4 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8z" ${st} stroke-width="1.8"/><path d="M16 9.5h1.6a2.4 2.4 0 0 1 0 4.8H16M7.5 4.5c0 .8.8 1 .8 1.8M11 4.5c0 .8.8 1 .8 1.8" ${st} stroke-width="1.7"/>`
   };
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px;flex:0 0 auto">${P[name]||''}</svg>`;
 }
+/* ícono de línea por comida (sustituye los emojis guardados; comidas personalizadas conservan su emoji) */
+const MEAL_ICON_MAP={desayuno:"coffee",comida:"utensils",cena:"moon",snack:"apple"};
+const EMOJI_ICON_MAP={"☕":"coffee","🍽️":"utensils","🌙":"moon","🍎":"apple","🍴":"utensils","🥗":"bowl","🍳":"sun"};
+function mealIcon(m){ const n=MEAL_ICON_MAP[m.id]||EMOJI_ICON_MAP[(m.icon||"").trim()]; return n?ic(n,20):(m.icon||ic('utensils',20)); }
 function tplCard(t){
   const groups=[...new Set(t.exercises.map(x=>exGroupOf(x.exId)))].join(", ");
   return `<div style="background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:9px 10px 9px 12px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
@@ -2921,8 +2930,8 @@ function renderTemplateList(){
       <span title="Analizar carpeta" style="cursor:pointer;font-size:13px" onclick="analyzeFolder('${f.id}')">${ic('chart',15)}</span>
       <span title="Compartir carpeta por link" style="cursor:pointer;font-size:13px" onclick="shareFolder('${f.id}')">${ic('share',15)}</span>
       <span title="Nota de la rutina" style="color:${f.note?'var(--accent)':'var(--muted)'};cursor:pointer" onclick="editFolderNote('${f.id}')">${ic('note',14)}</span>
-      <span style="color:var(--muted);cursor:pointer" onclick="renameFolder('${f.id}')">✎</span>
-      <span style="color:var(--bad);cursor:pointer" onclick="deleteFolder('${f.id}')">×</span></div>`;
+      <span style="color:var(--muted);cursor:pointer" onclick="renameFolder('${f.id}')">${ic('pencil',14)}</span>
+      <span style="color:var(--bad);cursor:pointer" onclick="deleteFolder('${f.id}')">${ic('x',14)}</span></div>`;
     if(!col && f.note) html+=`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin:0 0 10px;line-height:1.5">${f.note}</div>`;
     if(!col) html += items.length ? items.map(tplCard).join("") : `<div class="empty" style="margin:0 0 10px">Carpeta vacía · usa ${folderIcon(13)} en un día para moverlo aquí.</div>`;
   });
@@ -2960,8 +2969,8 @@ function renderTemplateEditor(){
         <div class="tpl-ex-row">
           <span class="drag-h" style="cursor:grab;color:var(--muted);font-size:16px;touch-action:none">⠿</span>
           <span class="tname" style="cursor:pointer" onclick="editTplEx(${i})">${exName(x.exId)}<br><span class="tmeta">${x.sets}×${x.repRange} · RIR ${x.rir}</span></span>
-          <button class="btn-ghost btn-sm" style="padding:3px 8px" title="Editar" onclick="editTplEx(${i})">✎</button>
-          <button class="btn-danger btn-sm" style="padding:3px 8px" onclick="removeTplEx(${i})">×</button>
+          <button class="btn-ghost btn-sm" style="padding:3px 8px" title="Editar" onclick="editTplEx(${i})">${ic('pencil',14)}</button>
+          <button class="btn-danger btn-sm" style="padding:3px 8px" onclick="removeTplEx(${i})">${ic('x',14)}</button>
         </div>`).join("") : `<div class="empty">Añade ejercicios al día.</div>`
     }</div>
     <button class="btn-ghost btn-sm" style="margin-top:8px" onclick="openTplExModal()">+ Añadir ejercicio</button>
@@ -3364,8 +3373,8 @@ function renderRecords(){
     rows.forEach((r,i)=>{
       const x=pad+i*((W-pad*2)/rows.length)+((W-pad*2)/rows.length-bw)/2;
       const h=(r.total/maxT)*(H-pad*2), y=H-pad-h;
-      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="4" fill="#5C16C5"><title>Sem ${r.week}: ${fmtTon(r.total)}</title></rect>`;
-      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.min(h,5)}" rx="4" fill="#9147FF"/>`;
+      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${h}" rx="4" fill="var(--accent)"><title>Sem ${r.week}: ${fmtTon(r.total)}</title></rect>`;
+      bars+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.min(h,5)}" rx="4" fill="var(--accent2)"/>`;
       bars+=`<text x="${x+bw/2}" y="${H-9}" fill="var(--muted)" font-size="9" text-anchor="middle">S${r.week}</text>`;
     });
     chart.innerHTML=`<div class="table-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;min-width:${W}px">${bars}</svg></div>`;
@@ -3390,7 +3399,7 @@ function renderRecords(){
       return `<tr><td>${exName(id)}</td>
       <td class="r">${realPR}</td>
       <td class="r num" style="color:var(--accent2)">${p.orm.val?fmtW(p.orm.val):"—"}</td>
-      <td class="r" style="white-space:nowrap"><span title="Editar PR" style="color:var(--accent);cursor:pointer;font-size:14px" onclick="setManualPR('${id}')">✎</span> <span title="Quitar" style="color:var(--bad);cursor:pointer;font-size:14px" onclick="removeManualPR('${id}')">✕</span></td></tr>`;}).join("")}
+      <td class="r" style="white-space:nowrap"><span title="Editar PR" style="color:var(--accent);cursor:pointer" onclick="setManualPR('${id}')">${ic('pencil',14)}</span> <span title="Quitar" style="color:var(--bad);cursor:pointer" onclick="removeManualPR('${id}')">${ic('x',14)}</span></td></tr>`;}).join("")}
     </tbody></table><small class="hint">El 1RM estimado se calcula solo con tus sesiones registradas. Tu PR es el que registras a mano.</small>` : `<div class="empty">Aún no sigues ningún ejercicio. Toca "Añadir ejercicio / PR" para elegir uno (con o sin PR real todavía).</div>`);
 }
 /* ----- PR manual ----- */
@@ -3488,7 +3497,7 @@ function renderExerciseChart(){
     </tbody></table></div>`;
   el.innerHTML=`<div class="table-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;min-width:${W}px">
     <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--border)" stroke-width="1"/>
-    ${line("orm","#9147FF")}${line("tw","#4ECDC4")}${labels}</svg></div>${tbl}`;
+    ${line("orm","var(--accent)")}${line("tw","var(--protein)")}${labels}</svg></div>${tbl}`;
 }
 
 /* ====================================================================
@@ -3862,11 +3871,11 @@ function renderMeasChart(){
   const xOf=i=> series.length<=1 ? W/2 : pad+i*((W-pad*2)/(series.length-1));
   const yOf=v=> H-pad-((v-mn)/range)*(H-pad*2);
   const pts=series.map((p,i)=>`${xOf(i)},${yOf(p.v)}`).join(" ");
-  const dots=series.map((p,i)=>`<circle cx="${xOf(i)}" cy="${yOf(p.v)}" r="3" fill="#9147FF"><title>${p.date}: ${r1(p.v)}</title></circle>`).join("");
+  const dots=series.map((p,i)=>`<circle cx="${xOf(i)}" cy="${yOf(p.v)}" r="3" fill="var(--accent)"><title>${p.date}: ${r1(p.v)}</title></circle>`).join("");
   const labels=series.map((p,i)=>`<text x="${xOf(i)}" y="${H-9}" fill="var(--muted)" font-size="8" text-anchor="middle">${p.date.slice(5)}</text>`).join("");
   el.innerHTML=`<div class="table-wrap"><svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:100%;min-width:${W}px">
     <line x1="${pad}" y1="${H-pad}" x2="${W-pad}" y2="${H-pad}" stroke="var(--border)" stroke-width="1"/>
-    <polyline points="${pts}" fill="none" stroke="#9147FF" stroke-width="2"/>${dots}${labels}</svg></div>`;
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="2"/>${dots}${labels}</svg></div>`;
   const first=series[0].v, last=series[series.length-1].v, dv=last-first;
   const col= dv>0?"var(--ok)":(dv<0?"var(--bad)":"var(--muted)");
   diff.innerHTML=`<div class="kv"><span>Inicial (${series[0].date})</span><b>${r1(first)}</b></div>

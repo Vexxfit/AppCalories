@@ -591,3 +591,166 @@ nav button span{font-size:10px;letter-spacing:-.01em;white-space:nowrap;font-wei
 .rk-x{flex:0 0 auto;color:var(--muted);font-size:18px;line-height:1;padding:2px 5px;cursor:pointer}
 .rk-x:hover{color:var(--bad)}
 .rk-foot{font-size:11px;color:var(--muted);margin-top:14px;line-height:1.5}
+
+/* ====================================================================
+   DESIGN V3 — PREMIUM
+   Misma marca VEXX (morado, wordmark, esencia) con acabado tipo
+   Apple/Linear/Revolut: jerarquía clara, hairlines, sombras difusas,
+   tipografía en escala, componentes unificados y menos ruido visual.
+   ==================================================================== */
+:root{
+  --hairline:rgba(17,17,26,.07);
+  --hairline-soft:rgba(17,17,26,.05);
+  --chev:#C9C9CE;
+  --shadow-sm:0 1px 2px rgba(17,17,26,.03),0 2px 8px rgba(17,17,26,.03);
+  --shadow:0 1px 3px rgba(17,17,26,.04),0 10px 28px rgba(17,17,26,.055);
+  --shadow-lg:0 2px 8px rgba(17,17,26,.05),0 22px 48px rgba(17,17,26,.09);
+}
+html[data-theme="dark"]{
+  --hairline:rgba(255,255,255,.09);
+  --hairline-soft:rgba(255,255,255,.06);
+  --chev:#5B5470;
+}
+
+/* ---- 1 · Escala tipográfica (números siempre tabulares) ---- */
+body{font-size:15px}
+.greet{font-size:30px;font-weight:800;letter-spacing:-.037em}
+.subtle{font-size:14.5px;margin-top:3px}
+.section-title{font-size:28px;font-weight:800;letter-spacing:-.035em}
+.section-desc{font-size:14.5px;line-height:1.5;margin:3px 0 20px}
+.card h3{font-size:16.5px;font-weight:700;letter-spacing:-.02em;margin-bottom:14px}
+.card .card-sub{font-size:13px;margin-top:-9px;margin-bottom:14px}
+.section-eyebrow{font-size:11.5px;font-weight:650;letter-spacing:.07em;margin:28px 6px 10px}
+small.hint{font-size:12px;line-height:1.55}
+.num,.meal-kcal,.stat-card .sv,.kv b,.rk-val,.mi-kcal,#chronoBar b{font-variant-numeric:tabular-nums}
+
+/* ---- 2 · Superficies: tarjeta elevada vs. grupo hundido (2 niveles) ---- */
+.card{border-radius:22px;padding:20px;box-shadow:var(--shadow-sm);border:1px solid var(--hairline)}
+.hero{box-shadow:var(--shadow);border:1px solid var(--hairline)}
+.ex-block,.tpl-ex-row,.mini-ring,.sem-item,.ing-row,.plan-item{background:var(--bg2);border:none;box-shadow:none}
+.ex-block{border-radius:16px;padding:16px}
+.tpl-ex-row{border-radius:13px;padding:10px 12px}
+.divider{background:var(--hairline-soft);margin:18px 0}
+.empty{border:none;background:var(--bg2);border-radius:16px;padding:26px 18px;font-size:13.5px;line-height:1.55}
+
+/* ---- 3 · Botones unificados ---- */
+/* (fix) los <button> heredaban 'Montserrat' sin fallback → serifa del sistema,
+   y el color negro del user-agent (ilegible en modo oscuro) */
+button,input,select,textarea{font-family:var(--font)}
+button{color:var(--text)}
+button{font-size:14px;letter-spacing:-.01em}
+.btn-primary{border-radius:14px;padding:13px 20px;font-size:15px;font-weight:650}
+.btn-ghost{border-radius:14px;padding:12px 18px;font-size:14px;font-weight:600;background:var(--bg2)}
+.btn-danger{border-radius:14px}
+.btn-sm{padding:8px 13px;font-size:13px;border-radius:11px;min-height:36px}
+.btn-primary.btn-sm{padding:8px 14px;font-size:13px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+
+/* ---- 4 · Header minimal con hairline al estilo iOS ---- */
+header{border-bottom:1px solid var(--hairline-soft)}
+html[data-theme="dark"] header{background:rgba(21,18,30,.82);border-bottom-color:var(--hairline-soft)}
+.brand .logo{font-size:23px;letter-spacing:-.02em}
+.icon-btn{width:40px;height:40px}
+
+/* ---- 5 · Formularios ---- */
+label{font-size:12px;font-weight:600;margin-bottom:8px!important}
+input,select,textarea{border-radius:12px;padding:12px 14px}
+select{-webkit-appearance:none;appearance:none;background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2386868B' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:38px}
+html[data-theme="dark"] select{background-image:url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239C93B6' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E")}
+
+/* ---- 6 · Filas dato–valor y tablas ---- */
+.kv{padding:12px 0!important;border-bottom:1px solid var(--hairline-soft);align-items:center}
+.kv>span:first-child{color:var(--muted);font-size:14px}
+.kv b{font-size:16px;font-weight:700}
+th{font-size:11px;font-weight:650;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--hairline);padding:8px 8px}
+td{font-size:13.5px;padding:10px 8px;border-bottom:1px solid var(--hairline-soft)}
+tr:hover td{background:transparent}
+.table-wrap svg text{font-family:var(--font)}
+
+/* ---- 7 · Hoy: hero + tarjetas de comidas ---- */
+.hero{padding:28px 20px 22px}
+.cal-center .big{font-size:50px;font-weight:800;letter-spacing:-.045em}
+.cal-center .lbl{font-size:12.5px}
+.stat-grid{gap:8px}
+.stat-card{border-radius:16px;padding:12px 11px;border:1px solid var(--hairline-soft)}
+.stat-card .sv{font-size:17px}
+.stat-card .sg{font-size:10.5px;font-weight:600}
+.stat-card .sl{font-size:11px;margin-top:2px}
+.meal-row{border-radius:18px;padding:14px 16px;box-shadow:var(--shadow-sm);border:1px solid var(--hairline-soft)}
+.meal-row:hover{transform:none;box-shadow:var(--shadow)}
+.meal-ic{width:40px;height:40px;border-radius:13px;color:var(--accent);font-size:18px}
+.meal-name{font-size:15.5px;font-weight:650}
+.meal-sub{font-size:12.5px;margin-top:2px}
+.meal-kcal{font-size:15px}
+.meal-add{color:var(--accent);font-weight:400}
+.meal-items{padding:6px 6px 0 56px}
+.meal-item{font-size:14px}
+.meal-item .mi-kcal{font-size:12.5px}
+.meal-item .mi-edit{color:var(--chev);padding:6px;min-width:30px}
+.meal-item .mi-edit:hover{color:var(--accent)}
+.meal-item .mi-del{color:var(--chev);padding:6px;margin:-6px 0;min-width:30px;font-size:15px}
+.meal-item .mi-del:hover{color:var(--bad)}
+
+/* ---- 8 · Listas (ajustes / biblioteca) ---- */
+.settings-list{border-radius:18px;box-shadow:var(--shadow-sm);border:1px solid var(--hairline-soft)}
+.settings-row{padding:14px 16px;border-bottom:1px solid var(--hairline-soft)}
+.settings-row .sr-label{font-size:15.5px;font-weight:600}
+.settings-row .sr-val{font-size:13.5px}
+.settings-row .sr-chev{color:var(--chev);font-size:17px}
+.settings-row .sr-ic{width:32px;height:32px;border-radius:10px}
+.list-row{border-radius:16px;padding:13px 15px;box-shadow:none;border:1px solid var(--hairline-soft);margin-bottom:8px}
+.list-row .lr-title{font-size:15px;font-weight:650}
+.list-row .lr-sub{font-size:12.5px}
+
+/* ---- 9 · Sesión de entreno ---- */
+.ex-block .exh .exname{font-size:16px;font-weight:700;letter-spacing:-.02em}
+.ex-block .exh .exmeta{font-size:12px;margin-top:1px}
+.ex-block .exstats{font-size:11.5px}
+.ex-block .exstats b{font-size:16px;font-weight:800}
+.set-row input{border-radius:10px;text-align:center}
+.set-head{font-size:10px;letter-spacing:.05em;color:var(--muted)}
+.set-row .sdone{width:28px;height:28px;border-width:1.5px}
+.session-totalbar{border-radius:20px;border:1px solid var(--hairline);box-shadow:var(--shadow-lg);backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px)}
+html[data-theme="dark"] .session-totalbar{background:rgba(31,26,46,.92)}
+
+/* ---- 10 · Modales tipo hoja (grabber + títulos) ---- */
+.modal{padding:14px 20px calc(26px + env(safe-area-inset-bottom));border-radius:28px 28px 0 0}
+@media(min-width:560px){.modal{border-radius:28px;padding-top:22px}}
+.modal::before{content:"";display:block;width:36px;height:5px;border-radius:3px;background:var(--surface3);margin:0 auto 16px}
+@media(min-width:560px){.modal::before{display:none}}
+.modal h3{font-size:19px;font-weight:800;letter-spacing:-.025em;margin-bottom:16px}
+.modal-close{width:32px;height:32px;font-size:17px}
+
+/* ---- 11 · Toast (píldora oscura tipo iOS) ---- */
+#toast{background:rgba(29,29,31,.94);color:#fff;border:none;box-shadow:var(--shadow-lg);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font-size:13.5px;font-weight:600;padding:12px 22px;bottom:118px}
+html[data-theme="dark"] #toast{background:rgba(58,52,78,.96)}
+
+/* ---- 12 · Navegación inferior ---- */
+.tabbar{border:1px solid var(--hairline);box-shadow:var(--shadow-lg);border-radius:28px;padding:8px 8px}
+html[data-theme="dark"] .tabbar{background:rgba(31,26,46,.88)}
+html[data-theme="dark"] #chronoBar{background:rgba(31,26,46,.95)}
+nav button{border-radius:15px;gap:4px}
+nav button span{font-size:9.5px;font-weight:600;letter-spacing:0}
+nav button.active{background:var(--accent-soft)}
+.add-fab{background:linear-gradient(135deg,var(--accent),#9F6BFF);box-shadow:0 8px 20px rgba(124,58,237,.38)}
+.add-fab:hover{background:linear-gradient(135deg,#6D28D9,#8B5CF6)}
+
+/* ---- 13 · Segmented / chips / toggles coherentes en oscuro ---- */
+html[data-theme="dark"] .subnav button.active{background:var(--surface3);color:var(--text)}
+html[data-theme="dark"] .unit-toggle button.on{background:var(--surface3);color:var(--text)}
+.subnav button{font-size:13.5px;min-height:40px}
+.unit-toggle{border-radius:12px}
+.pill{font-size:12px;font-weight:600}
+
+/* ---- 14 · Cronómetro flotante ---- */
+#chronoBar{border-radius:20px;border:1px solid var(--hairline);box-shadow:var(--shadow-lg)}
+
+/* ---- 15 · Espaciado de página ---- */
+main{padding:18px 16px 0}
+body{padding-bottom:calc(118px + env(safe-area-inset-bottom))}
+.view>.card,.view .grid{margin-bottom:14px}
+
+/* ---- 16 · Microinteracciones (feedback táctil sobrio) ---- */
+nav button.active svg{stroke-width:2.2}
+.meal-row:active,.settings-row:active,.list-row:active,.rk-row:active{transform:scale(.985)}
+.meal-row,.settings-row,.list-row,.rk-row{transition:transform .1s ease,background .15s,box-shadow .15s}
