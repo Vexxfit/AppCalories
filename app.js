@@ -579,10 +579,15 @@ function renderComidas(){
     const count=(state.plan.slots[m.id]||[]).length;
     return `<div class="list-row" style="align-items:flex-start">
       <span class="drag-h" style="cursor:grab;color:var(--muted);font-size:16px;margin-top:6px;touch-action:none">⠿</span>
-      <span style="font-size:18px;margin-top:6px">${m.icon||"🍴"}</span>
+      <span style="margin-top:8px;color:var(--accent);display:flex">${mealIcon(m)}</span>
       <div class="lr-main"><input value="${(m.name||'').replace(/"/g,'&quot;')}" onchange="renameMeal(${i},this.value)" style="font-weight:600;background:transparent;padding:6px 0;border-radius:0">
         <div class="lr-sub">${count} ${count===1?'elemento':'elementos'} hoy${m.goal?` · ${ic('target',13)} ${goalSummary(m.goal)}`:''}</div>
-        <button class="btn-ghost btn-sm" style="margin-top:7px" onclick="openMealGoal(${i})">${ic('target',15)} ${m.goal?"Editar objetivo":"Definir objetivo"}</button></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+          <select style="flex:0 1 170px;min-width:130px;padding:8px 32px 8px 10px;font-size:13px" onchange="setMealIcon(${i},this.value)" aria-label="Ícono de la comida">
+            ${MEAL_ICON_CHOICES.map(([v,l])=>`<option value="${v}" ${((m.iconName||"auto")===v)?"selected":""}>${l}</option>`).join("")}
+          </select>
+          <button class="btn-ghost btn-sm" onclick="openMealGoal(${i})">${ic('target',14)} ${m.goal?"Objetivo":"Objetivo"}</button>
+        </div></div>
       <button class="icon-btn" onclick="moveMeal(${i},-1)" aria-label="Subir">↑</button>
       <button class="icon-btn" onclick="moveMeal(${i},1)" aria-label="Bajar">↓</button>
       <button class="icon-btn" style="color:var(--bad)" onclick="deleteMeal(${i})" aria-label="Eliminar">×</button>
@@ -617,6 +622,7 @@ function addMeal(){
   save(); renderComidas(); toast("Comida agregada");
 }
 function renameMeal(i,v){ v=v.trim(); if(!v) return; state.meals[i].name=v; save(); }
+function setMealIcon(i,v){ const m=state.meals[i]; if(!m) return; if(v==="auto") delete m.iconName; else m.iconName=v; save(); renderComidas(); if(currentView==="hoy") renderHoy(); }
 function moveMeal(i,dir){ const a=state.meals,j=i+dir; if(j<0||j>=a.length) return; [a[i],a[j]]=[a[j],a[i]]; save(); renderComidas(); }
 function deleteMeal(i){
   if(state.meals.length<=1) return toast("Debe quedar al menos una comida");
@@ -1784,6 +1790,11 @@ function checkRollover(){
       if(i>=0) state.history[i]=entry; else state.history.push(entry);
       state.history.sort((a,b)=>a.date<b.date?1:-1);
     }
+    // agua: si el día que se cierra quedó sin registro, se asume tu meta (no 0)
+    // para no romper rachas ni logros por un olvido de captura
+    if(!state.waterLog) state.waterLog={};
+    if(state.waterLog[state.plan.date]==null && (t.cal>0 || (state.workouts||[]).some(w=>w.date===state.plan.date)))
+      state.waterLog[state.plan.date]=waterGoalMl();
     state.plan={date:today, slots:{}}; ensureSlots();
     save();
   }
@@ -1796,7 +1807,7 @@ function waterStreakDays(){ const goal=waterGoalMl(); let n=0, d=todayStr(); if(
 const KEY_LIFTS=[
  {id:'e_pressbanca',   lbl:'Press banca',    short:'Banca'},
  {id:'e_sentadilla',   lbl:'Sentadilla',     short:'Sentadilla'},
- {id:'e_pesomuerto',   lbl:'Peso muerto',    short:'P. muerto'},
+ {id:'e_pesomuerto',   lbl:'Peso muerto',    short:'P. muerto', alts:['e_rdl','e_rdlmanc']},   // RDL cuenta como peso muerto
  {id:'e_pressmil',     lbl:'Press militar',  short:'Militar'},
  {id:'e_remobarra',    lbl:'Remo con barra', short:'Remo'},
  {id:'e_hipthrust',    lbl:'Hip thrust',     short:'Hip thrust'},
@@ -1813,8 +1824,11 @@ function bestLift(exId){
   if(m&&(m.weight||0)>=w){ w=m.weight; r=m.reps||1; }
   return w>0?{w:Math.round(w*10)/10,r}:null;
 }
+/* mejor marca contando ejercicios equivalentes (p. ej. RDL cuenta como peso muerto) */
+function bestLiftK(k){ let best=null; [k.id,...(k.alts||[])].forEach(id=>{ const b=bestLift(id); if(b&&(!best||b.w>best.w)) best=b; }); return best; }
+const DL_IDS=['e_pesomuerto','e_rdl','e_rdlmanc'];
 function stepsStreakDays(){ const g=(state.goals&&state.goals.steps)||0; if(!g) return 0; let n=0,d=todayStr(); if(((state.steps&&state.steps[d])||0)<g) d=dayShift(d,-1); while(((state.steps&&state.steps[d])||0)>=g){ n++; d=dayShift(d,-1); } return n; }
-const _club=(exId,kg)=>()=>{ const b=bestLift(exId); return !!b&&b.w>=kg; };
+const _club=(exId,kg)=>()=>{ const ids=Array.isArray(exId)?exId:[exId]; return ids.some(id=>{ const b=bestLift(id); return !!b&&b.w>=kg; }); };
 const ACH_DEFS=[
  {id:'w1',   n:'Primer entreno',  d:'Tu primera sesión registrada',           icn:'dumbbell', t:()=>(state.workouts||[]).length>=1},
  {id:'w10',  n:'Constancia',      d:'10 sesiones registradas',                icn:'dumbbell', t:()=>(state.workouts||[]).length>=10},
@@ -1840,10 +1854,33 @@ const ACH_DEFS=[
  {id:'bb100',n:'Club 100 · banca',d:'100 kg en press banca',                  icn:'trophy',   t:_club('e_pressbanca',100)},
  {id:'sq100',n:'Club 100 · sentadilla', d:'100 kg en sentadilla',             icn:'dumbbell', t:_club('e_sentadilla',100)},
  {id:'sq140',n:'Club 140 · sentadilla', d:'140 kg en sentadilla',             icn:'trophy',   t:_club('e_sentadilla',140)},
- {id:'dl100',n:'Club 100 · peso muerto',d:'100 kg en peso muerto',            icn:'dumbbell', t:_club('e_pesomuerto',100)},
- {id:'dl140',n:'Club 140 · peso muerto',d:'140 kg en peso muerto',            icn:'dumbbell', t:_club('e_pesomuerto',140)},
- {id:'dl180',n:'Club 180 · peso muerto',d:'180 kg en peso muerto',            icn:'trophy',   t:_club('e_pesomuerto',180)},
+ {id:'dl100',n:'Club 100 · peso muerto',d:'100 kg en peso muerto (o RDL)',    icn:'dumbbell', t:_club(DL_IDS,100)},
+ {id:'dl140',n:'Club 140 · peso muerto',d:'140 kg en peso muerto (o RDL)',    icn:'dumbbell', t:_club(DL_IDS,140)},
+ {id:'dl180',n:'Club 180 · peso muerto',d:'180 kg en peso muerto (o RDL)',    icn:'trophy',   t:_club(DL_IDS,180)},
  {id:'hip100',n:'Club 100 · hip thrust',d:'100 kg en hip thrust',             icn:'dumbbell', t:_club('e_hipthrust',100)},
+ /* --- logros chicos (arranque) --- */
+ {id:'agua3', n:'Buen comienzo',  d:'3 días seguidos cumpliendo tu agua',     icn:'water',    t:()=>waterStreakDays()>=3},
+ {id:'food7', n:'Primera semana', d:'7 días con tu comida registrada',        icn:'note',     t:()=>(state.history||[]).filter(h=>h.calories>0).length>=7},
+ {id:'steps3',n:'En marcha',      d:'3 días seguidos cumpliendo tus pasos',   icn:'steps',    t:()=>stepsStreakDays()>=3},
+ {id:'bb40',  n:'Club 40 · banca',d:'40 kg en press banca',                   icn:'dumbbell', t:_club('e_pressbanca',40)},
+ {id:'sq60',  n:'Club 60 · sentadilla',d:'60 kg en sentadilla',               icn:'dumbbell', t:_club('e_sentadilla',60)},
+ {id:'dl60',  n:'Club 60 · PM/RDL',d:'60 kg en peso muerto o RDL',            icn:'dumbbell', t:_club(DL_IDS,60)},
+ /* --- logros grandes (largo plazo) --- */
+ {id:'w100',  n:'Centurión',      d:'100 sesiones registradas',               icn:'trophy',   t:()=>(state.workouts||[]).length>=100},
+ {id:'w250',  n:'Leyenda del gym',d:'250 sesiones registradas',               icn:'trophy',   t:()=>(state.workouts||[]).length>=250},
+ {id:'t250',  n:'250 toneladas',  d:'250,000 kg movidos en total',            icn:'scale',    t:()=>totalTonnage()>=250000},
+ {id:'t500',  n:'Medio millón',   d:'500,000 kg movidos en total',            icn:'trophy',   t:()=>totalTonnage()>=500000},
+ {id:'t1m',   n:'Un millón de kg',d:'1,000,000 kg movidos en total',          icn:'trophy',   t:()=>totalTonnage()>=1000000},
+ {id:'s60',   n:'Dos meses',      d:'60 días seguidos en tu meta',            icn:'fire',     t:()=>{const s=computeStreak(); return !!s&&s.streak>=60;}},
+ {id:'agua90',n:'Sirena',         d:'90 días seguidos cumpliendo tu agua',    icn:'water',    t:()=>waterStreakDays()>=90},
+ {id:'steps30',n:'Maratonista',   d:'30 días seguidos cumpliendo tus pasos',  icn:'steps',    t:()=>stepsStreakDays()>=30},
+ {id:'food90',n:'Bitácora de acero',d:'90 días con tu comida registrada',     icn:'note',     t:()=>(state.history||[]).filter(h=>h.calories>0).length>=90},
+ {id:'bb120', n:'Club 120 · banca',d:'120 kg en press banca',                 icn:'trophy',   t:_club('e_pressbanca',120)},
+ {id:'bb140', n:'Club 140 · banca',d:'140 kg en press banca',                 icn:'trophy',   t:_club('e_pressbanca',140)},
+ {id:'sq180', n:'Club 180 · sentadilla',d:'180 kg en sentadilla',             icn:'trophy',   t:_club('e_sentadilla',180)},
+ {id:'sq220', n:'Club 220 · sentadilla',d:'220 kg en sentadilla',             icn:'trophy',   t:_club('e_sentadilla',220)},
+ {id:'dl220', n:'Club 220 · PM/RDL',d:'220 kg en peso muerto o RDL',          icn:'trophy',   t:_club(DL_IDS,220)},
+ {id:'dl260', n:'Club 260 · PM/RDL',d:'260 kg en peso muerto o RDL',          icn:'trophy',   t:_club(DL_IDS,260)},
 ];
 let _achBusy=false;
 function checkAchievements(){
@@ -1893,9 +1930,9 @@ function publishProfile(force){
   if(!force && last.at && (Date.now()-last.at)<2*3600e3 && last.ton===wk.ton && last.n===wk.workouts) return;   // no spamear: solo si cambió o pasaron 2 h
   const code=myFriendCode();
   const name=((state.prefs&&state.prefs.displayName)||"").trim()||("Atleta "+code.slice(0,3));
-  const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLift(k.id); if(b) lifts[k.id]=b; });
-  const doc={t:"prof", name, code, week:wk, lifts, ach:Object.keys(state.achievements||{}), at:Date.now()};
-  if(state.profilePhoto && state.profilePhoto.length<24000) doc.photo=state.profilePhoto;
+  const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLiftK(k); if(b) lifts[k.id]=b; });
+  const doc={t:"prof", name, code, week:wk, lifts, ach:Object.keys(state.achievements||{}), rank:(currentRank().rank||{}).id||null, at:Date.now()};
+  if(state.profilePhoto && state.profilePhoto.length<150000) doc.photo=state.profilePhoto;
   const id=profPrefix(code)+String(1e13-Date.now()).padStart(13,"0");   // id decreciente → el más nuevo queda primero
   fbDb.collection("shared").doc(id).set(doc)
     .then(()=>{ state._profPub={at:Date.now(), ton:wk.ton, n:wk.workouts}; saveLocal(); }).catch(()=>{});
@@ -1933,12 +1970,37 @@ function liftLevel(exId,b){
   let lvl=-1; for(let i=0;i<arr.length;i++){ if(ratio>=arr[i]) lvl=i; }
   return lvl>=0?{lvl,name:LIFT_LVL_NAMES[lvl],ratio:Math.round(ratio*100)/100}:{lvl:-1,name:"—",ratio:Math.round(ratio*100)/100};
 }
+/* ===== rangos de fuerza: total de banca + sentadilla + peso muerto (o RDL) ===== */
+const RANKS=[
+ {id:'mad1',    n:'Madera I',   need:60,  col:'#A07855'},
+ {id:'mad2',    n:'Madera II',  need:100, col:'#A07855'},
+ {id:'mad3',    n:'Madera III', need:140, col:'#8B5E3C'},
+ {id:'bronce',  n:'Bronce',     need:180, col:'#B87333'},
+ {id:'hierro',  n:'Hierro',     need:230, col:'#7A828E'},
+ {id:'plata',   n:'Plata',      need:280, col:'#9AA3B1'},
+ {id:'oro',     n:'Oro',        need:340, col:'#E0A013'},
+ {id:'platino', n:'Platino',    need:400, col:'#4FC3B8'},
+ {id:'diamante',n:'Diamante',   need:470, col:'#38BDF8'},
+ {id:'leyenda', n:'Leyenda',    need:550, col:'#A855F7'},
+];
+function rankTotal(){
+  const b=bestLift('e_pressbanca'), s=bestLift('e_sentadilla');
+  let d=null; DL_IDS.forEach(id=>{ const x=bestLift(id); if(x&&(!d||x.w>d.w)) d=x; });
+  return { total:Math.round(((b?b.w:0)+(s?s.w:0)+(d?d.w:0))*10)/10, b,s,d };
+}
+function currentRank(){
+  const t=rankTotal(); let cur=null;
+  for(const r of RANKS){ if(t.total>=r.need) cur=r; }
+  const next=cur?RANKS[RANKS.indexOf(cur)+1]||null:RANKS[0];
+  return { ...t, rank:cur, next };
+}
 /* mi perfil con datos locales (siempre frescos) */
 function localProfile(){
-  const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLift(k.id); if(b) lifts[k.id]=b; });
+  const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLiftK(k); if(b) lifts[k.id]=b; });
   return { t:"prof", name:((state.prefs&&state.prefs.displayName)||"").trim()||"Tú",
     code:(fbUser?myFriendCode():null), week:weekStats(), lifts,
-    ach:Object.keys(state.achievements||{}), photo:state.profilePhoto||null };
+    ach:Object.keys(state.achievements||{}), photo:state.profilePhoto||null,
+    rank:(currentRank().rank||{}).id||null };
 }
 function avatarHtml(p,size){ size=size||34;
   return p&&p.photo ? `<img src="${p.photo}" style="width:${size}px;height:${size}px;border-radius:50%;object-fit:cover;flex:0 0 auto">`
@@ -2036,6 +2098,7 @@ function headToHead(code){
     `<div class="kv"><span>Tonelaje (7 días)</span><b>${nfmt(fromKg((me.week&&me.week.ton)||0))} vs ${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()}</b></div>
      <div class="kv"><span>Racha de dieta</span><b>${(me.week&&me.week.streak)||0} vs ${(r.week&&r.week.streak)||0} días</b></div>
      <div class="kv"><span>Insignias</span><b>${meAch} vs ${rAch}</b></div>
+     ${(function(){const rn=id=>{const x=RANKS.find(q=>q.id===id);return x?x.n:"—";};return (me.rank||r.rank)?`<div class="kv"><span>Rango de fuerza</span><b>${rn(me.rank)} vs ${rn(r.rank)}</b></div>`:"";})()}
      ${theirBadges?`<div style="font-size:12px;color:var(--muted);margin-top:8px">Sus insignias: ${theirBadges}</div>`:""}
      <div style="margin-top:12px;font-weight:800;text-align:center">${wins>losses?`Vas ganando ${wins}–${losses}`:(losses>wins?`Te va ganando ${losses}–${wins}`:`Empate ${wins}–${losses}`)} en básicos</div>`;
   openModal("exInfoModal");
@@ -2047,6 +2110,20 @@ function renderPerfil(){
   const p=localProfile();
   const lifts=KEY_LIFTS.map(k=>{ const b=p.lifts[k.id]; const lv=b?liftLevel(k.id,b):null;
     return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}`:"—"}</b></div>`; }).join("");
+  const rk=currentRank();
+  const prevNeed=rk.rank?rk.rank.need:0;
+  const pct=rk.next?Math.max(0,Math.min(100,Math.round((rk.total-prevNeed)/(rk.next.need-prevNeed)*100))):100;
+  const rankCard=`<div class="card" style="margin-top:14px"><h3>Rango de fuerza</h3>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="flex:0 0 auto;width:56px;height:56px;border-radius:50%;background:${rk.rank?rk.rank.col:'var(--bg2)'};display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm)">${ic('trophy',26,rk.rank?'#fff':'var(--muted)')}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:800;font-size:19px">${rk.rank?rk.rank.n:'Sin rango'}</div>
+        <div style="font-size:12.5px;color:var(--muted)">Total: <b style="color:var(--text)">${uw(rk.total)} ${unit()}</b> · banca ${rk.b?uw(rk.b.w):0} + sentadilla ${rk.s?uw(rk.s.w):0} + PM/RDL ${rk.d?uw(rk.d.w):0}</div>
+      </div></div>
+    ${rk.next?`<div class="rk-bar" style="margin-top:12px;height:7px"><i style="width:${pct}%;background:${rk.rank?rk.rank.col:'var(--accent)'}"></i></div>
+      <div style="font-size:12px;color:var(--muted);margin-top:7px">Te faltan <b style="color:var(--text)">${uw(Math.max(0,Math.round((rk.next.need-rk.total)*10)/10))} ${unit()}</b> de total para <b style="color:${rk.next.col}">${rk.next.n}</b></div>`
+      :`<div style="font-size:12px;color:var(--muted);margin-top:8px">Rango máximo alcanzado</div>`}
+    <small class="hint" style="display:block;margin-top:8px">Suma tu mejor peso levantado en press banca + sentadilla + peso muerto (si no haces peso muerto, cuenta tu RDL). Sube de rango subiendo tus básicos.</small></div>`;
   el.innerHTML=`
    <div class="card" style="display:flex;align-items:center;gap:16px">
      <div style="cursor:pointer;position:relative" onclick="pickProfilePhoto()">${avatarHtml(p,84)}<div style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center">${ic('pencil',13,'#fff')}</div></div>
@@ -2055,8 +2132,9 @@ function renderPerfil(){
        <div style="font-size:12px;color:var(--muted);margin-top:3px">${p.code?`Código: <b style="letter-spacing:1.5px;color:var(--accent);cursor:pointer" onclick="copyFriendCode()">${p.code}</b> (tocar = copiar)`:"Inicia sesión en la nube (Ajustes) para tener código"}</div>
        <div style="font-size:12px;color:var(--muted);margin-top:3px">${(state.workouts||[]).length} entrenos · ${nfmt(fromKg(totalTonnage()))} ${unit()} movidos en total</div>
      </div></div>
+   ${rankCard}
    <div class="card" style="margin-top:14px"><h3>Tus básicos · mejor peso</h3>${lifts}
-     <small class="hint" style="display:block;margin-top:8px">Tu mejor serie registrada o tu PR manual (Records), lo que sea mayor. El nivel compara tu 1RM estimado contra tu peso corporal (estilo Strength Level). Con estos números compites en el ranking.</small></div>
+     <small class="hint" style="display:block;margin-top:8px">Tu mejor serie registrada o tu PR manual (Records), lo que sea mayor. El RDL cuenta como peso muerto. El nivel compara tu 1RM estimado contra tu peso corporal (estilo Strength Level). Con estos números compites en el ranking.</small></div>
    <div class="card" style="margin-top:14px"><h3>Logros</h3><div id="perfilLogros"></div></div>
    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="nav('ranking')">Ver ranking de amigos</button>`;
   renderAchievements();
@@ -2066,10 +2144,11 @@ function onProfilePhoto(input){
   const f=input.files&&input.files[0]; if(!f) return;
   const rd=new FileReader();
   rd.onload=e=>{ const img=new Image();
-    img.onload=()=>{ const S=96,c=document.createElement("canvas"); c.width=S;c.height=S;
+    img.onload=()=>{ const S=256,c=document.createElement("canvas"); c.width=S;c.height=S;   // 256px: nítida en pantallas retina
       const x=c.getContext("2d"), m=Math.min(img.width,img.height);
+      x.imageSmoothingQuality="high";
       x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,S,S);
-      state.profilePhoto=c.toDataURL("image/jpeg",0.72);
+      state.profilePhoto=c.toDataURL("image/jpeg",0.82);
       save(); publishProfile(true); renderPerfil(); toast("Foto actualizada");
     };
     img.src=e.target.result; };
@@ -2169,23 +2248,28 @@ function renderHistory(){
 function ymOf(d){ return (d||"").slice(0,7); }
 function prevYm(ym){ let [y,m]=ym.split("-").map(Number); m--; if(m<1){m=12;y--;} return y+"-"+String(m).padStart(2,"0"); }
 function monthName(ym){ const [y,m]=ym.split("-").map(Number); return (MESES_ABBR[m-1]||"")+" "+y; }
-function monthAgg(ym){
-  const hist=(state.history||[]).filter(h=>ymOf(h.date)===ym);
+function monthAgg(ym, uptoDay){
+  // uptoDay: limita al día N del mes (para comparar mes pasado con los MISMOS días transcurridos de este mes)
+  const inRange=d=>ymOf(d)===ym && (!uptoDay || parseInt(d.slice(8,10),10)<=uptoDay);
+  const hist=(state.history||[]).filter(h=>inRange(h.date));
   const calArr=hist.filter(h=>h.calories>0).map(h=>h.calories), pArr=hist.map(h=>h.protein||0), cArr=hist.map(h=>h.carbs||0), fArr=hist.map(h=>h.fat||0);
   const today=todayStr();
   if(ymOf(today)===ym){ const t=dayTotals(); if(t.cal>0 && !hist.some(h=>h.date===today)){ calArr.push(r0(t.cal)); pArr.push(r0(t.protein)); cArr.push(r0(t.carbs)); fArr.push(r0(t.fat)); } }
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
-  const wts=(state.workouts||[]).filter(w=>ymOf(w.date)===ym);
+  const wts=(state.workouts||[]).filter(w=>inRange(w.date));
   const ton=wts.reduce((a,w)=>a+workoutTonnage(w),0);
-  const st=Object.keys(state.steps||{}).filter(d=>ymOf(d)===ym).map(d=>state.steps[d]).filter(v=>v>0);
-  const wl=Object.keys(state.waterLog||{}).filter(d=>ymOf(d)===ym).map(d=>state.waterLog[d]).filter(v=>v>0);
-  const wm=(state.measurements||[]).filter(m=>m.peso!=null&&ymOf(m.date)===ym).sort((a,b)=>a.date<b.date?-1:1);
+  const st=Object.keys(state.steps||{}).filter(inRange).map(d=>state.steps[d]).filter(v=>v>0);
+  const wl=Object.keys(state.waterLog||{}).filter(inRange).map(d=>state.waterLog[d]).filter(v=>v>0);
+  const wm=(state.measurements||[]).filter(m=>m.peso!=null&&inRange(m.date)).sort((a,b)=>a.date<b.date?-1:1);
   const wDelta = wm.length>=2 ? (wm[wm.length-1].peso-wm[0].peso) : null;
   return { cal:avg(calArr), protein:avg(pArr), days:calArr.length, sessions:wts.length, ton, steps:avg(st), water:avg(wl), wDelta };
 }
 function renderMonthly(){
   const el=document.getElementById("monthlySummary"); if(!el) return;
-  const tm=ymOf(todayStr()), lm=prevYm(tm), A=monthAgg(tm), B=monthAgg(lm);
+  const tm=ymOf(todayStr()), lm=prevYm(tm), dayN=parseInt(todayStr().slice(8,10),10);
+  const lastDayLm=new Date(parseInt(lm.slice(0,4)),parseInt(lm.slice(5,7)),0).getDate();
+  const partial=dayN<lastDayLm;   // aún no termina el mes → comparar mismos días
+  const A=monthAgg(tm), B=monthAgg(lm, partial?dayN:undefined);
   const ml=document.getElementById("monthLabel"); if(ml) ml.textContent = monthName(tm);
   if(!A.days && !A.sessions){ el.innerHTML=`<div class="empty">Aún no hay datos de este mes.</div>`; return; }
   const cmp=(cur,prev,o)=>{ o=o||{}; if(prev==null||prev===0||cur==null||!cur) return ""; const d=cur-prev;
@@ -2201,7 +2285,7 @@ function renderMonthly(){
     (A.steps?row("Pasos prom.", A.steps, B.steps, {fmt:v=>nfmt(v)}):"")+
     (A.water?row("Agua prom.", A.water, B.water, {fmt:v=>(v/1000).toFixed(2)+" L"}):"")+
     (A.wDelta!=null?`<div class="kv"><span>Δ Peso (mes)</span><b style="color:${A.wDelta<0?'var(--ok)':(A.wDelta>0?'var(--bad)':'var(--muted)')}">${A.wDelta>0?'+':''}${r1(A.wDelta)} kg</b></div>`:"")+
-    `<div style="font-size:11px;color:var(--muted);margin-top:8px">${A.days} días con registro · comparado con ${monthName(lm)}</div>`;
+    `<div style="font-size:11px;color:var(--muted);margin-top:8px">${A.days} días con registro · comparado con ${monthName(lm)}${partial?` (sus primeros ${dayN} días, para que sea justo)`:""}</div>`;
 }
 
 /* editor de agua/pasos de los últimos 3 días (hoy + 2 anteriores) — se abre desde "Tu semana" */
@@ -2290,10 +2374,21 @@ function openStartModal(){
   sel.innerHTML = state.templates.map(t=>`<option value="${t.id}">${t.name} (${t.exercises.length} ej.)</option>`).join("")
     || `<option value="">(crea un día primero)</option>`;
   set("startDate", todayStr());
-  // siguiente semana sugerida = (máxima registrada)+1, mínimo 1
-  const maxW = state.workouts.reduce((m,w)=>Math.max(m,w.week||0),0);
-  set("startWeek", maxW+1 || 1);
+  set("startWeek", suggestedWeek());
   openModal("startModal");
+}
+/* semana ISO del calendario (para saber si ya es "otra semana") */
+function isoWeekKey(ds){ const d=new Date(ds+"T12:00:00"); const t=new Date(d); t.setDate(t.getDate()+3-((t.getDay()+6)%7)); const w1=new Date(t.getFullYear(),0,4); const wn=1+Math.round(((t-w1)/86400000-3+((w1.getDay()+6)%7))/7); return t.getFullYear()+"-"+String(wn).padStart(2,"0"); }
+/* semana sugerida: la MISMA de tu última sesión; solo avanza si ya hiciste
+   todos tus días de rutina en esa semana o si ya es otra semana del calendario */
+function suggestedWeek(){
+  const ws=state.workouts||[]; if(!ws.length) return 1;
+  const last=ws.reduce((a,b)=>((a.date||"")>=(b.date||"")?a:b));
+  const curW=Math.max(1,last.week||1);
+  const daysDone=new Set(ws.filter(w=>(w.week||1)===curW).map(w=>w.templateId||w.name)).size;
+  const totalDays=Math.max(1,(state.templates||[]).length);
+  const newCalWeek=isoWeekKey(todayStr())!==isoWeekKey(last.date||todayStr());
+  return (daysDone>=totalDays || newCalWeek) ? curW+1 : curW;
 }
 function lastSetsFor(exId, templateId){
   // Por rutina: si se pasa templateId, solo mira sesiones de ESA misma rutina
@@ -2442,12 +2537,15 @@ const SET_TAGS={
   n:{title:"Serie normal",bg:"var(--surface3)",fg:"var(--muted)",short:""},
   w:{title:"Calentamiento (no cuenta)",bg:"#C7CDD6",fg:"#28303B",short:"C"},
   f:{title:"Al fallo",bg:"#FF453A",fg:"#fff",short:"F"},
-  d:{title:"Dropset",bg:"#FF9F0A",fg:"#3a2600",short:"D"}
+  d:{title:"Dropset",bg:"#FF9F0A",fg:"#3a2600",short:"D"},
+  u:{title:"Unilateral (izq/der solo en esta serie)",bg:"#0EA5A5",fg:"#fff",short:"LD"}
 };
 const SS_COLORS={A:"#7C3AED",B:"#0EA5A5",C:"#F59E0B",D:"#EC4899",E:"#22C55E"};
-function cycleSetType(i,j){ const order=["n","w","f","d"]; const s=sessionDraft.entries[i].sets[j];
+function cycleSetType(i,j){ const order=["n","w","f","d","u"]; const s=sessionDraft.entries[i].sets[j];
   const prev=s.type||"n"; const next=order[(order.indexOf(prev)+1)%order.length];
-  if(next==="d"){ if(!Array.isArray(s.drops)||!s.drops.length) s.drops=[{weight:s.weight||0,reps:s.reps||0}]; s.type="d"; }
+  if(prev==="u"){ s.reps=Math.max(s.repsL||0,s.repsR||0)||s.reps||0; delete s.repsL; delete s.repsR; }
+  if(next==="d"){ if(!Array.isArray(s.drops)||!s.drops.length) s.drops=[{weight:s.weight||0,reps:s.reps||0}]; delete s.repsL; delete s.repsR; s.type="d"; }
+  else if(next==="u"){ if(s.repsL==null)s.repsL=s.reps||0; if(s.repsR==null)s.repsR=s.reps||0; delete s.drops; s.type="u"; }
   else { if(prev==="d"&&Array.isArray(s.drops)&&s.drops[0]){ s.weight=s.drops[0].weight||0; s.reps=s.drops[0].reps||0; } delete s.drops; s.type = next==="n"?undefined:next; }
   renderSesion(); }
 /* --- bajadas de un dropset --- */
@@ -2546,20 +2644,22 @@ function renderSesion(){
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
-        <div class="set-head"><span></span><span>Peso (${unit()})</span><span>${e.uni?"Izq":"Reps"}</span><span>${e.uni?"Der":"RIR"}</span><span></span><span></span></div>
+        <div class="set-head${e.uni?' uni':''}">${e.uni?`<span></span><span>Peso (${unit()})</span><span>Izq</span><span>Der</span><span>RIR</span><span></span><span></span>`:`<span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span><span></span>`}</div>
         ${e.sets.map((s,j)=>{
+          const isUni = e.uni || s.type==="u" || (s.repsL!=null&&s.type!=="d");
           const tg=SET_TAGS[s.type||"n"];
           let cShort,cBg,cFg;
           if(!e.uni && s.type&&s.type!=="n"){ cShort=tg.short; cBg=tg.bg; cFg=tg.fg; }
           else if(e.sg){ cShort=e.sg; cBg=ssCol; cFg="#fff"; }
           else { cShort=(j+1); cBg=tg.bg; cFg=tg.fg; }
-          const chip=`<button class="sidx" title="${e.uni?'Serie':'Toca para cambiar tipo (calentamiento/fallo/dropset)'}" style="cursor:pointer;border:none;background:${cBg};color:${cFg};font-weight:700" onclick="${e.uni?'':`cycleSetType(${i},${j})`}">${cShort}</button>`;
-          if(e.uni){
-            return `<div class="set-row">
+          const chip=`<button class="sidx" title="${e.uni?'Serie':'Toca para cambiar tipo (calentamiento/fallo/dropset/unilateral)'}" style="cursor:pointer;border:none;background:${cBg};color:${cFg};font-weight:700" onclick="${e.uni?'':`cycleSetType(${i},${j})`}">${cShort}</button>`;
+          if(isUni){
+            return `<div class="set-row uni">
               ${chip}
               <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
               <input type="number" inputmode="numeric" value="${s.repsL!=null?s.repsL:""}" placeholder="izq" onchange="updateSetRepsL(${i},${j},this.value)">
               <input type="number" inputmode="numeric" value="${s.repsR!=null?s.repsR:""}" placeholder="der" onchange="updateSetRepsR(${i},${j},this.value)">
+              <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)">
               <button class="sdone${s.done?' on':''}" title="Serie hecha" onclick="toggleSetDone(${i},${j})">✓</button>
               <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
             </div>`;
@@ -2883,7 +2983,7 @@ function ic(name,s,color){ s=s||16; color=color||"currentColor";
     sugar:`<rect x="4.5" y="9" width="15" height="10.5" rx="2.2" ${st} stroke-width="1.8"/><path d="M8 9V7l-1.2-2.5h10.4L16 7v2" ${st} stroke-width="1.8"/>`,
     apple:`<path d="M12 7.2c1.1-1.7 3.2-2.4 4.9-1.5 2 1 2.5 3.8 1.4 6.6-.7 1.9-1.9 3.9-3.3 5.2-.9.8-2.3.8-3-.1-.7.9-2.1.9-3 .1-1.4-1.3-2.6-3.3-3.3-5.2C4.6 9.5 5.1 6.7 7.1 5.7c1.7-.9 3.8-.2 4.9 1.5z" ${st} stroke-width="1.7"/><path d="M12 7V4.6c0-1 .8-1.8 2-1.8" ${st} stroke-width="1.7"/>`,
     bowl:`<path d="M3.5 11h17a8.5 8.5 0 0 1-17 0z" ${st} stroke-width="1.8"/><path d="M7 11c0-2.8 2.2-5 5-5s5 2.2 5 5" ${st} stroke-width="1.7"/>`,
-    utensils:`<path d="M6 3v6a2 2 0 0 0 4 0V3M8 9v12M16.5 3C15 3 14 5.2 14 8s1 4 2.5 4V21" ${st} stroke-width="1.8"/>`,
+    utensils:`<path d="M5 3v5M7.5 3v5M10 3v5M5 8a2.5 2.5 0 0 0 5 0M7.5 10.5V21" ${st} stroke-width="1.7"/><path d="M18 3c-2.4 2-3.6 4.7-3.6 7.4 0 1.7 1.3 2.6 3.6 2.6M18 3v18" ${st} stroke-width="1.7"/>`,
     moon:`<path d="M20 14.2A8 8 0 1 1 9.8 4 6.5 6.5 0 0 0 20 14.2z" ${st} stroke-width="1.8"/>`,
     sun:`<circle cx="12" cy="12" r="4" ${st} stroke-width="1.8"/><path d="M12 3v2.2M12 18.8V21M3 12h2.2M18.8 12H21M5.6 5.6 7.1 7.1M16.9 16.9l1.5 1.5M18.4 5.6 16.9 7.1M7.1 16.9l-1.5 1.5" ${st} stroke-width="1.8"/>`,
     battery:`<rect x="3" y="8" width="16" height="9" rx="2.2" ${st} stroke-width="1.8"/><path d="M21.5 11.5v3" ${st} stroke-width="1.8"/><path d="M6.5 11.5v3" stroke="${color}" stroke-width="2.6" stroke-linecap="round"/>`,
@@ -2894,14 +2994,23 @@ function ic(name,s,color){ s=s||16; color=color||"currentColor";
     x:`<path d="M6.5 6.5l11 11M17.5 6.5l-11 11" ${st} stroke-width="2"/>`,
     copy:`<rect x="9" y="9" width="11" height="11" rx="2.5" ${st} stroke-width="1.8"/><path d="M5.5 14.5A2.5 2.5 0 0 1 4 12.2V6.5A2.5 2.5 0 0 1 6.5 4h5.7a2.5 2.5 0 0 1 2.3 1.5" ${st} stroke-width="1.8"/>`,
     chev:`<path d="M9 5.5l6.5 6.5L9 18.5" ${st} stroke-width="2"/>`,
-    coffee:`<path d="M4 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8z" ${st} stroke-width="1.8"/><path d="M16 9.5h1.6a2.4 2.4 0 0 1 0 4.8H16M7.5 4.5c0 .8.8 1 .8 1.8M11 4.5c0 .8.8 1 .8 1.8" ${st} stroke-width="1.7"/>`
+    coffee:`<path d="M4 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8z" ${st} stroke-width="1.8"/><path d="M16 9.5h1.6a2.4 2.4 0 0 1 0 4.8H16M7.5 4.5c0 .8.8 1 .8 1.8M11 4.5c0 .8.8 1 .8 1.8" ${st} stroke-width="1.7"/>`,
+    shake:`<path d="M7.3 8h9.4l-1.2 12.1a1.9 1.9 0 0 1-1.9 1.7h-3.2a1.9 1.9 0 0 1-1.9-1.7L7.3 8z" ${st} stroke-width="1.8"/><path d="M6.5 8h11M12.2 8l2.6-5.5" ${st} stroke-width="1.8"/>`
   };
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px;flex:0 0 auto">${P[name]||''}</svg>`;
 }
-/* ícono de línea por comida (sustituye los emojis guardados; comidas personalizadas conservan su emoji) */
+/* ícono de línea por comida: elegido por el usuario (iconName) > id conocido >
+   emoji conocido > por NOMBRE (pre/post entreno, etc.) > cubiertos */
 const MEAL_ICON_MAP={desayuno:"coffee",comida:"utensils",cena:"moon",snack:"apple"};
 const EMOJI_ICON_MAP={"☕":"coffee","🍽️":"utensils","🌙":"moon","🍎":"apple","🍴":"utensils","🥗":"bowl","🍳":"sun"};
-function mealIcon(m){ const n=MEAL_ICON_MAP[m.id]||EMOJI_ICON_MAP[(m.icon||"").trim()]; return n?ic(n,20):(m.icon||ic('utensils',20)); }
+const MEAL_ICON_CHOICES=[["auto","Auto (según nombre)"],["coffee","Café / desayuno"],["sun","Mañana"],["utensils","Comida"],["bowl","Tazón / guiso"],["apple","Snack / fruta"],["moon","Cena"],["dumbbell","Pre-entreno"],["shake","Post-entreno / batido"],["leaf","Ligero / ensalada"],["fire","Antojo"],["water","Bebida"],["clock","Colación"]];
+const NAME_ICON_RULES=[[/pre[\s-]?(entreno|workout|train)/i,"dumbbell"],[/post[\s-]?(entreno|workout|train)|batido|prote[ií]na|shake/i,"shake"],[/desayun|caf[eé]/i,"coffee"],[/cena|noche/i,"moon"],[/snack|colaci[oó]n|merienda|fruta/i,"apple"],[/ensalada|ligero/i,"leaf"],[/almuerzo|comida/i,"utensils"]];
+function mealIcon(m){
+  if(m.iconName&&m.iconName!=="auto") return ic(m.iconName,20);
+  let n=MEAL_ICON_MAP[m.id]||EMOJI_ICON_MAP[(m.icon||"").trim()];
+  if(!n){ const rule=NAME_ICON_RULES.find(([re])=>re.test(m.name||"")); if(rule) n=rule[1]; }
+  return n?ic(n,20):ic('utensils',20);
+}
 function tplCard(t){
   const groups=[...new Set(t.exercises.map(x=>exGroupOf(x.exId)))].join(", ");
   return `<div style="background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:9px 10px 9px 12px;margin-bottom:8px;display:flex;align-items:center;gap:6px">

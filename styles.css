@@ -754,3 +754,13 @@ body{padding-bottom:calc(118px + env(safe-area-inset-bottom))}
 nav button.active svg{stroke-width:2.2}
 .meal-row:active,.settings-row:active,.list-row:active,.rk-row:active{transform:scale(.985)}
 .meal-row,.settings-row,.list-row,.rk-row{transition:transform .1s ease,background .15s,box-shadow .15s}
+
+/* ---- 17 · Ajustes del lote Z (jul 2026) ---- */
+/* la tarjeta de racha ya no queda pegada al anillo de calorías */
+.card.hero{margin-bottom:14px}
+/* serie unilateral: 7 columnas (peso · izq · der · RIR · hecho · quitar) */
+.set-row.uni,.set-head.uni{grid-template-columns:30px 1.15fr .85fr .85fr .7fr 26px 26px!important;gap:6px!important}
+.set-row.uni>*{min-width:0}
+.set-row.uni input{padding:10px 4px!important}
+.set-row.uni .btn-sm{padding:4px 0!important;min-height:26px;width:26px;justify-self:center}
+@media(max-width:370px){ .set-row.uni,.set-head.uni{grid-template-columns:26px 1.05fr .85fr .85fr .65fr 24px 24px!important;gap:5px!important} .set-row.uni .btn-sm{width:24px;min-height:24px} }
