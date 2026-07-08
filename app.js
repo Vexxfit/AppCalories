@@ -1814,16 +1814,25 @@ function weekWorkoutsCount(){ const today=todayStr(); let n=0; for(let i=0;i<7;i
 function waterStreakDays(){ const goal=waterGoalMl(); let n=0, d=todayStr(); if(((state.waterLog&&state.waterLog[d])||0)<goal) d=dayShift(d,-1); while(((state.waterLog&&state.waterLog[d])||0)>=goal){ n++; d=dayShift(d,-1); } return n; }
 /* levantamientos básicos con los que se compite en el ranking */
 const KEY_LIFTS=[
- {id:'e_pressbanca',   lbl:'Press banca',    short:'Banca'},
+ {id:'e_pressbanca',   lbl:'Press banca',    short:'Banca',      alts:['e_pressplanomanc']},
  {id:'e_sentadilla',   lbl:'Sentadilla',     short:'Sentadilla'},
- {id:'e_pesomuerto',   lbl:'Peso muerto',    short:'P. muerto', alts:['e_rdl','e_rdlmanc']},   // RDL cuenta como peso muerto
- {id:'e_pressmil',     lbl:'Press militar',  short:'Militar'},
+ {id:'e_pesomuerto',   lbl:'Peso muerto',    short:'P. muerto',  alts:['e_rdl','e_rdlmanc']},   // RDL cuenta como peso muerto
+ {id:'e_pressmil',     lbl:'Press militar',  short:'Militar',    alts:['e_arnold']},
  {id:'e_remobarra',    lbl:'Remo con barra', short:'Remo'},
  {id:'e_hipthrust',    lbl:'Hip thrust',     short:'Hip thrust'},
- {id:'e_pressincbarra',lbl:'Press inclinado',short:'Inclinado'},
+ {id:'e_pressincbarra',lbl:'Press inclinado',short:'Inclinado',  alts:['e_pressincmanc']},
  {id:'e_prensa',       lbl:'Prensa',         short:'Prensa'},
 ];
 /* tu mejor peso levantado en un ejercicio: mejor serie registrada o PR manual (el que sea mayor) */
+/* ejercicios de mancuernas (por pares): el peso registrado es POR MANO → cuenta doble.
+   Se detecta por el nombre del ejercicio; "hand" queda implícito sin marcar nada. */
+const PER_HAND_IDS=["e_arnold"];   // mancuernas aunque el nombre no lo diga
+function exIsPerHand(exId){
+  if(PER_HAND_IDS.includes(exId)) return true;
+  const ex=exById(exId); if(!ex) return false;
+  const n=ex.name||"";
+  return /mancuerna/i.test(n) && !/a una mano|un brazo/i.test(n);
+}
 function bestLift(exId){
   let w=0,r=0,uni=false;
   (state.workouts||[]).forEach(wk=>{ const e=wk.entries.find(x=>x.exId===exId); if(!e) return;
@@ -1831,10 +1840,13 @@ function bestLift(exId){
       if((s.weight||0)>0&&reps>0&&(s.weight>w||(s.weight===w&&reps>r))){ w=s.weight; r=reps; uni=(s.repsL!=null||s.repsR!=null); } }); });
   const m=(state.manualPRs||{})[exId];
   if(m&&(m.weight||0)>=w){ w=m.weight; r=m.reps||1; uni=false; }
-  return w>0?{w:Math.round(w*10)/10,r,uni}:null;   // uni = la mejor serie fue izq/der (peso POR MANO)
+  return w>0?{w:Math.round(w*10)/10,r,uni,hand:exIsPerHand(exId)}:null;
 }
-/* mejor marca contando ejercicios equivalentes (p. ej. RDL cuenta como peso muerto) */
-function bestLiftK(k){ let best=null; [k.id,...(k.alts||[])].forEach(id=>{ const b=bestLift(id); if(b&&(!best||b.w>best.w)) best=b; }); return best; }
+/* peso EFECTIVO de una marca: por-mano (mancuernas o series izq/der) cuenta ×2 */
+function liftEff(b){ return b? b.w*((b.uni||b.hand)?2:1) : 0; }
+/* mejor marca contando ejercicios equivalentes (p. ej. RDL cuenta como peso muerto,
+   press con mancuernas cuenta para banca/militar). Compara por peso EFECTIVO. */
+function bestLiftK(k){ let best=null; [k.id,...(k.alts||[])].forEach(id=>{ const b=bestLift(id); if(b&&(!best||liftEff(b)>liftEff(best))) best=b; }); return best; }
 const DL_IDS=['e_pesomuerto','e_rdl','e_rdlmanc'];
 function stepsStreakDays(){ const g=(state.goals&&state.goals.steps)||0; if(!g) return 0; let n=0,d=todayStr(); if(((state.steps&&state.steps[d])||0)<g) d=dayShift(d,-1); while(((state.steps&&state.steps[d])||0)>=g){ n++; d=dayShift(d,-1); } return n; }
 const _club=(exId,kg)=>()=>{ const ids=Array.isArray(exId)?exId:[exId]; return ids.some(id=>{ const b=bestLift(id); return !!b&&b.w>=kg; }); };
@@ -2026,7 +2038,7 @@ function liftLevel(exId,b){
   const std=LIFT_STD[exId]; const bw=(state.goals&&state.goals.weight)||0;
   if(!std||!bw||!b) return null;
   const sex=(state.goals&&state.goals.sex)==="female"?"f":"m";
-  const w=b.uni? b.w*2 : b.w;   // unilateral = peso POR MANO → se cuentan las dos
+  const w=liftEff(b);   // mancuernas o izq/der = peso POR MANO → se cuentan las dos
   const orm=(b.r||1)<=1?w:epley(w,b.r);
   const ratio=orm/bw; const arr=std[sex];
   // debajo del primer umbral = Principiante; cada umbral sube un nivel (tope: Clase mundial)
@@ -2052,9 +2064,9 @@ RANKS.push({id:'leyenda', n:'Leyenda', col:'#A855F7', need:700, tier:'Leyenda'})
 const RANK_LEGACY={mad1:'madera1',mad2:'madera2',mad3:'madera3',bronce:'bronce1',hierro:'hierro1',plata:'plata1',oro:'oro1',platino:'platino1',diamante:'diamante1',leyenda:'leyenda'};
 function rankById(id){ if(!id) return null; return RANKS.find(r=>r.id===id)||RANKS.find(r=>r.id===RANK_LEGACY[id])||null; }
 function rankTotal(){
-  const b=bestLift('e_pressbanca'), s=bestLift('e_sentadilla');
-  let d=null; DL_IDS.forEach(id=>{ const x=bestLift(id); if(x&&(!d||x.w>d.w)) d=x; });
-  return { total:Math.round(((b?b.w:0)+(s?s.w:0)+(d?d.w:0))*10)/10, b,s,d };
+  const b=bestLiftK(KEY_LIFTS[0]), s=bestLift('e_sentadilla');
+  let d=null; DL_IDS.forEach(id=>{ const x=bestLift(id); if(x&&(!d||liftEff(x)>liftEff(d))) d=x; });
+  return { total:Math.round((liftEff(b)+liftEff(s)+liftEff(d))*10)/10, b,s,d };
 }
 function currentRank(){
   const t=rankTotal(); let cur=null;
@@ -2081,13 +2093,13 @@ function metricValue(r,m){
   if(m==="ton") return (r.week&&r.week.ton)||0;
   if(m==="streak") return (r.week&&r.week.streak)||0;
   if(m==="ach") return Array.isArray(r.ach)?r.ach.length:(r.ach||0);
-  const b=r.lifts&&r.lifts[m]; return b?b.w:0;
+  const b=r.lifts&&r.lifts[m]; return b?liftEff(b):0;   // por-mano cuenta doble (justo entre barra y mancuernas)
 }
 function metricLabel(r,m){
   if(m==="ton") return nfmt(fromKg((r.week&&r.week.ton)||0))+" "+unit();
   if(m==="streak") return (((r.week&&r.week.streak)||0)+" días");
   if(m==="ach") return (Array.isArray(r.ach)?r.ach.length:(r.ach||0))+" insignias";
-  const b=r.lifts&&r.lifts[m]; return b?`${uw(b.w)} ${unit()} × ${b.r}`:"—";
+  const b=r.lifts&&r.lifts[m]; return b?`${uw(b.w)} ${unit()} × ${b.r}${(b.uni||b.hand)?" /mano":""}`:"—";
 }
 function renderRanking(){
   const el=document.getElementById("rankingBox"); if(!el) return;
@@ -2109,7 +2121,7 @@ function openFriendProfile(code){
   const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
   t.textContent=r.name||r.code;
   const rk=rankById(r.rank);
-  const lifts=KEY_LIFTS.map(k=>{ const x=r.lifts&&r.lifts[k.id]; return x?`<div class="kv"><span>${k.lbl}</span><b>${uw(x.w)} ${unit()} × ${x.r}</b></div>`:""; }).join("");
+  const lifts=KEY_LIFTS.map(k=>{ const x=r.lifts&&r.lifts[k.id]; return x?`<div class="kv"><span>${k.lbl}</span><b>${uw(x.w)} ${unit()} × ${x.r}${(x.uni||x.hand)?' <span style="color:var(--muted);font-size:11px">por mano</span>':''}</b></div>`:""; }).join("");
   const achIds=Array.isArray(r.ach)?r.ach:[];
   const badges=achIds.map(id=>{ const d=ACH_DEFS.find(a=>a.id===id); return d?`<span class="pill" style="margin:0 4px 6px 0;display:inline-flex">${ic(d.icn,12)} ${d.n}</span>`:""; }).join("");
   b.innerHTML=`
@@ -2190,11 +2202,12 @@ function headToHead(code){
   const rows=KEY_LIFTS.map(k=>{
     const a=me.lifts&&me.lifts[k.id], o=r.lifts&&r.lifts[k.id];
     if(!a&&!o) return "";
-    const av=a?a.w:0, ov=o?o.w:0;
+    const av=liftEff(a), ov=liftEff(o);
     let mark; if(av>ov){ mark='<span style="color:var(--ok);font-size:11px">✓ tú</span>'; wins++; }
     else if(ov>av){ mark='<span style="color:var(--bad);font-size:11px">✓ él</span>'; losses++; }
     else mark='<span style="color:var(--muted);font-size:11px">=</span>';
-    return `<div class="kv"><span>${k.lbl}</span><b>${a?`${uw(a.w)}×${a.r}`:"—"} vs ${o?`${uw(o.w)}×${o.r}`:"—"} ${mark}</b></div>`;
+    const fmt=x=>x?`${uw(x.w)}×${x.r}${(x.uni||x.hand)?"/m":""}`:"—";
+    return `<div class="kv"><span>${k.lbl}</span><b>${fmt(a)} vs ${fmt(o)} ${mark}</b></div>`;
   }).join("");
   const meAch=Array.isArray(me.ach)?me.ach.length:0, rAch=Array.isArray(r.ach)?r.ach.length:(r.ach||0);
   const theirBadges=(Array.isArray(r.ach)?r.ach:[]).map(id=>{const d=ACH_DEFS.find(x=>x.id===id);return d?d.n:null;}).filter(Boolean).slice(0,4).join(" · ");
@@ -2215,7 +2228,7 @@ function renderPerfil(){
   checkAchievements();
   const p=localProfile();
   const lifts=KEY_LIFTS.map(k=>{ const b=p.lifts[k.id]; const lv=b?liftLevel(k.id,b):null;
-    return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}${b.uni?' <span style="color:var(--muted);font-size:11px;font-weight:600">por mano</span>':''}`:"—"}</b></div>`; }).join("");
+    return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}${(b.uni||b.hand)?' <span style="color:var(--muted);font-size:11px;font-weight:600">por mano</span>':''}`:"—"}</b></div>`; }).join("");
   const rk=currentRank();
   const prevNeed=rk.rank?rk.rank.need:0;
   const pct=rk.next?Math.max(0,Math.min(100,Math.round((rk.total-prevNeed)/(rk.next.need-prevNeed)*100))):100;
@@ -2224,7 +2237,7 @@ function renderPerfil(){
       <div style="flex:0 0 auto;width:56px;height:56px;border-radius:50%;background:${rk.rank?rk.rank.col:'var(--bg2)'};display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow-sm)">${ic('trophy',26,rk.rank?'#fff':'var(--muted)')}</div>
       <div style="flex:1;min-width:0">
         <div style="font-weight:800;font-size:19px">${rk.rank?rk.rank.n:'Sin rango'}</div>
-        <div style="font-size:12.5px;color:var(--muted)">Total: <b style="color:var(--text)">${uw(rk.total)} ${unit()}</b> · banca ${rk.b?uw(rk.b.w):0} + sentadilla ${rk.s?uw(rk.s.w):0} + PM/RDL ${rk.d?uw(rk.d.w):0}</div>
+        <div style="font-size:12.5px;color:var(--muted)">Total: <b style="color:var(--text)">${uw(rk.total)} ${unit()}</b> · banca ${uw(liftEff(rk.b))} + sentadilla ${uw(liftEff(rk.s))} + PM/RDL ${uw(liftEff(rk.d))}</div>
       </div></div>
     ${rk.next?`<div class="rk-bar" style="margin-top:12px;height:7px"><i style="width:${pct}%;background:${rk.rank?rk.rank.col:'var(--accent)'}"></i></div>
       <div style="font-size:12px;color:var(--muted);margin-top:7px">Te faltan <b style="color:var(--text)">${uw(Math.max(0,Math.round((rk.next.need-rk.total)*10)/10))} ${unit()}</b> de total para <b style="color:${rk.next.col}">${rk.next.n}</b></div>`
