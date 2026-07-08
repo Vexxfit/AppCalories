@@ -1795,6 +1795,15 @@ function checkRollover(){
     if(!state.waterLog) state.waterLog={};
     if(state.waterLog[state.plan.date]==null && (t.cal>0 || (state.workouts||[]).some(w=>w.date===state.plan.date)))
       state.waterLog[state.plan.date]=waterGoalMl();
+    // migración única hacia atrás: días PASADOS donde usaste la app (comida o
+    // entreno) pero sin agua registrada quedaron en 0 → se rellenan con tu meta
+    if(!state._waterFill1){
+      const goalW=waterGoalMl(), tod=todayStr();
+      const activos=new Set([ ...(state.history||[]).filter(h=>h.calories>0).map(h=>h.date),
+                              ...(state.workouts||[]).map(w=>w.date) ]);
+      activos.forEach(d=>{ if(d && d<tod && state.waterLog[d]==null) state.waterLog[d]=goalW; });
+      state._waterFill1=1;
+    }
     state.plan={date:today, slots:{}}; ensureSlots();
     save();
   }
@@ -1816,13 +1825,13 @@ const KEY_LIFTS=[
 ];
 /* tu mejor peso levantado en un ejercicio: mejor serie registrada o PR manual (el que sea mayor) */
 function bestLift(exId){
-  let w=0,r=0;
+  let w=0,r=0,uni=false;
   (state.workouts||[]).forEach(wk=>{ const e=wk.entries.find(x=>x.exId===exId); if(!e) return;
     (e.sets||[]).forEach(s=>{ if(isWarmup(s)) return; const reps=s.reps||s.repsL||s.repsR||0;
-      if((s.weight||0)>0&&reps>0&&(s.weight>w||(s.weight===w&&reps>r))){ w=s.weight; r=reps; } }); });
+      if((s.weight||0)>0&&reps>0&&(s.weight>w||(s.weight===w&&reps>r))){ w=s.weight; r=reps; uni=(s.repsL!=null||s.repsR!=null); } }); });
   const m=(state.manualPRs||{})[exId];
-  if(m&&(m.weight||0)>=w){ w=m.weight; r=m.reps||1; }
-  return w>0?{w:Math.round(w*10)/10,r}:null;
+  if(m&&(m.weight||0)>=w){ w=m.weight; r=m.reps||1; uni=false; }
+  return w>0?{w:Math.round(w*10)/10,r,uni}:null;   // uni = la mejor serie fue izq/der (peso POR MANO)
 }
 /* mejor marca contando ejercicios equivalentes (p. ej. RDL cuenta como peso muerto) */
 function bestLiftK(k){ let best=null; [k.id,...(k.alts||[])].forEach(id=>{ const b=bestLift(id); if(b&&(!best||b.w>best.w)) best=b; }); return best; }
@@ -1932,22 +1941,74 @@ function publishProfile(force){
   const name=((state.prefs&&state.prefs.displayName)||"").trim()||("Atleta "+code.slice(0,3));
   const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLiftK(k); if(b) lifts[k.id]=b; });
   const doc={t:"prof", name, code, week:wk, lifts, ach:Object.keys(state.achievements||{}), rank:(currentRank().rank||{}).id||null, at:Date.now()};
-  if(state.profilePhoto && state.profilePhoto.length<150000) doc.photo=state.profilePhoto;
+  if(state.profilePhoto && state.profilePhoto.length<400000) doc.photo=state.profilePhoto;
   const id=profPrefix(code)+String(1e13-Date.now()).padStart(13,"0");   // id decreciente → el más nuevo queda primero
   fbDb.collection("shared").doc(id).set(doc)
     .then(()=>{ state._profPub={at:Date.now(), ton:wk.ton, n:wk.workouts}; saveLocal(); }).catch(()=>{});
 }
 function setDisplayName(){ const v=prompt("Tu nombre para el ranking:", (state.prefs&&state.prefs.displayName)||""); if(v==null) return; if(!state.prefs)state.prefs={}; state.prefs.displayName=v.trim().slice(0,20); save(); publishProfile(true); setTimeout(renderRanking,900); }
+/* ===== solicitudes de amistad (esquema solo-crear en `shared`):
+   q_<CODIGO-DESTINO>_<ts-inverso> = solicitud · a_<CODIGO-DESTINO>_<ts-inverso> = aceptación ===== */
+function reqPrefix(code){ return "q_"+code+"_"; }
+function accPrefix(code){ return "a_"+code+"_"; }
+function fetchByPrefix(pfx,lim){
+  if(!fbDb) return Promise.resolve([]);
+  const FP=firebase.firestore.FieldPath.documentId();
+  return fbDb.collection("shared").where(FP,">=",pfx).where(FP,"<=",pfx+"").limit(lim||20).get()
+    .then(q=>{ const a=[]; q.forEach(d=>a.push(d.data())); return a; }).catch(()=>[]);
+}
 function addFriendByCode(){
   if(!fbUser||!fbDb) return toast("Inicia sesión en la nube (Ajustes)");
   const v=prompt("Código de tu amigo (6 caracteres):",""); if(!v) return;
   const code=v.trim().toUpperCase(); if(code===myFriendCode()) return toast("Ese es tu propio código");
+  if((state.friends||[]).some(f=>f.code===code)) return toast("Ya son amigos");
   latestProfile(code).then(p=>{
     if(!p) return toast("No encontré ese código: tu amigo debe abrir su Ranking una vez");
-    if(!state.friends) state.friends=[];
-    if(state.friends.some(f=>f.code===code)) return toast("Ya son amigos");
-    state.friends.push({code, name:p.name||code});
-    save(); toast("Amigo agregado ✓"); renderRanking();
+    const me=localProfile();
+    const doc={t:"freq", to:code, from:{code:me.code,name:me.name,rank:me.rank||null}, at:Date.now()};
+    const id=reqPrefix(code)+String(1e13-Date.now()).padStart(13,"0");
+    fbDb.collection("shared").doc(id).set(doc).then(()=>{
+      if(!state.friendReqSent) state.friendReqSent={};
+      state.friendReqSent[code]=Date.now(); saveLocal();
+      toast("Solicitud enviada a "+(p.name||code)+" ✓");
+    }).catch(()=>toast("No se pudo enviar, intenta de nuevo"));
+  });
+}
+/* pendientes que me llegaron (para la sección Solicitudes del Perfil) */
+function fetchFriendRequests(){
+  if(!fbUser||!fbDb) return Promise.resolve([]);
+  return fetchByPrefix(reqPrefix(myFriendCode()),25).then(list=>{
+    const seen=state.friendReqHandled||{}, uniq={};
+    list.forEach(q=>{ const c=q&&q.t==="freq"&&q.from&&q.from.code; if(!c||uniq[c]) return; uniq[c]=q; });
+    return Object.values(uniq).filter(q=>!seen[q.from.code] && !(state.friends||[]).some(f=>f.code===q.from.code));
+  });
+}
+function acceptFriendReq(code,name){
+  if(!state.friends) state.friends=[];
+  if(!state.friends.some(f=>f.code===code)) state.friends.push({code,name:name||code});
+  if(!state.friendReqHandled) state.friendReqHandled={};
+  state.friendReqHandled[code]=todayStr();
+  try{ const me=localProfile(); const id=accPrefix(code)+String(1e13-Date.now()).padStart(13,"0");
+    fbDb.collection("shared").doc(id).set({t:"facc", to:code, from:{code:me.code,name:me.name}, at:Date.now()});
+  }catch(e){}
+  save(); publishProfile(true); renderPerfil(); toast("Ahora son amigos ✓");
+}
+function declineFriendReq(code){
+  if(!state.friendReqHandled) state.friendReqHandled={};
+  state.friendReqHandled[code]=todayStr(); saveLocal(); renderPerfil();
+}
+/* si alguien aceptó MI solicitud, se agrega solo (solo si yo la envié) */
+function checkFriendAcceptances(){
+  if(!fbUser||!fbDb) return Promise.resolve(false);
+  return fetchByPrefix(accPrefix(myFriendCode()),20).then(list=>{
+    let added=0;
+    list.forEach(a=>{ const c=a&&a.t==="facc"&&a.from&&a.from.code; if(!c) return;
+      if((state.friendReqSent||{})[c] && !(state.friends||[]).some(f=>f.code===c)){
+        if(!state.friends) state.friends=[];
+        state.friends.push({code:c,name:a.from.name||c}); added++;
+      } });
+    if(added){ save(); toast("¡Aceptaron tu solicitud de amistad!"); }
+    return added>0;
   });
 }
 function removeFriend(code){ if(!confirm("¿Quitar a este amigo del ranking?")) return; state.friends=(state.friends||[]).filter(f=>f.code!==code); save(); renderRanking(); }
@@ -1960,29 +2021,36 @@ const LIFT_STD={ // multiplicadores de peso corporal: [Principiante, Novato, Int
   e_remobarra: {m:[0.50,0.75,1.00,1.50,1.75], f:[0.25,0.40,0.65,0.90,1.20]},
   e_hipthrust: {m:[0.75,1.25,1.75,2.50,3.00], f:[0.50,1.00,1.50,2.00,2.50]},
 };
-const LIFT_LVL_NAMES=["Principiante","Novato","Intermedio","Avanzado","Élite"];
+const LIFT_LVL_NAMES=["Principiante","Novato","Intermedio","Avanzado","Élite","Clase mundial"];
 function liftLevel(exId,b){
   const std=LIFT_STD[exId]; const bw=(state.goals&&state.goals.weight)||0;
   if(!std||!bw||!b) return null;
   const sex=(state.goals&&state.goals.sex)==="female"?"f":"m";
-  const orm=(b.r||1)<=1?b.w:epley(b.w,b.r);
+  const w=b.uni? b.w*2 : b.w;   // unilateral = peso POR MANO → se cuentan las dos
+  const orm=(b.r||1)<=1?w:epley(w,b.r);
   const ratio=orm/bw; const arr=std[sex];
-  let lvl=-1; for(let i=0;i<arr.length;i++){ if(ratio>=arr[i]) lvl=i; }
-  return lvl>=0?{lvl,name:LIFT_LVL_NAMES[lvl],ratio:Math.round(ratio*100)/100}:{lvl:-1,name:"—",ratio:Math.round(ratio*100)/100};
+  // debajo del primer umbral = Principiante; cada umbral sube un nivel (tope: Clase mundial)
+  let lvl=0; for(let i=0;i<arr.length;i++){ if(ratio>=arr[i]) lvl=i+1; }
+  return {lvl,name:LIFT_LVL_NAMES[lvl],ratio:Math.round(ratio*100)/100};
 }
-/* ===== rangos de fuerza: total de banca + sentadilla + peso muerto (o RDL) ===== */
-const RANKS=[
- {id:'mad1',    n:'Madera I',   need:60,  col:'#A07855'},
- {id:'mad2',    n:'Madera II',  need:100, col:'#A07855'},
- {id:'mad3',    n:'Madera III', need:140, col:'#8B5E3C'},
- {id:'bronce',  n:'Bronce',     need:180, col:'#B87333'},
- {id:'hierro',  n:'Hierro',     need:230, col:'#7A828E'},
- {id:'plata',   n:'Plata',      need:280, col:'#9AA3B1'},
- {id:'oro',     n:'Oro',        need:340, col:'#E0A013'},
- {id:'platino', n:'Platino',    need:400, col:'#4FC3B8'},
- {id:'diamante',n:'Diamante',   need:470, col:'#38BDF8'},
- {id:'leyenda', n:'Leyenda',    need:550, col:'#A855F7'},
+/* ===== rangos de fuerza: total de banca + sentadilla + peso muerto (o RDL).
+   Cada rango tiene niveles I·II·III (mejoras chicas, +25 kg) y entre rangos
+   el salto es mayor (+40 kg). Leyenda es el tope. ===== */
+const RANK_TIERS=[
+ {n:'Madera',  col:'#A07855', needs:[60,85,110]},
+ {n:'Bronce',  col:'#B87333', needs:[150,175,200]},
+ {n:'Hierro',  col:'#6E7683', needs:[240,265,290]},
+ {n:'Plata',   col:'#9AA3B1', needs:[330,355,380]},
+ {n:'Oro',     col:'#E0A013', needs:[420,445,470]},
+ {n:'Platino', col:'#45C4B8', needs:[510,535,560]},
+ {n:'Diamante',col:'#38BDF8', needs:[600,630,660]},
 ];
+const RANKS=[];
+RANK_TIERS.forEach(t=>{ ["I","II","III"].forEach((rm,i)=>RANKS.push({id:t.n.toLowerCase()+(i+1), n:t.n+" "+rm, col:t.col, need:t.needs[i], tier:t.n})); });
+RANKS.push({id:'leyenda', n:'Leyenda', col:'#A855F7', need:700, tier:'Leyenda'});
+/* busca un rango por id (acepta ids viejos de la versión anterior) */
+const RANK_LEGACY={mad1:'madera1',mad2:'madera2',mad3:'madera3',bronce:'bronce1',hierro:'hierro1',plata:'plata1',oro:'oro1',platino:'platino1',diamante:'diamante1',leyenda:'leyenda'};
+function rankById(id){ if(!id) return null; return RANKS.find(r=>r.id===id)||RANKS.find(r=>r.id===RANK_LEGACY[id])||null; }
 function rankTotal(){
   const b=bestLift('e_pressbanca'), s=bestLift('e_sentadilla');
   let d=null; DL_IDS.forEach(id=>{ const x=bestLift(id); if(x&&(!d||x.w>d.w)) d=x; });
@@ -2025,13 +2093,49 @@ function renderRanking(){
   const el=document.getElementById("rankingBox"); if(!el) return;
   if(!fbUser||!fbDb){ el.innerHTML=`<div class="empty" style="margin:0">Inicia sesión en la nube (Ajustes → Cuenta) para competir con tus amigos.</div>`; return; }
   publishProfile();
-  const me=localProfile();
-  const codes=((state.friends||[]).filter(f=>f.code).map(f=>f.code));
   el.innerHTML=`<div class="empty" style="margin:0">Cargando ranking…</div>`;
-  Promise.all(codes.map(c=>latestProfile(c))).then(profs=>{
-    __rankRows=[me, ...profs.filter(Boolean)];
-    drawRanking();
+  checkFriendAcceptances().then(()=>{
+    const me=localProfile();
+    const codes=((state.friends||[]).filter(f=>f.code).map(f=>f.code));
+    return Promise.all(codes.map(c=>latestProfile(c))).then(profs=>{
+      __rankRows=[me, ...profs.filter(Boolean)];
+      drawRanking();
+    });
   });
+}
+/* perfil de un amigo (tocarlo en el ranking): rango, básicos e insignias */
+function openFriendProfile(code){
+  const r=__rankRows.find(x=>x.code===code); if(!r) return;
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent=r.name||r.code;
+  const rk=rankById(r.rank);
+  const lifts=KEY_LIFTS.map(k=>{ const x=r.lifts&&r.lifts[k.id]; return x?`<div class="kv"><span>${k.lbl}</span><b>${uw(x.w)} ${unit()} × ${x.r}</b></div>`:""; }).join("");
+  const achIds=Array.isArray(r.ach)?r.ach:[];
+  const badges=achIds.map(id=>{ const d=ACH_DEFS.find(a=>a.id===id); return d?`<span class="pill" style="margin:0 4px 6px 0;display:inline-flex">${ic(d.icn,12)} ${d.n}</span>`:""; }).join("");
+  b.innerHTML=`
+    <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">${avatarHtml(r,64)}
+      <div style="min-width:0"><div style="font-weight:800;font-size:19px">${r.name||r.code}</div>
+        ${rk?`<span class="rk-rank" style="background:${rk.col};position:static;margin-top:4px;display:inline-block">${rk.n}</span>`:`<span style="font-size:12.5px;color:var(--muted)">Sin rango de fuerza aún</span>`}
+      </div></div>
+    <div class="kv"><span>Tonelaje (7 días)</span><b>${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()}</b></div>
+    <div class="kv"><span>Racha de dieta</span><b>${(r.week&&r.week.streak)||0} días</b></div>
+    ${lifts?`<div style="font-weight:700;margin:12px 0 2px">Sus básicos</div>${lifts}`:""}
+    <div style="font-weight:700;margin:14px 0 8px">Insignias (${achIds.length})</div>
+    <div style="line-height:1.9">${badges||'<span style="color:var(--muted);font-size:13px">Aún no tiene insignias.</span>'}</div>
+    <button class="btn-primary" style="width:100%;margin-top:16px" onclick="headToHead('${code}')">⚔ Comparar 1 a 1</button>`;
+  openModal("exInfoModal");
+}
+/* lista completa de rangos y el total que pide cada uno */
+function openRanksList(){
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent="Rangos de fuerza";
+  const cur=(currentRank().rank||{}).id;
+  const r25=x=>(Math.round(x/2.5)*2.5);
+  b.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Tu total = mejor peso en <b>press banca + sentadilla + peso muerto (o RDL)</b>. El reparto de ejemplo es aproximado (banca 25% · sentadilla 35% · PM/RDL 40%).</div>`+
+    RANKS.map(r=>`<div class="kv" style="${r.id===cur?'background:var(--accent-soft);border-radius:12px;padding:11px 10px!important':''}">
+      <span style="display:flex;align-items:center;gap:9px"><i style="width:12px;height:12px;border-radius:50%;background:${r.col};flex:0 0 auto"></i>${r.n}${r.id===cur?' <span class="rk-you">TÚ</span>':''}</span>
+      <b style="font-size:13.5px">${r.need} kg <span style="color:var(--muted);font-weight:600;font-size:11px">(${r25(r.need*0.25)} · ${r25(r.need*0.35)} · ${r25(r.need*0.40)})</span></b></div>`).join("");
+  openModal("exInfoModal");
 }
 function drawRanking(){
   const el=document.getElementById("rankingBox"); if(!el) return;
@@ -2042,25 +2146,27 @@ function drawRanking(){
   const rows=[...__rankRows].sort((a,b)=>metricValue(b,rankMetric)-metricValue(a,rankMetric));
   const maxVal=Math.max(1,...rows.map(r=>metricValue(r,rankMetric)));
   const chips=`<div class="rk-chips">${opts.map(o=>`<button class="rk-chip${o.v===rankMetric?' on':''}" onclick="setRankMetric('${o.v}')">${o.s}</button>`).join("")}</div>`;
-  // podio: hasta 3 con marca > 0, orden 2º · 1º · 3º
+  // podio: 3 tarjetitas (2º · 1º · 3º) con su RANGO de fuerza
   const top=rows.filter(r=>metricValue(r,rankMetric)>0).slice(0,3);
   let podium="";
   if(top.length>=2){
     const layout=[top[1],top[0],top[2]].filter(Boolean);
     podium=`<div class="rk-podium">${layout.map(p=>{const idx=top.indexOf(p),first=idx===0,isMe=p.code===myCode;
-      return `<div class="rk-pod${first?' first':''}"${isMe?'':` onclick="headToHead('${p.code}')"`}>
-        <div class="rk-medal p${idx+1}">${idx+1}</div>${avatarHtml(p,first?66:50)}
+      const rk=rankById(p.rank);
+      return `<div class="rk-pod${first?' first':''}" onclick="${isMe?"nav('perfil')":`openFriendProfile('${p.code}')`}">
+        <div class="rk-medal p${idx+1}">${idx+1}</div>${avatarHtml(p,first?64:48)}
         <div class="rk-pn">${(p.name||p.code||'?')}${isMe&&(p.name||'')!=='Tú'?' <i>tú</i>':''}</div>
+        ${rk?`<span class="rk-rank" style="background:${rk.col}">${rk.n}</span>`:`<span class="rk-rank" style="background:var(--surface3);color:var(--muted)">Sin rango</span>`}
         <div class="rk-pv">${metricLabel(p,rankMetric)}</div></div>`;}).join("")}</div>`;
   }
   const list=rows.length?`<div class="rk-list">`+rows.map((r,i)=>{const val=metricValue(r,rankMetric),isMe=r.code===myCode,pct=Math.round(val/maxVal*100);
-    return `<div class="rk-row${isMe?' me':''}"${isMe?'':` onclick="headToHead('${r.code}')"`}>
+    return `<div class="rk-row${isMe?' me':''}" onclick="${isMe?"nav('perfil')":`openFriendProfile('${r.code}')`}">
       <span class="rk-num${i<3?' m'+(i+1):''}">${i+1}</span>${avatarHtml(r,38)}
       <div class="rk-main"><div class="rk-name">${r.name||r.code}${isMe&&(r.name||'')!=='Tú'?' <span class="rk-you">TÚ</span>':''}</div>
         <div class="rk-bar"><i style="width:${pct}%"></i></div></div>
       <div class="rk-val">${metricLabel(r,rankMetric)}</div>
       ${isMe?'':`<span class="rk-x" onclick="event.stopPropagation();removeFriend('${r.code}')">×</span>`}</div>`;}).join("")+`</div>`
-    :`<div class="empty" style="margin:10px 0">Aún no tienes amigos aquí. Agrega a alguien con su código de 6 letras para competir.</div>`;
+    :`<div class="empty" style="margin:10px 0">Aún no tienes amigos aquí. Agrega a alguien con su código de 6 letras: le llegará una solicitud a su Perfil.</div>`;
   el.innerHTML=`
     <div class="rk-head">
       <span onclick="nav('perfil')" style="cursor:pointer">${avatarHtml(me,46)}</span>
@@ -2098,7 +2204,7 @@ function headToHead(code){
     `<div class="kv"><span>Tonelaje (7 días)</span><b>${nfmt(fromKg((me.week&&me.week.ton)||0))} vs ${nfmt(fromKg((r.week&&r.week.ton)||0))} ${unit()}</b></div>
      <div class="kv"><span>Racha de dieta</span><b>${(me.week&&me.week.streak)||0} vs ${(r.week&&r.week.streak)||0} días</b></div>
      <div class="kv"><span>Insignias</span><b>${meAch} vs ${rAch}</b></div>
-     ${(function(){const rn=id=>{const x=RANKS.find(q=>q.id===id);return x?x.n:"—";};return (me.rank||r.rank)?`<div class="kv"><span>Rango de fuerza</span><b>${rn(me.rank)} vs ${rn(r.rank)}</b></div>`:"";})()}
+     ${(function(){const rn=id=>{const x=rankById(id);return x?x.n:"—";};return (me.rank||r.rank)?`<div class="kv"><span>Rango de fuerza</span><b>${rn(me.rank)} vs ${rn(r.rank)}</b></div>`:"";})()}
      ${theirBadges?`<div style="font-size:12px;color:var(--muted);margin-top:8px">Sus insignias: ${theirBadges}</div>`:""}
      <div style="margin-top:12px;font-weight:800;text-align:center">${wins>losses?`Vas ganando ${wins}–${losses}`:(losses>wins?`Te va ganando ${losses}–${wins}`:`Empate ${wins}–${losses}`)} en básicos</div>`;
   openModal("exInfoModal");
@@ -2109,7 +2215,7 @@ function renderPerfil(){
   checkAchievements();
   const p=localProfile();
   const lifts=KEY_LIFTS.map(k=>{ const b=p.lifts[k.id]; const lv=b?liftLevel(k.id,b):null;
-    return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}`:"—"}</b></div>`; }).join("");
+    return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}${b.uni?' <span style="color:var(--muted);font-size:11px;font-weight:600">por mano</span>':''}`:"—"}</b></div>`; }).join("");
   const rk=currentRank();
   const prevNeed=rk.rank?rk.rank.need:0;
   const pct=rk.next?Math.max(0,Math.min(100,Math.round((rk.total-prevNeed)/(rk.next.need-prevNeed)*100))):100;
@@ -2123,7 +2229,8 @@ function renderPerfil(){
     ${rk.next?`<div class="rk-bar" style="margin-top:12px;height:7px"><i style="width:${pct}%;background:${rk.rank?rk.rank.col:'var(--accent)'}"></i></div>
       <div style="font-size:12px;color:var(--muted);margin-top:7px">Te faltan <b style="color:var(--text)">${uw(Math.max(0,Math.round((rk.next.need-rk.total)*10)/10))} ${unit()}</b> de total para <b style="color:${rk.next.col}">${rk.next.n}</b></div>`
       :`<div style="font-size:12px;color:var(--muted);margin-top:8px">Rango máximo alcanzado</div>`}
-    <small class="hint" style="display:block;margin-top:8px">Suma tu mejor peso levantado en press banca + sentadilla + peso muerto (si no haces peso muerto, cuenta tu RDL). Sube de rango subiendo tus básicos.</small></div>`;
+    <small class="hint" style="display:block;margin-top:8px">Suma tu mejor peso levantado en press banca + sentadilla + peso muerto (si no haces peso muerto, cuenta tu RDL). Dentro de un rango los niveles I·II·III son mejoras chicas; entre rangos el salto es mayor.</small>
+    <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openRanksList()">Ver todos los rangos y sus pesos</button></div>`;
   el.innerHTML=`
    <div class="card" style="display:flex;align-items:center;gap:16px">
      <div style="cursor:pointer;position:relative" onclick="pickProfilePhoto()">${avatarHtml(p,84)}<div style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center">${ic('pencil',13,'#fff')}</div></div>
@@ -2132,23 +2239,40 @@ function renderPerfil(){
        <div style="font-size:12px;color:var(--muted);margin-top:3px">${p.code?`Código: <b style="letter-spacing:1.5px;color:var(--accent);cursor:pointer" onclick="copyFriendCode()">${p.code}</b> (tocar = copiar)`:"Inicia sesión en la nube (Ajustes) para tener código"}</div>
        <div style="font-size:12px;color:var(--muted);margin-top:3px">${(state.workouts||[]).length} entrenos · ${nfmt(fromKg(totalTonnage()))} ${unit()} movidos en total</div>
      </div></div>
+   ${fbUser?`<div class="card" style="margin-top:14px"><h3>Solicitudes de amistad</h3><div id="friendReqBox"><div style="font-size:13px;color:var(--muted)">Buscando solicitudes…</div></div></div>`:""}
    ${rankCard}
    <div class="card" style="margin-top:14px"><h3>Tus básicos · mejor peso</h3>${lifts}
      <small class="hint" style="display:block;margin-top:8px">Tu mejor serie registrada o tu PR manual (Records), lo que sea mayor. El RDL cuenta como peso muerto. El nivel compara tu 1RM estimado contra tu peso corporal (estilo Strength Level). Con estos números compites en el ranking.</small></div>
    <div class="card" style="margin-top:14px"><h3>Logros</h3><div id="perfilLogros"></div></div>
    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="nav('ranking')">Ver ranking de amigos</button>`;
   renderAchievements();
+  renderFriendRequests();
+  checkFriendAcceptances();
+}
+function renderFriendRequests(){
+  const el=document.getElementById("friendReqBox"); if(!el||!fbUser||!fbDb) return;
+  fetchFriendRequests().then(pend=>{
+    if(!pend.length){ el.innerHTML=`<div style="font-size:13px;color:var(--muted)">No tienes solicitudes pendientes. Comparte tu código para que te agreguen.</div>`; return; }
+    el.innerHTML=pend.map(q=>{ const rk=rankById(q.from.rank); const nm=(q.from.name||q.from.code).replace(/'/g,"");
+      return `<div class="kv" style="align-items:center">
+        <span style="display:flex;align-items:center;gap:10px;min-width:0">${avatarHtml(q.from,36)}
+          <span style="min-width:0"><span style="display:block;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.from.name||q.from.code}</span>
+          ${rk?`<span style="font-size:11px;color:${rk.col};font-weight:700">${rk.n}</span>`:`<span style="font-size:11px;color:var(--muted)">quiere ser tu amigo</span>`}</span></span>
+        <b style="display:flex;gap:6px;flex:0 0 auto">
+          <button class="btn-primary btn-sm" onclick="acceptFriendReq('${q.from.code}','${nm}')">Aceptar</button>
+          <button class="btn-ghost btn-sm" onclick="declineFriendReq('${q.from.code}')">${ic('x',13)}</button></b></div>`; }).join("");
+  });
 }
 function pickProfilePhoto(){ const i=document.getElementById("profilePhotoInput"); if(i) i.click(); }
 function onProfilePhoto(input){
   const f=input.files&&input.files[0]; if(!f) return;
   const rd=new FileReader();
   rd.onload=e=>{ const img=new Image();
-    img.onload=()=>{ const S=256,c=document.createElement("canvas"); c.width=S;c.height=S;   // 256px: nítida en pantallas retina
+    img.onload=()=>{ const S=512,c=document.createElement("canvas"); c.width=S;c.height=S;   // 512px: nítida incluso ampliada
       const x=c.getContext("2d"), m=Math.min(img.width,img.height);
       x.imageSmoothingQuality="high";
       x.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,S,S);
-      state.profilePhoto=c.toDataURL("image/jpeg",0.82);
+      state.profilePhoto=c.toDataURL("image/jpeg",0.85);
       save(); publishProfile(true); renderPerfil(); toast("Foto actualizada");
     };
     img.src=e.target.result; };
@@ -2537,15 +2661,12 @@ const SET_TAGS={
   n:{title:"Serie normal",bg:"var(--surface3)",fg:"var(--muted)",short:""},
   w:{title:"Calentamiento (no cuenta)",bg:"#C7CDD6",fg:"#28303B",short:"C"},
   f:{title:"Al fallo",bg:"#FF453A",fg:"#fff",short:"F"},
-  d:{title:"Dropset",bg:"#FF9F0A",fg:"#3a2600",short:"D"},
-  u:{title:"Unilateral (izq/der solo en esta serie)",bg:"#0EA5A5",fg:"#fff",short:"LD"}
+  d:{title:"Dropset",bg:"#FF9F0A",fg:"#3a2600",short:"D"}
 };
 const SS_COLORS={A:"#7C3AED",B:"#0EA5A5",C:"#F59E0B",D:"#EC4899",E:"#22C55E"};
-function cycleSetType(i,j){ const order=["n","w","f","d","u"]; const s=sessionDraft.entries[i].sets[j];
+function cycleSetType(i,j){ const order=["n","w","f","d"]; const s=sessionDraft.entries[i].sets[j];
   const prev=s.type||"n"; const next=order[(order.indexOf(prev)+1)%order.length];
-  if(prev==="u"){ s.reps=Math.max(s.repsL||0,s.repsR||0)||s.reps||0; delete s.repsL; delete s.repsR; }
-  if(next==="d"){ if(!Array.isArray(s.drops)||!s.drops.length) s.drops=[{weight:s.weight||0,reps:s.reps||0}]; delete s.repsL; delete s.repsR; s.type="d"; }
-  else if(next==="u"){ if(s.repsL==null)s.repsL=s.reps||0; if(s.repsR==null)s.repsR=s.reps||0; delete s.drops; s.type="u"; }
+  if(next==="d"){ if(!Array.isArray(s.drops)||!s.drops.length) s.drops=[{weight:s.weight||0,reps:s.reps||0}]; s.type="d"; }
   else { if(prev==="d"&&Array.isArray(s.drops)&&s.drops[0]){ s.weight=s.drops[0].weight||0; s.reps=s.drops[0].reps||0; } delete s.drops; s.type = next==="n"?undefined:next; }
   renderSesion(); }
 /* --- bajadas de un dropset --- */
@@ -2646,13 +2767,14 @@ function renderSesion(){
         </div>
         <div class="set-head${e.uni?' uni':''}">${e.uni?`<span></span><span>Peso (${unit()})</span><span>Izq</span><span>Der</span><span>RIR</span><span></span><span></span>`:`<span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span><span></span>`}</div>
         ${e.sets.map((s,j)=>{
-          const isUni = e.uni || s.type==="u" || (s.repsL!=null&&s.type!=="d");
+          if(s.type==="u") delete s.type;   // limpieza del experimento LD por serie (descartado)
+          const isUni = e.uni || (s.repsL!=null&&s.type!=="d");
           const tg=SET_TAGS[s.type||"n"];
           let cShort,cBg,cFg;
           if(!e.uni && s.type&&s.type!=="n"){ cShort=tg.short; cBg=tg.bg; cFg=tg.fg; }
           else if(e.sg){ cShort=e.sg; cBg=ssCol; cFg="#fff"; }
           else { cShort=(j+1); cBg=tg.bg; cFg=tg.fg; }
-          const chip=`<button class="sidx" title="${e.uni?'Serie':'Toca para cambiar tipo (calentamiento/fallo/dropset/unilateral)'}" style="cursor:pointer;border:none;background:${cBg};color:${cFg};font-weight:700" onclick="${e.uni?'':`cycleSetType(${i},${j})`}">${cShort}</button>`;
+          const chip=`<button class="sidx" title="${e.uni?'Serie':'Toca para cambiar tipo (calentamiento/fallo/dropset)'}" style="cursor:pointer;border:none;background:${cBg};color:${cFg};font-weight:700" onclick="${e.uni?'':`cycleSetType(${i},${j})`}">${cShort}</button>`;
           if(isUni){
             return `<div class="set-row uni">
               ${chip}

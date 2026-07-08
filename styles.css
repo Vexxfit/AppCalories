@@ -755,6 +755,11 @@ nav button.active svg{stroke-width:2.2}
 .meal-row:active,.settings-row:active,.list-row:active,.rk-row:active{transform:scale(.985)}
 .meal-row,.settings-row,.list-row,.rk-row{transition:transform .1s ease,background .15s,box-shadow .15s}
 
+/* ---- 17b · Podio como tarjetas + chip de rango ---- */
+.rk-pod{background:var(--surface);border:1px solid var(--hairline-soft);box-shadow:var(--shadow-sm);padding:18px 6px 12px;gap:7px}
+.rk-pod.first{background:linear-gradient(180deg,var(--accent-soft),var(--surface));border-color:var(--hairline)}
+.rk-rank{font-size:9.5px;color:#fff;font-weight:800;padding:2.5px 9px;border-radius:999px;letter-spacing:.02em;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+
 /* ---- 17 · Ajustes del lote Z (jul 2026) ---- */
 /* la tarjeta de racha ya no queda pegada al anillo de calorías */
 .card.hero{margin-bottom:14px}
