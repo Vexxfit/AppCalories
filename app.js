@@ -1823,6 +1823,27 @@ const KEY_LIFTS=[
  {id:'e_pressincbarra',lbl:'Press inclinado',short:'Inclinado',  alts:['e_pressincmanc']},
  {id:'e_prensa',       lbl:'Prensa',         short:'Prensa'},
 ];
+/* básicos visibles: el usuario puede ocultar los que no hace (solo estética;
+   el rango de fuerza sigue usando banca+sentadilla+PM/RDL aunque estén ocultos) */
+function visibleKeyLifts(){ const h=(state.prefs&&state.prefs.hiddenLifts)||[]; return KEY_LIFTS.filter(k=>!h.includes(k.id)); }
+function toggleLiftVisible(id){
+  if(!state.prefs) state.prefs={};
+  let h=state.prefs.hiddenLifts||[];
+  if(h.includes(id)) h=h.filter(x=>x!==id);
+  else { if(KEY_LIFTS.length-h.length<=1) return toast("Deja al menos un básico visible"); h=[...h,id]; }
+  state.prefs.hiddenLifts=h; save(); openLiftsPicker(); if(document.getElementById("perfilContent")) renderPerfil();
+}
+function openLiftsPicker(){
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent="Mis básicos";
+  const h=(state.prefs&&state.prefs.hiddenLifts)||[];
+  b.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin-bottom:10px;line-height:1.5">Elige qué levantamientos aparecen en tu perfil y en el ranking. Tu rango de fuerza sigue usando banca + sentadilla + peso muerto (o RDL) aunque los ocultes.</div>`+
+    KEY_LIFTS.map(k=>{ const on=!h.includes(k.id); const bl=bestLiftK(k);
+      return `<div class="kv" style="align-items:center">
+        <span>${k.lbl} ${bl?`<span style="color:var(--muted);font-size:12px">· ${uw(bl.w)} ${unit()}${(bl.uni||bl.hand)?"/mano":""}</span>`:'<span style="color:var(--muted);font-size:12px">· sin marca</span>'}</span>
+        <b><button class="btn-sm ${on?'btn-primary':'btn-ghost'}" onclick="toggleLiftVisible('${k.id}')">${on?'Visible':'Oculto'}</button></b></div>`; }).join("");
+  openModal("exInfoModal");
+}
 /* tu mejor peso levantado en un ejercicio: mejor serie registrada o PR manual (el que sea mayor) */
 /* ejercicios de mancuernas (por pares): el peso registrado es POR MANO → cuenta doble.
    Se detecta por el nombre del ejercicio; "hand" queda implícito sin marcar nada. */
@@ -1902,6 +1923,20 @@ const ACH_DEFS=[
  {id:'sq220', n:'Club 220 · sentadilla',d:'220 kg en sentadilla',             icn:'trophy',   t:_club('e_sentadilla',220)},
  {id:'dl220', n:'Club 220 · PM/RDL',d:'220 kg en peso muerto o RDL',          icn:'trophy',   t:_club(DL_IDS,220)},
  {id:'dl260', n:'Club 260 · PM/RDL',d:'260 kg en peso muerto o RDL',          icn:'trophy',   t:_club(DL_IDS,260)},
+ /* --- insignias SECRETAS: no se revela el requisito hasta desbloquearlas --- */
+ {id:'sec_night', secret:true, n:'Búho de hierro', d:'Guardaste una sesión después de las 10 pm', icn:'moon',
+   t:()=>(state.workouts||[]).some(w=>{const ts=parseInt(String(w.id||"").slice(2)); return ts>1e12 && new Date(ts).getHours()>=22;})},
+ {id:'sec_early', secret:true, n:'Madrugador', d:'Guardaste una sesión antes de las 7 am', icn:'sun',
+   t:()=>(state.workouts||[]).some(w=>{const ts=parseInt(String(w.id||"").slice(2)); return ts>1e12 && new Date(ts).getHours()<7;})},
+ {id:'sec_fiesta', secret:true, n:'Sin excusas', d:'Entrenaste en Navidad o Año Nuevo', icn:'star',
+   t:()=>(state.workouts||[]).some(w=>/-(12-25|01-01)$/.test(w.date||""))},
+ {id:'sec_beast', secret:true, n:'La bestia', d:'Una serie de 6 reps con 66–66.6 kg', icn:'fire',
+   t:()=>(state.workouts||[]).some(w=>w.entries.some(e=>(e.sets||[]).some(s=>!isWarmup(s)&&(s.reps===6)&&s.weight>=66&&s.weight<=66.6)))},
+ {id:'sec_leyenda', secret:true, n:'Eres leyenda', d:'Alcanzaste el rango Leyenda', icn:'trophy',
+   t:()=>((currentRank().rank||{}).id==='leyenda')},
+ /* --- retos entre amigos --- */
+ {id:'reto1', n:'Retador',        d:'Gana tu primer reto contra un amigo',    icn:'swap',     t:()=>(state.challenges||[]).filter(c=>c.status==='done'&&c.won).length>=1},
+ {id:'reto3', n:'Rey de los retos',d:'Gana 3 retos contra tus amigos',        icn:'trophy',   t:()=>(state.challenges||[]).filter(c=>c.status==='done'&&c.won).length>=3},
 ];
 let _achBusy=false;
 function checkAchievements(){
@@ -1918,13 +1953,22 @@ function renderAchievements(){
   checkAchievements();
   const un=state.achievements||{};
   const nUn=ACH_DEFS.filter(a=>un[a.id]).length;
-  el.innerHTML=`<div class="card-sub" style="margin:0 0 10px">${nUn} de ${ACH_DEFS.length} desbloqueados</div>
+  const pct=Math.round(nUn/ACH_DEFS.length*100);
+  el.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin:0 0 12px">
+    <div class="card-sub" style="margin:0;flex:1">${nUn} de ${ACH_DEFS.length} desbloqueados</div>
+    <b style="font-size:13px;color:var(--accent)">${pct}%</b></div>
+  <div class="rk-bar" style="height:6px;margin:-6px 0 14px"><i style="width:${pct}%"></i></div>
   <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px">`+
    ACH_DEFS.map(a=>{ const got=!!un[a.id];
+     if(a.secret && !got)
+       return `<div style="background:var(--bg2);border-radius:14px;padding:11px 8px;text-align:center;opacity:.55;border:1px dashed var(--border)">
+         <div style="font-size:19px;font-weight:800;color:var(--muted);line-height:20px">?</div>
+         <div style="font-size:12px;font-weight:700;margin-top:5px">Secreta</div>
+         <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.3">Se revela al desbloquearla</div></div>`;
      return `<div style="background:${got?'var(--accent-soft)':'var(--bg2)'};border-radius:14px;padding:11px 8px;text-align:center;${got?'':'opacity:.55'}">
        <div style="color:${got?'var(--accent)':'var(--muted)'}">${ic(a.icn,20)}</div>
-       <div style="font-size:12px;font-weight:700;margin-top:5px">${a.n}</div>
-       <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.3">${got?a.d:a.d}</div></div>`; }).join("")+`</div>`;
+       <div style="font-size:12px;font-weight:700;margin-top:5px">${a.n}${a.secret?' ✦':''}</div>
+       <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.3">${a.d}</div></div>`; }).join("")+`</div>`;
 }
 /* ==================== RANKING SEMANAL DE AMIGOS (por código) ==================== */
 function myFriendCode(){ if(!fbUser) return null; let h=0; const s=fbUser.uid; for(let i=0;i<s.length;i++){ h=(h*31+s.charCodeAt(i))>>>0; }
@@ -1953,6 +1997,8 @@ function publishProfile(force){
   const name=((state.prefs&&state.prefs.displayName)||"").trim()||("Atleta "+code.slice(0,3));
   const lifts={}; KEY_LIFTS.forEach(k=>{ const b=bestLiftK(k); if(b) lifts[k.id]=b; });
   const doc={t:"prof", name, code, week:wk, lifts, ach:Object.keys(state.achievements||{}), rank:(currentRank().rank||{}).id||null, at:Date.now()};
+  const chs={}; (state.challenges||[]).forEach(c=>{ if(c.status==="active") chs[c.id]=chalScore(c); });
+  if(Object.keys(chs).length) doc.chs=chs;   // marcador de retos activos (lo lee el rival)
   if(state.profilePhoto && state.profilePhoto.length<400000) doc.photo=state.profilePhoto;
   const id=profPrefix(code)+String(1e13-Date.now()).padStart(13,"0");   // id decreciente → el más nuevo queda primero
   fbDb.collection("shared").doc(id).set(doc)
@@ -2001,13 +2047,129 @@ function acceptFriendReq(code,name){
   if(!state.friendReqHandled) state.friendReqHandled={};
   state.friendReqHandled[code]=todayStr();
   try{ const me=localProfile(); const id=accPrefix(code)+String(1e13-Date.now()).padStart(13,"0");
-    fbDb.collection("shared").doc(id).set({t:"facc", to:code, from:{code:me.code,name:me.name}, at:Date.now()});
+    fbDb.collection("shared").doc(id).set({t:"facc", to:code, from:{code:me.code,name:me.name}, at:Date.now()}).catch(()=>{});
   }catch(e){}
   save(); publishProfile(true); renderPerfil(); toast("Ahora son amigos ✓");
 }
 function declineFriendReq(code){
   if(!state.friendReqHandled) state.friendReqHandled={};
   state.friendReqHandled[code]=todayStr(); saveLocal(); renderPerfil();
+}
+/* ===== RETOS entre amigos (solo-crear): c_<destino> = invitación · d_<retador> = aceptación.
+   Cada quien calcula su score local; el del rival llega en su perfil publicado (chs). ===== */
+const CHAL_KINDS={
+  dieta:  {lbl:"Días cumpliendo tu meta de calorías", s:"Dieta"},
+  entreno:{lbl:"Días con entreno registrado",         s:"Entreno"},
+  pasos:  {lbl:"Días cumpliendo tu meta de pasos",    s:"Pasos"},
+  agua:   {lbl:"Días cumpliendo tu meta de agua",     s:"Agua"}
+};
+let __chalInv={};
+function chalEnd(ch){ return dayShift(ch.start, ch.days); }   // exclusivo
+function chalDayNum(ch){ const ms=(new Date(todayStr())-new Date(ch.start))/86400000; return Math.max(0,Math.min(ch.days,Math.floor(ms)+1)); }
+function chalDayOk(kind,d){
+  if(kind==="entreno") return (state.workouts||[]).some(w=>w.date===d);
+  if(kind==="pasos"){ const g=(state.goals&&state.goals.steps)||0; return g>0 && ((state.steps||{})[d]||0)>=g; }
+  if(kind==="agua") return ((state.waterLog||{})[d]||0)>=waterGoalMl();
+  const goal=state.goals&&state.goals.calories; if(!goal) return false;
+  let cal=null, g2=goal;
+  const h=(state.history||[]).find(x=>x.date===d);
+  if(h&&h.calories>0){ cal=h.calories; g2=h.goalCalories||goal; }
+  else if(d===todayStr()){ const t=dayTotals(); if(t.cal>0) cal=t.cal; }
+  if(cal==null) return false;
+  return Math.abs(cal-g2)<=g2*0.10;
+}
+function chalScore(ch){ let n=0; for(let d=ch.start; d<chalEnd(ch) && d<=todayStr(); d=dayShift(d,1)){ if(chalDayOk(ch.kind,d)) n++; } return n; }
+function openChallengeForm(code,name){
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent="Retar a "+(name||code);
+  b.innerHTML=`
+    <div class="field"><label>Tipo de reto</label><select id="chKind">${Object.entries(CHAL_KINDS).map(([k,v])=>`<option value="${k}">${v.lbl}</option>`).join("")}</select></div>
+    <div class="field"><label>Duración</label><select id="chDays"><option value="7">7 días</option><option value="14">14 días</option><option value="30" selected>30 días</option></select></div>
+    <small class="hint">Empieza MAÑANA para los dos. Gana quien cumpla más días. El marcador del rival se actualiza cuando él abre su app.</small>
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="sendChallenge('${code}','${(name||'').replace(/'/g,'')}')">⚔ Enviar reto</button>`;
+  openModal("exInfoModal");
+}
+function sendChallenge(code,name){
+  if(!fbUser||!fbDb) return toast("Inicia sesión en la nube (Ajustes)");
+  const kind=val("chKind")||"entreno", days=parseInt(val("chDays"))||30;
+  const id="ch"+Date.now().toString(36), start=dayShift(todayStr(),1), me=localProfile();
+  const doc={t:"chal", chid:id, kind, days, start, to:code, from:{code:me.code,name:me.name}, at:Date.now()};
+  fbDb.collection("shared").doc("c_"+code+"_"+String(1e13-Date.now()).padStart(13,"0")).set(doc).then(()=>{
+    if(!state.challenges) state.challenges=[];
+    state.challenges.push({id, kind, days, start, rival:{code, name:name||code}, status:"sent", myScore:0, rivalScore:0});
+    save(); closeModal("exInfoModal"); toast("Reto enviado ⚔ — esperando a "+(name||code));
+    if(currentView==="ranking") renderRanking();
+  }).catch(()=>toast("No se pudo enviar el reto"));
+}
+function fetchChallengeInvites(){
+  if(!fbUser||!fbDb) return Promise.resolve([]);
+  return fetchByPrefix("c_"+myFriendCode()+"_",25).then(list=>{
+    const handled=state.chalHandled||{}, uniq={};
+    list.forEach(q=>{ if(!q||q.t!=="chal"||!q.from||!q.chid) return; if(!uniq[q.chid]) uniq[q.chid]=q; });
+    __chalInv=uniq;
+    return Object.values(uniq).filter(q=>!handled[q.chid] && !(state.challenges||[]).some(c=>c.id===q.chid) && todayStr()<dayShift(q.start,q.days));
+  });
+}
+function acceptChallenge(chid){
+  const q=__chalInv[chid]; if(!q) return;
+  if(!state.challenges) state.challenges=[];
+  state.challenges.push({id:q.chid, kind:q.kind, days:q.days, start:q.start, rival:{code:q.from.code, name:q.from.name||q.from.code}, status:"active", myScore:0, rivalScore:0});
+  if(!state.chalHandled) state.chalHandled={};
+  state.chalHandled[q.chid]=1;
+  try{ const me=localProfile();
+    fbDb.collection("shared").doc("d_"+q.from.code+"_"+String(1e13-Date.now()).padStart(13,"0")).set({t:"chacc", chid:q.chid, from:{code:me.code,name:me.name}, at:Date.now()}).catch(()=>{});
+  }catch(e){}
+  save(); publishProfile(true); renderPerfil(); toast("¡Reto aceptado! Arranca el "+q.start+" ⚔");
+}
+function declineChallenge(chid){ if(!state.chalHandled) state.chalHandled={}; state.chalHandled[chid]=1; saveLocal(); renderPerfil(); }
+function checkChallengeAccepts(){
+  if(!fbUser||!fbDb) return Promise.resolve();
+  return fetchByPrefix("d_"+myFriendCode()+"_",20).then(list=>{
+    let ok=false;
+    list.forEach(a=>{ if(!a||a.t!=="chacc") return; const c=(state.challenges||[]).find(x=>x.id===a.chid&&x.status==="sent"); if(c){ c.status="active"; ok=true; } });
+    if(ok){ save(); toast("¡Aceptaron tu reto! ⚔"); }
+  });
+}
+/* refresca marcadores con los perfiles de amigos y cierra retos vencidos */
+function refreshChallenges(profs){
+  const map={}; (profs||[]).forEach(p=>{ if(p&&p.code) map[p.code]=p; });
+  let done=false;
+  (state.challenges||[]).forEach(c=>{
+    if(c.status==="done"||c.status==="expired") return;
+    c.myScore=chalScore(c);
+    const rp=map[c.rival.code]; if(rp&&rp.chs&&rp.chs[c.id]!=null) c.rivalScore=rp.chs[c.id];
+    if(todayStr()>=chalEnd(c)){
+      if(c.status==="sent"){ c.status="expired"; return; }
+      c.status="done"; c.tie=c.myScore===c.rivalScore; c.won=c.myScore>c.rivalScore; done=true;
+      toast(c.tie?`Reto vs ${c.rival.name}: empate ${c.myScore}–${c.rivalScore}`:(c.won?`¡GANASTE el reto vs ${c.rival.name}! ${c.myScore}–${c.rivalScore} 🏆`:`Reto vs ${c.rival.name}: ${c.myScore}–${c.rivalScore}. La próxima cae.`));
+    }
+  });
+  saveLocal(); if(done) checkAchievements();
+}
+function challengesHTML(){
+  const cs=(state.challenges||[]).filter(c=>c.status!=="expired");
+  const act=cs.filter(c=>c.status==="active"||c.status==="sent");
+  const fin=cs.filter(c=>c.status==="done").slice(-2);
+  if(!act.length&&!fin.length) return "";
+  const row=c=>{
+    const K=CHAL_KINDS[c.kind]||{s:c.kind};
+    if(c.status==="sent") return `<div class="kv"><span>⚔ vs <b>${c.rival.name}</b> · ${K.s} ${c.days}d</span><b style="color:var(--muted);font-size:12.5px">esperando…</b></div>`;
+    if(c.status==="done") return `<div class="kv"><span>${c.won?"🏆":"⚔"} vs <b>${c.rival.name}</b> · ${K.s}</span><b style="color:${c.won?'var(--ok)':(c.tie?'var(--muted)':'var(--bad)')}">${c.tie?'Empate':(c.won?'Ganaste':'Perdió')} ${c.myScore}–${c.rivalScore}</b></div>`;
+    const day=chalDayNum(c), tot=Math.max(1,Math.max(c.myScore,c.rivalScore,1));
+    return `<div style="padding:10px 0;border-bottom:1px solid var(--hairline-soft)">
+      <div class="flex-between" style="margin-bottom:7px"><span style="font-size:13.5px">⚔ vs <b>${c.rival.name}</b> · ${K.s}</span><span style="font-size:11.5px;color:var(--muted)">día ${day} de ${c.days}</span></div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <b style="font-size:18px;font-variant-numeric:tabular-nums">${c.myScore}</b>
+        <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+          <div class="rk-bar" style="margin:0"><i style="width:${Math.round(c.myScore/tot*100)}%"></i></div>
+          <div class="rk-bar" style="margin:0"><i style="width:${Math.round(c.rivalScore/tot*100)}%;background:var(--warn)"></i></div>
+        </div>
+        <b style="font-size:18px;color:var(--muted);font-variant-numeric:tabular-nums">${c.rivalScore}</b>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px">tú (morado) vs ${c.rival.name} (naranja) · su marcador se actualiza cuando él abre la app</div>
+    </div>`;
+  };
+  return `<div style="margin:2px 0 16px"><div style="font-weight:700;font-size:15px;margin-bottom:4px">Retos</div>${act.map(row).join("")}${fin.map(row).join("")}</div>`;
 }
 /* si alguien aceptó MI solicitud, se agrega solo (solo si yo la envié) */
 function checkFriendAcceptances(){
@@ -2106,11 +2268,11 @@ function renderRanking(){
   if(!fbUser||!fbDb){ el.innerHTML=`<div class="empty" style="margin:0">Inicia sesión en la nube (Ajustes → Cuenta) para competir con tus amigos.</div>`; return; }
   publishProfile();
   el.innerHTML=`<div class="empty" style="margin:0">Cargando ranking…</div>`;
-  checkFriendAcceptances().then(()=>{
-    const me=localProfile();
+  Promise.all([checkFriendAcceptances(), checkChallengeAccepts()]).then(()=>{
     const codes=((state.friends||[]).filter(f=>f.code).map(f=>f.code));
     return Promise.all(codes.map(c=>latestProfile(c))).then(profs=>{
-      __rankRows=[me, ...profs.filter(Boolean)];
+      refreshChallenges(profs.filter(Boolean));
+      __rankRows=[localProfile(), ...profs.filter(Boolean)];
       drawRanking();
     });
   });
@@ -2134,7 +2296,10 @@ function openFriendProfile(code){
     ${lifts?`<div style="font-weight:700;margin:12px 0 2px">Sus básicos</div>${lifts}`:""}
     <div style="font-weight:700;margin:14px 0 8px">Insignias (${achIds.length})</div>
     <div style="line-height:1.9">${badges||'<span style="color:var(--muted);font-size:13px">Aún no tiene insignias.</span>'}</div>
-    <button class="btn-primary" style="width:100%;margin-top:16px" onclick="headToHead('${code}')">⚔ Comparar 1 a 1</button>`;
+    <div class="row" style="margin-top:16px;gap:8px">
+      <button class="btn-ghost" style="flex:1" onclick="headToHead('${code}')">Comparar 1 a 1</button>
+      <button class="btn-primary" style="flex:1" onclick="openChallengeForm('${code}','${((r.name||'')+'').replace(/'/g,'')}')">⚔ Retar</button>
+    </div>`;
   openModal("exInfoModal");
 }
 /* lista completa de rangos y el total que pide cada uno */
@@ -2152,8 +2317,9 @@ function openRanksList(){
 function drawRanking(){
   const el=document.getElementById("rankingBox"); if(!el) return;
   const me=__rankRows[0]||localProfile(), myCode=me.code;
-  const opts=[...KEY_LIFTS.map(k=>({v:k.id,l:k.lbl,s:k.short||k.lbl})),
+  const opts=[...visibleKeyLifts().map(k=>({v:k.id,l:k.lbl,s:k.short||k.lbl})),
     {v:"ton",l:"Tonelaje (7 días)",s:"Tonelaje"},{v:"streak",l:"Racha de dieta",s:"Racha"},{v:"ach",l:"Insignias",s:"Insignias"}];
+  if(!opts.some(o=>o.v===rankMetric)) rankMetric=opts[0].v;   // por si ocultó el básico seleccionado
   const cur=opts.find(o=>o.v===rankMetric)||opts[0];
   const rows=[...__rankRows].sort((a,b)=>metricValue(b,rankMetric)-metricValue(a,rankMetric));
   const maxVal=Math.max(1,...rows.map(r=>metricValue(r,rankMetric)));
@@ -2188,6 +2354,7 @@ function drawRanking(){
       </div>
       <button class="rk-add" onclick="addFriendByCode()">+ Amigo</button>
     </div>
+    ${challengesHTML()}
     <div class="rk-sub">Comparando · <b>${cur.l}</b></div>
     ${chips}${podium}${list}
     <div class="rk-foot">Mejor peso por ejercicio (serie real o PR manual). Toca a un amigo para el 1&nbsp;a&nbsp;1. Solo se comparte nombre, foto, marcas e insignias.</div>`;
@@ -2199,7 +2366,7 @@ function headToHead(code){
   const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
   t.textContent="Tú vs "+(r.name||r.code);
   let wins=0,losses=0;
-  const rows=KEY_LIFTS.map(k=>{
+  const rows=visibleKeyLifts().map(k=>{
     const a=me.lifts&&me.lifts[k.id], o=r.lifts&&r.lifts[k.id];
     if(!a&&!o) return "";
     const av=liftEff(a), ov=liftEff(o);
@@ -2227,7 +2394,7 @@ function renderPerfil(){
   const el=document.getElementById("perfilContent"); if(!el) return;
   checkAchievements();
   const p=localProfile();
-  const lifts=KEY_LIFTS.map(k=>{ const b=p.lifts[k.id]; const lv=b?liftLevel(k.id,b):null;
+  const lifts=visibleKeyLifts().map(k=>{ const b=p.lifts[k.id]; const lv=b?liftLevel(k.id,b):null;
     return `<div class="kv"><span>${k.lbl}${lv&&lv.lvl>=0?` <span class="pill" style="font-size:10px;padding:2px 8px;margin-left:4px">${lv.name}</span>`:""}</span><b>${b?`${uw(b.w)} ${unit()} × ${b.r}${(b.uni||b.hand)?' <span style="color:var(--muted);font-size:11px;font-weight:600">por mano</span>':''}`:"—"}</b></div>`; }).join("");
   const rk=currentRank();
   const prevNeed=rk.rank?rk.rank.need:0;
@@ -2243,7 +2410,10 @@ function renderPerfil(){
       <div style="font-size:12px;color:var(--muted);margin-top:7px">Te faltan <b style="color:var(--text)">${uw(Math.max(0,Math.round((rk.next.need-rk.total)*10)/10))} ${unit()}</b> de total para <b style="color:${rk.next.col}">${rk.next.n}</b></div>`
       :`<div style="font-size:12px;color:var(--muted);margin-top:8px">Rango máximo alcanzado</div>`}
     <small class="hint" style="display:block;margin-top:8px">Suma tu mejor peso levantado en press banca + sentadilla + peso muerto (si no haces peso muerto, cuenta tu RDL). Dentro de un rango los niveles I·II·III son mejoras chicas; entre rangos el salto es mayor.</small>
-    <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openRanksList()">Ver todos los rangos y sus pesos</button></div>`;
+    <div class="row" style="margin-top:10px;gap:8px">
+      <button class="btn-ghost btn-sm" style="flex:1" onclick="openRanksList()">Ver rangos</button>
+      <button class="btn-primary btn-sm" style="flex:1" onclick="shareAthleteCard()">${ic('share',14)} Compartir tarjeta</button>
+    </div></div>`;
   el.innerHTML=`
    <div class="card" style="display:flex;align-items:center;gap:16px">
      <div style="cursor:pointer;position:relative" onclick="pickProfilePhoto()">${avatarHtml(p,84)}<div style="position:absolute;right:-2px;bottom:-2px;width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center">${ic('pencil',13,'#fff')}</div></div>
@@ -2254,19 +2424,20 @@ function renderPerfil(){
      </div></div>
    ${fbUser?`<div class="card" style="margin-top:14px"><h3>Solicitudes de amistad</h3><div id="friendReqBox"><div style="font-size:13px;color:var(--muted)">Buscando solicitudes…</div></div></div>`:""}
    ${rankCard}
-   <div class="card" style="margin-top:14px"><h3>Tus básicos · mejor peso</h3>${lifts}
-     <small class="hint" style="display:block;margin-top:8px">Tu mejor serie registrada o tu PR manual (Records), lo que sea mayor. El RDL cuenta como peso muerto. El nivel compara tu 1RM estimado contra tu peso corporal (estilo Strength Level). Con estos números compites en el ranking.</small></div>
+   <div class="card" style="margin-top:14px"><div class="flex-between" style="margin-bottom:6px"><h3 style="margin:0">Tus básicos · mejor peso</h3><button class="btn-ghost btn-sm" onclick="openLiftsPicker()">${ic('pencil',13)} Elegir</button></div>${lifts}
+     <small class="hint" style="display:block;margin-top:8px">Tu mejor serie registrada o tu PR manual (Records), lo que sea mayor. El RDL cuenta como peso muerto y las mancuernas cuentan doble (por mano). El nivel compara tu 1RM estimado contra tu peso corporal. Con estos números compites en el ranking.</small></div>
    <div class="card" style="margin-top:14px"><h3>Logros</h3><div id="perfilLogros"></div></div>
    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="nav('ranking')">Ver ranking de amigos</button>`;
   renderAchievements();
   renderFriendRequests();
   checkFriendAcceptances();
+  checkChallengeAccepts();
 }
 function renderFriendRequests(){
   const el=document.getElementById("friendReqBox"); if(!el||!fbUser||!fbDb) return;
-  fetchFriendRequests().then(pend=>{
-    if(!pend.length){ el.innerHTML=`<div style="font-size:13px;color:var(--muted)">No tienes solicitudes pendientes. Comparte tu código para que te agreguen.</div>`; return; }
-    el.innerHTML=pend.map(q=>{ const rk=rankById(q.from.rank); const nm=(q.from.name||q.from.code).replace(/'/g,"");
+  Promise.all([fetchFriendRequests(), fetchChallengeInvites()]).then(([pend,chals])=>{
+    if(!pend.length && !chals.length){ el.innerHTML=`<div style="font-size:13px;color:var(--muted)">No tienes solicitudes pendientes. Comparte tu código para que te agreguen o te reten.</div>`; return; }
+    const fr=pend.map(q=>{ const rk=rankById(q.from.rank); const nm=(q.from.name||q.from.code).replace(/'/g,"");
       return `<div class="kv" style="align-items:center">
         <span style="display:flex;align-items:center;gap:10px;min-width:0">${avatarHtml(q.from,36)}
           <span style="min-width:0"><span style="display:block;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.from.name||q.from.code}</span>
@@ -2274,6 +2445,94 @@ function renderFriendRequests(){
         <b style="display:flex;gap:6px;flex:0 0 auto">
           <button class="btn-primary btn-sm" onclick="acceptFriendReq('${q.from.code}','${nm}')">Aceptar</button>
           <button class="btn-ghost btn-sm" onclick="declineFriendReq('${q.from.code}')">${ic('x',13)}</button></b></div>`; }).join("");
+    const ch=chals.map(q=>{ const K=CHAL_KINDS[q.kind]||{s:q.kind};
+      return `<div class="kv" style="align-items:center">
+        <span style="min-width:0"><span style="display:block;font-weight:650">⚔ ${q.from.name||q.from.code} te reta</span>
+          <span style="font-size:11.5px;color:var(--muted)">${K.s} · ${q.days} días · desde ${q.start}</span></span>
+        <b style="display:flex;gap:6px;flex:0 0 auto">
+          <button class="btn-primary btn-sm" onclick="acceptChallenge('${q.chid}')">Acepto</button>
+          <button class="btn-ghost btn-sm" onclick="declineChallenge('${q.chid}')">${ic('x',13)}</button></b></div>`; }).join("");
+    el.innerHTML=fr+ch;
+  });
+}
+/* ===== tarjeta de atleta: imagen 1080×1080 con tu rango, básicos e insignias ===== */
+function buildAthleteCard(){
+  return new Promise(res=>{
+    const S=1080, c=document.createElement("canvas"); c.width=S; c.height=S;
+    const x=c.getContext("2d");
+    const F=(w,s)=>`${w} ${s}px -apple-system,'Segoe UI',Inter,Roboto,sans-serif`;
+    const rr=(px,py,w,h,r)=>{ x.beginPath(); x.moveTo(px+r,py); x.arcTo(px+w,py,px+w,py+h,r); x.arcTo(px+w,py+h,px,py+h,r); x.arcTo(px,py+h,px,py,r); x.arcTo(px,py,px+w,py,r); x.closePath(); };
+    // fondo con degradado y brillos de marca
+    const g=x.createLinearGradient(0,0,0,S); g.addColorStop(0,"#161221"); g.addColorStop(1,"#261D3B");
+    x.fillStyle=g; x.fillRect(0,0,S,S);
+    const glow=(cx,cy,r,col)=>{ const rg=x.createRadialGradient(cx,cy,0,cx,cy,r); rg.addColorStop(0,col); rg.addColorStop(1,"rgba(124,58,237,0)"); x.fillStyle=rg; x.beginPath(); x.arc(cx,cy,r,0,7); x.fill(); };
+    glow(S*0.88,S*0.10,430,"rgba(124,58,237,.38)"); glow(S*0.08,S*0.94,400,"rgba(167,139,250,.20)");
+    // wordmark
+    const wg=x.createLinearGradient(64,0,360,0); wg.addColorStop(0,"#8B5CF6"); wg.addColorStop(1,"#B79CF0");
+    x.textBaseline="top"; x.fillStyle=wg; x.font=F(800,96); x.fillText("VEXX",64,54);
+    x.fillStyle="rgba(255,255,255,.42)"; x.font=F(700,26); x.fillText("T A R J E T A   D E   A T L E T A",68,162);
+    const rk=currentRank(), p=localProfile();
+    const finish=()=>{
+      // nombre + rango
+      x.textBaseline="alphabetic";
+      x.fillStyle="#FFFFFF"; x.font=F(800,60);
+      const nm=(p.name||"Atleta").slice(0,16); x.fillText(nm,330,344);
+      const rname=rk.rank?rk.rank.n:"Sin rango", rcol=rk.rank?rk.rank.col:"#5B5470";
+      x.font=F(800,34); const rw=x.measureText(rname).width+56;
+      rr(330,372,rw,64,32); x.fillStyle=rcol; x.fill();
+      x.fillStyle="#fff"; x.fillText(rname,358,417);
+      x.fillStyle="rgba(255,255,255,.55)"; x.font=F(600,30);
+      x.fillText(`Total ${uw(rk.total)} ${unit()} en básicos`,330+rw+26,416);
+      // 3 tarjetas de básicos
+      const stats=[["BANCA",liftEff(rk.b)],["SENTADILLA",liftEff(rk.s)],["PM / RDL",liftEff(rk.d)]];
+      stats.forEach(([lbl,val],i)=>{ const px=64+i*(296+32), py=520;
+        rr(px,py,296,210,30); x.fillStyle="rgba(255,255,255,.065)"; x.fill();
+        x.strokeStyle="rgba(255,255,255,.10)"; x.lineWidth=2; rr(px,py,296,210,30); x.stroke();
+        x.fillStyle="rgba(255,255,255,.5)"; x.font=F(700,26); x.fillText(lbl,px+30,py+58);
+        x.fillStyle="#fff"; x.font=F(800,74); x.fillText(val?uw(val):"—",px+30,py+150);
+        if(val){ const vw=x.measureText(uw(val)).width; x.fillStyle="rgba(255,255,255,.45)"; x.font=F(700,30); x.fillText(unit(),px+30+vw+12,py+150); }
+      });
+      // racha · insignias · código
+      const st=((computeStreak()||{}).streak)||0, nA=Object.keys(state.achievements||{}).length;
+      x.fillStyle="rgba(255,255,255,.75)"; x.font=F(700,34);
+      x.fillText(`Racha ${st} ${st===1?"día":"días"}   ·   ${nA} insignias   ·   ${(state.workouts||[]).length} entrenos`,64,830);
+      // barra al siguiente rango
+      if(rk.next){ const prevN=rk.rank?rk.rank.need:0, pct=Math.max(0,Math.min(1,(rk.total-prevN)/(rk.next.need-prevN)));
+        rr(64,880,952,18,9); x.fillStyle="rgba(255,255,255,.12)"; x.fill();
+        if(pct>0.01){ rr(64,880,952*pct,18,9); x.fillStyle=rcol; x.fill(); }
+        x.fillStyle="rgba(255,255,255,.55)"; x.font=F(600,28);
+        x.fillText(`A ${uw(Math.max(0,Math.round((rk.next.need-rk.total)*10)/10))} ${unit()} de ${rk.next.n}`,64,948);
+      }
+      if(p.code){ x.fillStyle="rgba(255,255,255,.45)"; x.font=F(700,28); const ct=`Código ${p.code}`; x.fillText(ct,S-64-x.measureText(ct).width,948); }
+      x.fillStyle="rgba(255,255,255,.30)"; x.font=F(600,24);
+      const ft="vexxfit.github.io/AppCalories"; x.fillText(ft,(S-x.measureText(ft).width)/2,1032);
+      res(c);
+    };
+    // avatar (foto recortada en círculo o inicial)
+    const AX=190,AY=330,AR=120;
+    const initial=()=>{ x.beginPath(); x.arc(AX,AY,AR,0,7); x.fillStyle="#7C3AED"; x.fill();
+      x.fillStyle="#fff"; x.font=F(800,110); x.textBaseline="middle"; x.textAlign="center";
+      x.fillText(((p.name||"?")[0]||"?").toUpperCase(),AX,AY+8); x.textAlign="left"; x.textBaseline="top"; finish(); };
+    if(state.profilePhoto){ const im=new Image();
+      im.onload=()=>{ x.save(); x.beginPath(); x.arc(AX,AY,AR,0,7); x.clip(); x.drawImage(im,AX-AR,AY-AR,AR*2,AR*2); x.restore();
+        x.beginPath(); x.arc(AX,AY,AR,0,7); x.strokeStyle="rgba(255,255,255,.25)"; x.lineWidth=6; x.stroke(); finish(); };
+      im.onerror=initial; im.src=state.profilePhoto;
+    } else initial();
+  });
+}
+function shareAthleteCard(){
+  buildAthleteCard().then(c=>{
+    c.toBlob(async bl=>{
+      if(!bl) return toast("No se pudo generar la imagen");
+      const file=new File([bl],"vexx-atleta.png",{type:"image/png"});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file],title:"Mi tarjeta de atleta VEXX"}); return; }
+        catch(e){ if(e && e.name==="AbortError") return; }
+      }
+      const a=document.createElement("a"); a.href=URL.createObjectURL(bl); a.download="vexx-atleta.png";
+      document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },400);
+      toast("Imagen descargada");
+    },"image/png");
   });
 }
 function pickProfilePhoto(){ const i=document.getElementById("profilePhotoInput"); if(i) i.click(); }
@@ -2651,19 +2910,21 @@ function updateSetWeight(i,j,v){ sessionDraft.entries[i].sets[j].weight = toKg(M
    muestra el tiempo transcurrido en una tarjeta flotante arriba. Si está activo,
    al anotar las reps de una serie se reinicia solo (tiempo desde tu última serie). ---- */
 let chronoIv=null, chronoStart=0;
-function chronoStr(s){ s=Math.max(0,s); return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+/* dinámico: M:SS + centésimas corriendo (que se SIENTA que el tiempo avanza) */
+function chronoStr(ms){ ms=Math.max(0,ms); const s=Math.floor(ms/1000), cs=Math.floor((ms%1000)/10);
+  return Math.floor(s/60)+":"+String(s%60).padStart(2,"0")+'<span class="cs">.'+String(cs).padStart(2,"0")+"</span>"; }
 function chronoOn(){ const b=document.getElementById("chronoBar"); return !!b && b.style.display!=="none"; }
 function toggleChrono(){ if(chronoOn()) stopChrono(); else startChrono(); }
 function startChrono(){
   chronoStart=Date.now();
   let b=document.getElementById("chronoBar");
   if(!b){ b=document.createElement("div"); b.id="chronoBar";
-    b.innerHTML=`<span style="color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Descanso</span><b id="chronoTime">0:00</b><button class="btn-ghost btn-sm" onclick="chronoStart=Date.now();tickChrono()">Reiniciar</button><button class="btn-ghost btn-sm" onclick="stopChrono()">${ic('x',14)}</button>`;
+    b.innerHTML=`<span style="color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Descanso</span><b id="chronoTime">0:00<span class="cs">.00</span></b><button class="btn-ghost btn-sm" onclick="chronoStart=Date.now();tickChrono()">Reiniciar</button><button class="btn-ghost btn-sm" onclick="stopChrono()">${ic('x',14)}</button>`;
     document.body.appendChild(b); }
   b.style.display="flex"; tickChrono();
-  clearInterval(chronoIv); chronoIv=setInterval(tickChrono,500);
+  clearInterval(chronoIv); chronoIv=setInterval(tickChrono,33);   // ~30 fps: las centésimas se ven correr
 }
-function tickChrono(){ const el=document.getElementById("chronoTime"); if(el) el.textContent=chronoStr(Math.round((Date.now()-chronoStart)/1000)); }
+function tickChrono(){ const el=document.getElementById("chronoTime"); if(el) el.innerHTML=chronoStr(Date.now()-chronoStart); }
 function stopChrono(){ clearInterval(chronoIv); chronoIv=null; const b=document.getElementById("chronoBar"); if(b) b.style.display="none"; }
 function updateSetReps(i,j,v){ sessionDraft.entries[i].sets[j].reps = Math.max(0,parseInt(v)||0); if(parseInt(v)>0 && chronoOn()){ chronoStart=Date.now(); tickChrono(); } renderSesion(); }
 /* marcar serie como hecha: feedback visual + arranca/reinicia el cronómetro de descanso */
