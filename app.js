@@ -43,6 +43,8 @@ function load(){
   if(!state.lastPortions) state.lastPortions = {};   // última porción usada por alimento
   if(!state.achievements) state.achievements = {};   // logros desbloqueados {id:fecha}
   if(!Array.isArray(state.friends)) state.friends = [];   // amigos del ranking [{uid,code,name}]
+  if(!Array.isArray(state.supplements)) state.supplements = [];   // checklist de suplementos [{id,name}]
+  if(!state.suppLog) state.suppLog = {};   // palomeadas por día {date:{suppId:1}}
   if(!Array.isArray(state.workouts)) state.workouts = [];
   if(!Array.isArray(state.measurements)) state.measurements = [];
   if(!state.prefs) state.prefs = { unit:"kg" };
@@ -424,12 +426,14 @@ function renderHoy(){
     const items=state.plan.slots[key]||[], st=sumMacros(items);
     const prevHas=prev&&prev.slots[key]&&prev.slots[key].length;
     const itemsHtml=items.length?`<div class="meal-items">${items.map((it,i)=>`
-      <div class="meal-item"><span class="mi-name">${it.name} <span style="color:var(--muted)">· ${it.label}</span></span>
+      <div class="meal-item${it.done?' eaten':''}"><span class="mi-name" title="Tocar para marcar como comido" onclick="event.stopPropagation();togglePlanItemDone('${key}',${i})">${it.done?`<span class="mi-chk">${ic('check',13)}</span> `:''}${it.name} <span style="color:var(--muted)">· ${it.label}</span></span>
         <span class="mi-kcal">${r0(it.macros.cal)} kcal</span>
         <span class="mi-edit" title="Editar" onclick="event.stopPropagation();editPlanItem('${key}',${i})">${ic('pencil',15)}</span>
         <span class="mi-del" title="Quitar" onclick="event.stopPropagation();removePlanItem('${key}',${i})">${ic('x',15)}</span></div>`).join("")}</div>`:"";
     const goalLab=mealGoalLabel(m, st);
-    const sub = items.length ? `${items.length} ${items.length===1?'elemento':'elementos'} · P ${r0(st.protein)} · C ${r0(st.carbs)} · G ${r0(st.fat)}${goalLab}`
+    const nDone=items.filter(x=>x.done).length;
+    const doneLab=nDone>0?` · <span style="color:var(--ok);font-weight:700">${nDone}/${items.length} ✓</span>`:"";
+    const sub = items.length ? `${items.length} ${items.length===1?'elemento':'elementos'} · P ${r0(st.protein)} · C ${r0(st.carbs)} · G ${r0(st.fat)}${doneLab}${goalLab}`
       : (prevHas ? `Toca para agregar · <span style="color:var(--accent)" onclick="event.stopPropagation();copyMealFromPrev('${key}')">copiar de ayer</span>${goalLab}` : 'Toca para agregar'+goalLab);
     return `<div class="meal-group">
       <button class="meal-row" onclick="openAdd('${key}')">
@@ -455,7 +459,12 @@ function renderHoy(){
     ${statCardsHTML(t,eg)}
     ${microAdviceCard()}
     ${objectiveCardHTML()}
-    <div class="section-eyebrow">COMIDAS DE HOY</div>${copyDayBtn}${meals}`;
+    <div class="section-eyebrow">COMIDAS DE HOY</div>${copyDayBtn}${meals}
+    ${suppCardHTML()}`;
+  if(!state._hintEaten && Object.values(state.plan.slots||{}).some(s=>s&&s.length)){
+    state._hintEaten=1; saveLocal();
+    toast("Tip: toca un alimento para marcarlo como comido ✓");
+  }
 }
 function waterCardHTML(){
   ensureWater();
@@ -685,15 +694,58 @@ function copyPrevDay(){
   let n=0;
   state.meals.forEach(m=>{
     const items=(e.slots[m.id]||[]);
-    items.forEach(it=>{ state.plan.slots[m.id].push(JSON.parse(JSON.stringify(it))); n++; });
+    items.forEach(it=>{ const cp=JSON.parse(JSON.stringify(it)); delete cp.done; state.plan.slots[m.id].push(cp); n++; });
   });
   if(!n){ toast("Ese día no tenía alimentos en tus comidas actuales"); return; }
   save(); refreshAfterPlanChange(); toast("Copiado de "+e.date);
 }
 function copyMealFromPrev(mealId){
   const e=prevDayEntry(); if(!e||!e.slots[mealId]||!e.slots[mealId].length){ toast("Sin datos de ayer para esta comida"); return; }
-  e.slots[mealId].forEach(it=>state.plan.slots[mealId].push(JSON.parse(JSON.stringify(it))));
+  e.slots[mealId].forEach(it=>{ const cp=JSON.parse(JSON.stringify(it)); delete cp.done; state.plan.slots[mealId].push(cp); });
   save(); refreshAfterPlanChange(); toast("Comida copiada de ayer");
+}
+/* marcar un alimento del plan como "ya me lo comí" (solo visual: los totales
+   del día no cambian — tu plan completo sigue contando como siempre) */
+function togglePlanItemDone(slot,i){
+  const it=state.plan.slots[slot]&&state.plan.slots[slot][i]; if(!it) return;
+  it.done=!it.done; save(); renderHoy();
+}
+/* ===== suplementos: checklist diaria (se reinicia cada día) ===== */
+let __suppEdit=false;
+function suppLogToday(){ if(!state.suppLog) state.suppLog={}; const d=todayStr(); if(!state.suppLog[d]) state.suppLog[d]={}; return state.suppLog[d]; }
+function suppCardHTML(){
+  const list=state.supplements||[];
+  const log=(state.suppLog||{})[todayStr()]||{};
+  const nOn=list.filter(s=>log[s.id]).length;
+  const chips=list.map(s=>{ const on=!!log[s.id];
+    if(__suppEdit) return `<button class="supp-chip del" onclick="removeSupp('${s.id}')">${ic('x',13)} ${s.name}</button>`;
+    return `<button class="supp-chip${on?' on':''}" onclick="toggleSupp('${s.id}')">${ic(on?'check':'circle',14)} ${s.name}</button>`; }).join("");
+  const addBtn=`<button class="supp-chip add" onclick="addSupp()">+ Añadir</button>`;
+  const body=list.length
+    ? `<div class="supp-wrap">${chips}${__suppEdit?addBtn:''}</div>`
+    : `<div style="font-size:13px;color:var(--muted);margin-bottom:10px;line-height:1.5">Define tus suplementos (creatina, omega 3, vitamina D…) y paloméalos cada día. La lista se reinicia sola a diario.</div><div class="supp-wrap">${addBtn}</div>`;
+  return `<div class="section-eyebrow" style="display:flex;align-items:center;justify-content:space-between">SUPLEMENTOS${list.length?` · ${nOn}/${list.length}`:''}<span style="cursor:pointer;color:var(--muted);letter-spacing:0;text-transform:none" onclick="toggleSuppEdit()">${__suppEdit?'Listo':ic('pencil',13)}</span></div>
+    <div class="card" style="padding:16px">${body}</div>`;
+}
+function toggleSupp(id){ const log=suppLogToday(); if(log[id]) delete log[id]; else log[id]=1; save(); renderHoy(); }
+function toggleSuppEdit(){ __suppEdit=!__suppEdit; renderHoy(); }
+function addSupp(){
+  const v=(prompt("Nombre del suplemento (ej. Creatina 5 g):","")||"").trim(); if(!v) return;
+  if(!state.supplements) state.supplements=[];
+  state.supplements.push({id:"sp_"+Date.now().toString(36), name:v.slice(0,28)});
+  __suppEdit=false; save(); renderHoy();
+}
+function removeSupp(id){
+  const s=(state.supplements||[]).find(x=>x.id===id); if(!s) return;
+  if(!confirm(`¿Quitar "${s.name}" de tus suplementos?`)) return;
+  state.supplements=state.supplements.filter(x=>x.id!==id); save(); renderHoy();
+}
+function suppStreakDays(){
+  const list=state.supplements||[]; if(!list.length) return 0;
+  const all=dd=>{ const lg=(state.suppLog||{})[dd]||{}; return list.every(s=>lg[s.id]); };
+  let n=0,d=todayStr(); if(!all(d)) d=dayShift(d,-1);
+  while(all(d)){ n++; d=dayShift(d,-1); }
+  return n;
 }
 
 /* ====================================================================
@@ -1933,6 +1985,7 @@ const ACH_DEFS=[
  {id:'sq220', n:'Club 220 · sentadilla',d:'220 kg en sentadilla',             icn:'trophy',   t:_club('e_sentadilla',220)},
  {id:'dl220', n:'Club 220 · PM/RDL',d:'220 kg en peso muerto o RDL',          icn:'trophy',   t:_club(DL_IDS,220)},
  {id:'dl260', n:'Club 260 · PM/RDL',d:'260 kg en peso muerto o RDL',          icn:'trophy',   t:_club(DL_IDS,260)},
+ {id:'supp7', n:'Suplementado',  d:'7 días seguidos con todos tus suplementos', icn:'leaf', t:()=>suppStreakDays()>=7},
  /* --- insignias SECRETAS: no se revela el requisito hasta desbloquearlas --- */
  {id:'sec_night', secret:true, n:'Búho de hierro', d:'Guardaste una sesión después de las 10 pm', icn:'moon',
    t:()=>(state.workouts||[]).some(w=>{const ts=parseInt(String(w.id||"").slice(2)); return ts>1e12 && new Date(ts).getHours()>=22;})},
@@ -3401,7 +3454,9 @@ function ic(name,s,color){ s=s||16; color=color||"currentColor";
     copy:`<rect x="9" y="9" width="11" height="11" rx="2.5" ${st} stroke-width="1.8"/><path d="M5.5 14.5A2.5 2.5 0 0 1 4 12.2V6.5A2.5 2.5 0 0 1 6.5 4h5.7a2.5 2.5 0 0 1 2.3 1.5" ${st} stroke-width="1.8"/>`,
     chev:`<path d="M9 5.5l6.5 6.5L9 18.5" ${st} stroke-width="2"/>`,
     coffee:`<path d="M4 8h12v6a5 5 0 0 1-5 5h-2a5 5 0 0 1-5-5V8z" ${st} stroke-width="1.8"/><path d="M16 9.5h1.6a2.4 2.4 0 0 1 0 4.8H16M7.5 4.5c0 .8.8 1 .8 1.8M11 4.5c0 .8.8 1 .8 1.8" ${st} stroke-width="1.7"/>`,
-    shake:`<path d="M7.3 8h9.4l-1.2 12.1a1.9 1.9 0 0 1-1.9 1.7h-3.2a1.9 1.9 0 0 1-1.9-1.7L7.3 8z" ${st} stroke-width="1.8"/><path d="M6.5 8h11M12.2 8l2.6-5.5" ${st} stroke-width="1.8"/>`
+    shake:`<path d="M7.3 8h9.4l-1.2 12.1a1.9 1.9 0 0 1-1.9 1.7h-3.2a1.9 1.9 0 0 1-1.9-1.7L7.3 8z" ${st} stroke-width="1.8"/><path d="M6.5 8h11M12.2 8l2.6-5.5" ${st} stroke-width="1.8"/>`,
+    check:`<path d="M5 12.5l4.6 4.6L19 7.5" ${st} stroke-width="2.4"/>`,
+    circle:`<circle cx="12" cy="12" r="8.5" ${st} stroke-width="1.8"/>`
   };
   return `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px;flex:0 0 auto">${P[name]||''}</svg>`;
 }
