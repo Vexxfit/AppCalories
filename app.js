@@ -131,6 +131,15 @@ function fbSignIn(){ if(!fbReady) return toast("Nube no disponible"); const e=va
   if(!e||!p) return toast("Escribe correo y contraseña");
   fbAuth.signInWithEmailAndPassword(e,p).then(()=>toast("Sesión iniciada ✓")).catch(err=>toast(fbErr(err))); }
 function fbSignOut(){ if(fbAuth) fbAuth.signOut().then(()=>{ toast("Sesión cerrada"); if(currentView==="ajustes") renderAjustes(); }); }
+function fbResetPass(){
+  if(!fbReady) return toast("Nube no disponible (revisa tu internet)");
+  let e=(val("fbEmail")||"").trim();
+  if(!e){ e=(prompt("¿A qué correo te enviamos el enlace para restablecer tu contraseña?","")||"").trim(); }
+  if(!e) return;
+  fbAuth.sendPasswordResetEmail(e)
+    .then(()=>toast("Listo: revisa tu correo (y spam) para restablecerla 📩"))
+    .catch(err=>toast(fbErr(err)));
+}
 function fbSyncNow(){ if(!fbUser) return; cloudPush(true); toast("Sincronizando…"); }
 function nowTime(){ const d=new Date(); return d.getHours()+":"+String(d.getMinutes()).padStart(2,"0"); }
 function cloudPull(){
@@ -172,7 +181,8 @@ function cloudCardHTML(){
     <p class="card-sub">Inicia sesión para respaldar tu progreso y verlo en otros dispositivos.</p>
     <div class="field"><label>Correo</label><input type="email" id="fbEmail" autocomplete="username" placeholder="tucorreo@ejemplo.com"></div>
     <div class="field"><label>Contraseña</label><input type="password" id="fbPass" autocomplete="current-password" placeholder="mín. 6 caracteres"></div>
-    <div class="row"><button class="btn-primary" onclick="fbSignIn()">Iniciar sesión</button><button class="btn-ghost" onclick="fbSignUp()">Crear cuenta</button></div></div>`;
+    <div class="row"><button class="btn-primary" onclick="fbSignIn()">Iniciar sesión</button><button class="btn-ghost" onclick="fbSignUp()">Crear cuenta</button></div>
+    <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px;color:var(--accent)" onclick="fbResetPass()">¿Olvidaste tu contraseña?</button></div>`;
 }
 
 /* ---------- utilidades de alimentos ---------- */
