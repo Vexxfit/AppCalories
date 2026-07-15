@@ -38,6 +38,14 @@ function load(){
   if(!Array.isArray(state.exercises) || !state.exercises.length) state.exercises = DEFAULT_EXERCISES.map(e=>({...e}));
   // migración: añadir ejercicios de fábrica nuevos sin tocar los del usuario
   DEFAULT_EXERCISES.forEach(de=>{ if(!state.exercises.some(e=>e.id===de.id)) state.exercises.push({...de}); });
+  // limpieza de duplicados/ejercicios retirados: se quitan de la biblioteca SOLO
+  // si no están usados en ninguna sesión, plantilla o PR (así no se pierde nada).
+  ["e_jalontriceps","e_copastriceps","e_remohammer","e_costurera"].forEach(id=>{
+    const used=(state.workouts||[]).some(w=>(w.entries||[]).some(e=>e.exId===id))
+            || (state.templates||[]).some(t=>(t.exercises||[]).some(x=>x.exId===id))
+            || !!(state.manualPRs&&state.manualPRs[id]);
+    if(!used) state.exercises=state.exercises.filter(e=>e.id!==id);
+  });
   // sin plantillas de fábrica: cada quien crea las suyas o las importa por link (los usuarios existentes conservan las que ya tienen guardadas)
   if(!Array.isArray(state.templates)) state.templates = [];
   if(!state.lastPortions) state.lastPortions = {};   // última porción usada por alimento
@@ -3780,7 +3788,7 @@ const EX_MUSCLES={
   e_pecfly:{pecho:1,deltAnt:0.2}, e_flysarriba:{pecho:1,deltAnt:0.2}, e_crossover:{pecho:1,deltAnt:0.2}, e_fondos:{pecho:0.8,triceps:1,deltAnt:0.4},
   e_pressmil:{deltAnt:1,deltLat:0.5,triceps:0.45}, e_pressmaqhombro:{deltAnt:1,deltLat:0.5,triceps:0.45}, e_arnold:{deltAnt:1,deltLat:0.5,triceps:0.4}, e_landmine:{deltAnt:1,deltLat:0.3,triceps:0.4},
   e_latmanc:{deltLat:1}, e_latpolea:{deltLat:1}, e_frontraise:{deltAnt:1}, e_reardelt:{deltPost:1,espaldaAlta:0.4}, e_facepull:{deltPost:1,espaldaAlta:0.5},
-  e_extrice:{triceps:1}, e_extuni:{triceps:1}, e_pressfrances:{triceps:1}, e_jalontriceps:{triceps:1},
+  e_extrice:{triceps:1}, e_extuni:{triceps:1}, e_pressfrances:{triceps:1},
   e_pulldownneutro:{dorsal:1,biceps:0.5,espaldaAlta:0.3,deltPost:0.2}, e_pulldownabierto:{dorsal:1,biceps:0.4,espaldaAlta:0.3,deltPost:0.2}, e_jalonpecho:{dorsal:1,biceps:0.5,espaldaAlta:0.3},
   e_remobarra:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.4}, e_remopolea:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_remomanc:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.4},
   e_remogironda:{dorsal:1,espaldaAlta:0.6,biceps:0.4,deltPost:0.4}, e_remomaq:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_remosentado:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_pullover:{dorsal:1,pecho:0.3,triceps:0.2},

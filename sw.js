@@ -14,7 +14,7 @@
      guardan al vuelo, incluso respuestas opacas, para abrir sin red.
    - No toca localStorage: tus datos están a salvo.
    Sin internet no funcionan: escáner de código de barras, nube y ranking. */
-const CACHE = "vexx-cache-v13";
+const CACHE = "vexx-cache-v14";
 const SHELL = ["./", "./index.html", "./styles.css", "./data.js", "./app.js", "./icon.png", "./manifest.webmanifest"];
 const EXTRA = [
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
