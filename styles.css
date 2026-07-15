@@ -757,6 +757,29 @@ nav button.active svg{stroke-width:2.2}
 .meal-row:active,.settings-row:active,.list-row:active,.rk-row:active{transform:scale(.985)}
 .meal-row,.settings-row,.list-row,.rk-row{transition:transform .1s ease,background .15s,box-shadow .15s}
 
+/* ---- 19 · Coach (clientes) ---- */
+.coach-seg{margin-bottom:14px}
+.coach-list{display:flex;flex-direction:column;gap:9px}
+.coach-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--panel,var(--surface));border:1px solid var(--hairline-soft);border-radius:16px;box-shadow:var(--shadow-sm);padding:12px 14px;font-family:var(--font);color:var(--text);cursor:pointer;transition:transform .1s,box-shadow .15s}
+.coach-row:active{transform:scale(.985)}
+.coach-row .cr-main{flex:1;min-width:0}
+.coach-row .cr-main b{display:block;font-size:15px;font-weight:650}
+.coach-row .cr-main span{font-size:12.5px;color:var(--muted)}
+.coach-link{color:var(--accent);display:inline-flex;vertical-align:-1px}
+.coach-badge{flex:0 0 auto;font-size:11px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:3px 10px}
+.coach-back{display:inline-flex;align-items:center;gap:4px;background:none;border:none;color:var(--accent);font-weight:650;font-size:14px;padding:2px 0;margin-bottom:12px;cursor:pointer}
+.coach-back svg{transform:rotate(180deg)}
+.coach-head{display:flex;align-items:center;gap:13px;margin-bottom:14px}
+.coach-tabs{display:flex;gap:5px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:16px;padding-bottom:2px}
+.coach-tabs::-webkit-scrollbar{display:none}
+.coach-tabs span{flex:0 0 auto;font-size:12px;font-weight:600;color:var(--muted);background:var(--bg2);border-radius:999px;padding:8px 13px;cursor:pointer;white-space:nowrap;transition:.15s}
+.coach-tabs span.on{background:var(--accent);color:#fff}
+.coach-warn{background:color-mix(in srgb,var(--warn) 14%,transparent);color:#a86400;border-radius:12px;padding:10px 13px;font-size:13px;line-height:1.45;margin-bottom:14px}
+html[data-theme="dark"] .coach-warn{color:var(--warn)}
+.coach-note{position:relative;background:var(--bg2);border-radius:13px;padding:11px 13px;font-size:13.5px;line-height:1.5;margin-bottom:9px}
+.coach-note-x{position:absolute;top:8px;right:9px;color:var(--muted);cursor:pointer;display:inline-flex}
+.coach-note-x:hover{color:var(--bad)}
+
 /* ---- 18 · Dieta palomeable + suplementos ---- */
 .mi-name{cursor:pointer;-webkit-user-select:none;user-select:none}
 .meal-item.eaten .mi-name{color:var(--muted)}

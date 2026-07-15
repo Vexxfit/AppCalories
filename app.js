@@ -51,6 +51,8 @@ function load(){
   if(!state.lastPortions) state.lastPortions = {};   // última porción usada por alimento
   if(!state.achievements) state.achievements = {};   // logros desbloqueados {id:fecha}
   if(!Array.isArray(state.friends)) state.friends = [];   // amigos del ranking [{uid,code,name}]
+  if(!Array.isArray(state.clients)) state.clients = [];   // COACH: clientes [{id,name,...,notes:[],measurements:[]}]
+  if(!Array.isArray(state.programs)) state.programs = [];   // COACH: programas Pro [{id,clientId,...}]
   if(!Array.isArray(state.supplements)) state.supplements = [];   // checklist de suplementos [{id,name}]
   if(!state.suppLog) state.suppLog = {};   // palomeadas por día {date:{suppId:1}}
   if(!Array.isArray(state.workouts)) state.workouts = [];
@@ -2831,7 +2833,243 @@ function subEntreno(sub){
   if(sub==="records") renderRecords();
   if(sub==="medidas") renderMedidas();
 }
-function renderEntreno(){ updateUnitToggle(); subEntreno(entrenoSub); }
+/* ====================================================================
+   COACH — módulo privado (solo la cuenta del entrenador). Clientes,
+   fichas y (fase 2) editor profesional de programas.
+   ==================================================================== */
+const COACH_EMAIL="1angel3francisco@gmail.com";
+function isCoach(){ return !!(fbUser && fbUser.email && fbUser.email.toLowerCase()===COACH_EMAIL); }
+let entrenoMode="rutinas", coachClientId=null, coachTab="info";
+function setEntrenoMode(m){
+  entrenoMode = (m==="clientes" && isCoach()) ? "clientes" : "rutinas";
+  document.querySelectorAll("#entrenoModeSeg span").forEach(s=>s.classList.toggle("on", s.dataset.mode===entrenoMode));
+  const clientes = entrenoMode==="clientes";
+  const sn=document.getElementById("entrenoSubnav"); if(sn) sn.style.display=clientes?"none":"";
+  document.querySelectorAll("#view-entreno .subview").forEach(s=>s.style.display=clientes?"none":"");
+  const ut=document.getElementById("unitToggle"); if(ut) ut.style.visibility=clientes?"hidden":"";
+  const cr=document.getElementById("coachRoot"); if(cr) cr.style.display=clientes?"block":"none";
+  if(clientes) renderCoach(); else subEntreno(entrenoSub);
+}
+/* ---- avatar por iniciales para clientes ---- */
+function clientAvatar(c,size){ size=size||40; const grad=["135deg,#7C3AED,#9F6BFF","135deg,#0EA5A5,#2DD4BF","135deg,#F59E0B,#FBBF24","135deg,#EC4899,#F472B6","135deg,#22C55E,#4ADE80"];
+  const i=(c.id||"").split("").reduce((a,ch)=>a+ch.charCodeAt(0),0)%grad.length;
+  return `<div style="width:${size}px;height:${size}px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:${Math.round(size*0.4)}px;color:#fff;background:linear-gradient(${grad[i]})">${((c.name||"?").trim()[0]||"?").toUpperCase()}</div>`; }
+function clientById(id){ return (state.clients||[]).find(c=>c.id===id); }
+const EXP_LABELS={principiante:"Principiante",intermedia:"Intermedia",avanzada:"Avanzada"};
+/* ---- raíz: lista o ficha ---- */
+function renderCoach(){
+  const el=document.getElementById("coachRoot"); if(!el) return;
+  if(coachClientId && clientById(coachClientId)) renderClientDetail(el); else { coachClientId=null; renderClientList(el); }
+}
+function renderClientList(el){
+  const cs=(state.clients||[]).filter(c=>!c.archived);
+  const rows=cs.length? cs.map(c=>{
+    const prog=(state.programs||[]).filter(p=>p.clientId===c.id);
+    const sub=[c.goal||EXP_LABELS[c.experience]||"—", c.daysAvailable?c.daysAvailable+" días":""].filter(Boolean).join(" · ");
+    return `<button class="coach-row" onclick="openClient('${c.id}')">${clientAvatar(c,42)}
+      <div class="cr-main"><b>${c.name||"Sin nombre"}${c.code?` <span class="coach-link">${ic('cloud',11)}</span>`:''}</b><span>${sub}</span></div>
+      <span class="coach-badge">${prog.length?prog.length+(prog.length===1?" rutina":" rutinas"):"sin rutina"}</span>
+      <span class="chev">${ic('chev',15)}</span></button>`;
+  }).join("") : `<div class="empty" style="margin:0">Aún no tienes clientes. Agrega a alguien registrado (por su código) o desde cero.</div>`;
+  el.innerHTML=`
+    <div class="flex-between" style="margin:2px 0 12px"><div><div style="font-weight:800;font-size:22px;letter-spacing:-.03em">Clientes</div>
+      <div style="font-size:12px;color:var(--muted)">${cs.length} activo${cs.length===1?"":"s"} · privado, solo tú lo ves</div></div></div>
+    <div class="coach-list">${rows}</div>
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="openClientForm()">+ Nuevo cliente</button>`;
+}
+/* ---- alta de cliente: manual o vincular por código ---- */
+let __clientFormMode="manual";
+function openClientForm(){
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  __clientFormMode="manual";
+  t.textContent="Nuevo cliente";
+  drawClientForm(b);
+  openModal("exInfoModal");
+}
+function setClientFormMode(m){ __clientFormMode=m; drawClientForm(document.getElementById("exInfoBody")); }
+function drawClientForm(b){
+  const manual=__clientFormMode==="manual";
+  b.innerHTML=`
+    <div class="seg" style="margin-bottom:14px">
+      <span class="${manual?'on':''}" onclick="setClientFormMode('manual')">Desde cero</span>
+      <span class="${manual?'':'on'}" onclick="setClientFormMode('link')">Vincular por código</span>
+    </div>
+    ${manual?`
+      <div class="field"><label>Nombre</label><input id="clName" placeholder="Nombre del cliente"></div>
+      <div class="row"><div class="field"><label>Sexo</label><select id="clSex"><option value="male">Hombre</option><option value="female">Mujer</option></select></div>
+        <div class="field"><label>Edad</label><input id="clAge" type="number" inputmode="numeric" placeholder="años"></div></div>
+      <div class="row"><div class="field"><label>Peso (kg)</label><input id="clWeight" type="number" inputmode="decimal" placeholder="kg"></div>
+        <div class="field"><label>Estatura (cm)</label><input id="clHeight" type="number" inputmode="numeric" placeholder="cm"></div></div>
+      <div class="field"><label>Experiencia</label><select id="clExp"><option value="principiante">Principiante</option><option value="intermedia" selected>Intermedia</option><option value="avanzada">Avanzada</option></select></div>
+      <div class="field"><label>Objetivo</label><input id="clGoal" placeholder="Ej. Hipertrofia, ganar 3 kg"></div>
+      <div class="row"><div class="field"><label>Días / semana</label><input id="clDays" type="number" inputmode="numeric" placeholder="4"></div>
+        <div class="field"><label>Min / sesión</label><input id="clTime" type="number" inputmode="numeric" placeholder="60"></div></div>
+      <div class="field"><label>Lesiones / notas médicas</label><input id="clInjuries" placeholder="Opcional"></div>
+      <button class="btn-primary" style="width:100%;margin-top:6px" onclick="addClientManual()">Crear cliente</button>
+    `:`
+      <div class="field"><label>Código de amigo del cliente (6 caracteres)</label><input id="clCode" placeholder="Ej. K7M2PQ" style="text-transform:uppercase;letter-spacing:2px"></div>
+      <small class="hint" style="display:block;margin-bottom:12px">Debe estar registrado en la nube y haber abierto su Ranking una vez. Traeré su nombre, básicos, rango e insignias. Su rutina privada no se ve automáticamente: él te la comparte por link y la importas a su ficha.</small>
+      <button class="btn-primary" style="width:100%" onclick="linkClientByCode()">Buscar y vincular</button>
+    `}`;
+}
+function addClientManual(){
+  const name=(val("clName")||"").trim(); if(!name) return toast("Escribe un nombre");
+  const c={id:"cl_"+Date.now().toString(36), name, sex:val("clSex")||"male",
+    age:parseInt(val("clAge"))||null, weight:num("clWeight")||null, height:parseInt(val("clHeight"))||null,
+    experience:val("clExp")||"intermedia", goal:(val("clGoal")||"").trim(),
+    daysAvailable:parseInt(val("clDays"))||null, sessionTime:parseInt(val("clTime"))||null,
+    injuries:(val("clInjuries")||"").trim(), createdAt:todayStr(), notes:[], measurements:[]};
+  state.clients.push(c); save(); closeModal("exInfoModal"); coachClientId=c.id; renderCoach(); toast("Cliente creado ✓");
+}
+function linkClientByCode(){
+  if(!fbUser||!fbDb) return toast("Inicia sesión en la nube (Ajustes)");
+  const code=(val("clCode")||"").trim().toUpperCase(); if(code.length<4) return toast("Código inválido");
+  if((state.clients||[]).some(c=>c.code===code)) return toast("Ya tienes un cliente con ese código");
+  toast("Buscando…");
+  latestProfile(code).then(p=>{
+    if(!p) return toast("No encontré ese código: el cliente debe abrir su Ranking una vez");
+    const c={id:"cl_"+Date.now().toString(36), name:p.name||("Cliente "+code), code, linked:true,
+      sex:"male", experience:"intermedia", goal:"", createdAt:todayStr(), notes:[], measurements:[],
+      snapshot:{lifts:p.lifts||{}, ach:p.ach||[], rank:p.rank||null, week:p.week||null, at:Date.now()}};
+    state.clients.push(c); save(); closeModal("exInfoModal"); coachClientId=c.id; renderCoach(); toast("Cliente vinculado ✓");
+  });
+}
+/* ---- ficha del cliente ---- */
+function openClient(id){ coachClientId=id; coachTab="info"; renderCoach(); }
+function closeClient(){ coachClientId=null; renderCoach(); }
+function setCoachTab(t){ coachTab=t; renderCoach(); }
+function renderClientDetail(el){
+  const c=clientById(coachClientId); if(!c){ closeClient(); return; }
+  const tabs=[["info","Información"],["rutinas","Rutinas"],["progreso","Progreso"],["medidas","Medidas"],["notas","Notas"]];
+  el.innerHTML=`
+    <button class="coach-back" onclick="closeClient()">${ic('chev',15)} Clientes</button>
+    <div class="coach-head">${clientAvatar(c,52)}
+      <div style="flex:1;min-width:0"><div style="font-weight:800;font-size:20px;letter-spacing:-.02em">${c.name}${c.code?` <span class="coach-badge" style="vertical-align:middle">vinculado</span>`:''}</div>
+        <div style="font-size:12.5px;color:var(--muted)">${[c.age?c.age+" años":"", c.weight?uw(c.weight)+" kg":"", c.height?c.height+" cm":""].filter(Boolean).join(" · ")||"Sin datos"}</div></div>
+      <button class="icon-btn" title="Eliminar" onclick="deleteClient('${c.id}')" style="color:var(--bad)">${ic('x',16)}</button></div>
+    <div class="coach-tabs">${tabs.map(([k,l])=>`<span class="${coachTab===k?'on':''}" onclick="setCoachTab('${k}')">${l}</span>`).join("")}</div>
+    <div id="coachTabBody"></div>`;
+  const body=document.getElementById("coachTabBody");
+  if(coachTab==="info") renderClientInfo(body,c);
+  else if(coachTab==="rutinas") renderClientRutinas(body,c);
+  else if(coachTab==="progreso") renderClientProgreso(body,c);
+  else if(coachTab==="medidas") renderClientMedidas(body,c);
+  else if(coachTab==="notas") renderClientNotas(body,c);
+}
+function renderClientInfo(el,c){
+  const f=(lbl,id,val,type,ph)=>`<div class="field"><label>${lbl}</label><input id="ci_${id}" ${type?`type="${type}" inputmode="${type==='number'?'decimal':'text'}"`:''} value="${(val==null?'':String(val)).replace(/"/g,'&quot;')}" placeholder="${ph||''}" onchange="saveClientField('${c.id}','${id}',this.value)"></div>`;
+  el.innerHTML=`
+    ${c.injuries?`<div class="coach-warn">${ic('note',14)} <b>Lesiones:</b> ${c.injuries}</div>`:''}
+    ${f("Nombre","name",c.name)}
+    <div class="row"><div class="field"><label>Sexo</label><select id="ci_sex" onchange="saveClientField('${c.id}','sex',this.value)"><option value="male" ${c.sex!=="female"?"selected":""}>Hombre</option><option value="female" ${c.sex==="female"?"selected":""}>Mujer</option></select></div>${f("Edad","age",c.age,"number","años")}</div>
+    <div class="row">${f("Peso (kg)","weight",c.weight,"number","kg")}${f("Estatura (cm)","height",c.height,"number","cm")}</div>
+    <div class="field"><label>Experiencia</label><select id="ci_exp" onchange="saveClientField('${c.id}','experience',this.value)">${["principiante","intermedia","avanzada"].map(x=>`<option value="${x}" ${c.experience===x?"selected":""}>${EXP_LABELS[x]}</option>`).join("")}</select></div>
+    ${f("Objetivo","goal",c.goal,"","Ej. Hipertrofia")}
+    <div class="row">${f("Días / semana","daysAvailable",c.daysAvailable,"number","4")}${f("Min / sesión","sessionTime",c.sessionTime,"number","60")}</div>
+    ${f("Lesiones / notas médicas","injuries",c.injuries,"","Opcional")}`;
+}
+function saveClientField(id,field,v){ const c=clientById(id); if(!c) return;
+  if(["age","height","daysAvailable","sessionTime"].includes(field)) v=parseInt(v)||null;
+  else if(field==="weight") v=num2(v);
+  else v=(v||"").trim();
+  c[field]=v; save();
+  if(field==="injuries"||field==="name") renderCoach();
+}
+function num2(v){ const n=parseFloat(v); return isNaN(n)?null:n; }
+function renderClientRutinas(el,c){
+  const progs=(state.programs||[]).filter(p=>p.clientId===c.id);
+  const routs=c.routines||[];
+  const progRows=progs.map(p=>`<button class="coach-row" onclick="openProgram('${p.id}')">
+      <div class="cr-main"><b>${p.name||"Programa"}</b><span>Programa Pro${p.weeks?` · ${p.weeks.length} sem`:''}</span></div><span class="coach-badge">Pro</span><span class="chev">${ic('chev',15)}</span></button>`).join("");
+  const routRows=routs.map(r=>`<button class="coach-row" onclick="viewClientRoutine('${c.id}','${r.id}')">
+      <div class="cr-main"><b>${r.name}</b><span>${r.templates.length} día${r.templates.length>1?'s':''} · lo que ya hace</span></div><span class="chev">${ic('chev',15)}</span></button>`).join("");
+  el.innerHTML=`
+    ${(progRows+routRows)||`<div class="empty" style="margin:0 0 12px">Sin rutinas todavía.</div>`}
+    <button class="btn-primary" style="width:100%;margin-top:12px" onclick="newProgramForClient('${c.id}')">+ Crear programa (Pro)</button>
+    <div class="coach-note" style="margin-top:10px">Para guardar <b>lo que ya hace</b>: pídele que te comparta su rutina por link, ábrela y en <b>“Guardar en”</b> elige a este cliente.</div>`;
+}
+function renderClientProgreso(el,c){
+  if(c.code && c.snapshot){ const s=c.snapshot; const rk=rankById(s.rank);
+    const lifts=KEY_LIFTS.map(k=>{ const b=s.lifts&&s.lifts[k.id]; return b?`<div class="kv"><span>${k.lbl}</span><b>${uw(b.w)} ${unit()} × ${b.r}</b></div>`:""; }).join("");
+    el.innerHTML=`
+      <div class="coach-note" style="margin-bottom:12px">Datos traídos de su perfil del ranking · ${s.week?`tonelaje 7d ${nfmt(fromKg((s.week.ton)||0))} ${unit()} · racha ${s.week.streak||0} d`:''}</div>
+      ${rk?`<div class="kv"><span>Rango de fuerza</span><b style="color:${rk.col}">${rk.n}</b></div>`:''}
+      <div class="kv"><span>Insignias</span><b>${(s.ach||[]).length}</b></div>
+      ${lifts?`<div style="font-weight:700;margin:12px 0 2px">Sus básicos</div>${lifts}`:''}
+      <button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="refreshClientSnapshot('${c.id}')">↻ Actualizar sus datos</button>`;
+  } else {
+    el.innerHTML=`<div class="empty" style="margin:0">Este cliente no está vinculado a una cuenta. Vincúlalo por código (o registra su progreso en Medidas) para ver aquí sus básicos y rango.</div>`;
+  }
+}
+function refreshClientSnapshot(id){ const c=clientById(id); if(!c||!c.code) return;
+  latestProfile(c.code).then(p=>{ if(!p) return toast("No pude actualizar"); c.snapshot={lifts:p.lifts||{},ach:p.ach||[],rank:p.rank||null,week:p.week||null,at:Date.now()}; if(p.name)c.name=p.name; save(); renderCoach(); toast("Datos actualizados ✓"); });
+}
+function renderClientMedidas(el,c){
+  const ms=(c.measurements||[]).slice().sort((a,b)=>a.date<b.date?1:-1);
+  el.innerHTML=`
+    <button class="btn-ghost btn-sm" style="width:100%;margin-bottom:12px" onclick="addClientMeasure('${c.id}')">+ Registrar medida</button>
+    ${ms.length? ms.map(m=>`<div class="kv"><span>${m.date}</span><b>${[m.peso?uw(m.peso)+" kg":"", m.abdomen?"cintura "+m.abdomen:"", m.brazo?"brazo "+m.brazo:""].filter(Boolean).join(" · ")||"—"}</b></div>`).join("")
+      : `<div class="empty" style="margin:0">Sin medidas registradas.</div>`}`;
+}
+function addClientMeasure(id){ const c=clientById(id); if(!c) return;
+  const peso=prompt("Peso (kg) — deja vacío si no aplica:",""); if(peso===null) return;
+  const cintura=prompt("Cintura / abdomen (cm) — opcional:","");
+  const brazo=prompt("Brazo (cm) — opcional:","");
+  const m={date:todayStr()}; if(peso.trim())m.peso=num2(peso); if(cintura&&cintura.trim())m.abdomen=num2(cintura); if(brazo&&brazo.trim())m.brazo=num2(brazo);
+  if(Object.keys(m).length<2) return toast("Ingresa al menos un valor");
+  if(!c.measurements)c.measurements=[]; const i=c.measurements.findIndex(x=>x.date===m.date); if(i>=0)c.measurements[i]=m; else c.measurements.push(m);
+  save(); renderCoach(); toast("Medida guardada ✓");
+}
+function renderClientNotas(el,c){
+  const ns=(c.notes||[]).slice().sort((a,b)=>a.at<b.at?1:-1);
+  el.innerHTML=`
+    <button class="btn-ghost btn-sm" style="width:100%;margin-bottom:12px" onclick="addClientNote('${c.id}')">+ Agregar nota</button>
+    ${ns.length? ns.map((n,i)=>`<div class="coach-note"><div style="font-size:11px;color:var(--muted);margin-bottom:4px">${new Date(n.at).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})}</div>${(n.text||'').replace(/</g,'&lt;')}<span class="coach-note-x" onclick="delClientNote('${c.id}',${n.at})">${ic('x',13)}</span></div>`).join("")
+      : `<div class="empty" style="margin:0">Sin notas. Anota lo que veas de su técnica, molestias o acuerdos.</div>`}`;
+}
+function addClientNote(id){ const c=clientById(id); if(!c) return; const v=(prompt("Nota:","")||"").trim(); if(!v) return;
+  if(!c.notes)c.notes=[]; c.notes.push({at:Date.now(), text:v.slice(0,500)}); save(); renderCoach(); }
+function delClientNote(id,at){ const c=clientById(id); if(!c) return; c.notes=(c.notes||[]).filter(n=>n.at!==at); save(); renderCoach(); }
+function deleteClient(id){ const c=clientById(id); if(!c) return; if(!confirm(`¿Eliminar a "${c.name}" y todos sus datos? No se puede deshacer.`)) return;
+  state.clients=state.clients.filter(x=>x.id!==id); state.programs=(state.programs||[]).filter(p=>p.clientId!==id); coachClientId=null; save(); renderCoach(); toast("Cliente eliminado"); }
+/* guardar una rutina compartida (link) en la ficha de un cliente en vez de en Mis rutinas */
+function importRoutineToClient(p, dest){
+  (p.exercises||[]).forEach(ex=>{ if(ex&&ex.id&&!exById(ex.id)) state.exercises.push({...ex}); });
+  let clientId;
+  if(dest==="__new"){
+    const name=(prompt("Nombre del nuevo cliente:","")||"").trim(); if(!name) return;
+    const c={id:"cl_"+Date.now().toString(36), name, sex:"male", experience:"intermedia", goal:"", createdAt:todayStr(), notes:[], measurements:[], routines:[]};
+    state.clients.push(c); clientId=c.id;
+  } else { clientId=dest.replace(/^cl:/,""); }
+  const c=clientById(clientId); if(!c){ return toast("No encontré ese cliente"); }
+  if(!c.routines) c.routines=[];
+  c.routines.push({id:"cr_"+Date.now().toString(36), name:p.name||"Rutina", at:Date.now(), note:p.note||"",
+    templates:(p.templates||[]).map(t=>({name:t.name, exercises:(t.exercises||[]).map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))}))});
+  entrenoMode="clientes"; coachClientId=clientId; coachTab="rutinas";
+  save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno");
+  toast(`Guardada en ${c.name} ✓`);
+}
+function viewClientRoutine(cid,rid){
+  const c=clientById(cid); if(!c) return; const r=(c.routines||[]).find(x=>x.id===rid); if(!r) return;
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent=r.name;
+  b.innerHTML=(r.note?`<div class="coach-note" style="margin-bottom:12px">${ic('note',13)} ${r.note}</div>`:"")+
+    r.templates.map(day=>`<div class="card" style="margin-bottom:10px;padding:14px"><div style="font-weight:750;margin-bottom:8px">${day.name}</div>${
+      day.exercises.map(e=>`<div class="kv"><span>${(exById(e.exId)||{}).name||e.exId}</span><b>${e.sets}×${e.repRange||"—"}${e.rir?` · RIR ${e.rir}`:""}</b></div>`).join("")}</div>`).join("")+
+    `<button class="btn-danger btn-sm" style="width:100%;margin-top:6px" onclick="delClientRoutine('${cid}','${rid}')">Quitar esta rutina</button>`;
+  openModal("exInfoModal");
+}
+function delClientRoutine(cid,rid){ const c=clientById(cid); if(!c) return; c.routines=(c.routines||[]).filter(x=>x.id!==rid); save(); closeModal("exInfoModal"); renderCoach(); }
+/* placeholders de fase 2 (editor Pro) */
+function newProgramForClient(id){ toast("El editor profesional llega en la fase 2 — ya casi 💪"); }
+function openProgram(id){ toast("Editor profesional: fase 2"); }
+function renderEntreno(){
+  updateUnitToggle();
+  const seg=document.getElementById("entrenoModeSeg");
+  if(seg) seg.style.display = isCoach()?"flex":"none";
+  if(!isCoach()) entrenoMode="rutinas";
+  setEntrenoMode(entrenoMode);
+}
 
 /* ====================================================================
    SESIÓN — registro con tonelaje y 1RM en vivo
@@ -3317,11 +3555,24 @@ async function importRoutineFromHash(){
     payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("")+
     (payload.note?`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin-top:12px;line-height:1.5">${ic('note',13)} ${payload.note}</div>`:"")+
     ((state.templates||[]).length?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="duelRoutines()">${ic('scale',14)} Duelo: comparar con MI rutina</button>`:"");
+  if(isCoach()){
+    const opts=(state.clients||[]).filter(c=>!c.archived).map(c=>`<option value="cl:${c.id}">${(c.name||'Cliente').replace(/</g,'')}</option>`).join("");
+    document.getElementById("importRoutineBody").innerHTML +=
+      `<div class="field" style="margin-top:14px"><label>Guardar en</label>
+        <select id="importDest">
+          <option value="__me">Mis rutinas</option>
+          ${opts?`<optgroup label="Clientes">${opts}</optgroup>`:""}
+          <option value="__new">➕ Nuevo cliente por nombre…</option>
+        </select></div>
+       <small class="hint" style="display:block">Como entrenador puedes guardar esta rutina en la ficha de un cliente en lugar de en tus rutinas.</small>`;
+  }
   openModal("importRoutineModal");
   history.replaceState(null,"",location.pathname);
 }
 function confirmImportRoutine(){
   const p=pendingImport; if(!p) return;
+  const destSel=isCoach()?document.getElementById("importDest"):null;
+  if(destSel && destSel.value && destSel.value!=="__me"){ return importRoutineToClient(p, destSel.value); }
   (p.exercises||[]).forEach(ex=>{ if(ex&&ex.id&&!exById(ex.id)) state.exercises.push({...ex}); });
   let folderId=null, updated=false;
   const updFolder = p.key ? (state.folders||[]).find(fd=>fd.shareKey===p.key) : null;

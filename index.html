@@ -281,6 +281,10 @@
       <button class="btn-ghost btn-sm" id="unitToggle" onclick="toggleUnit()">kg</button>
     </div>
     <p class="section-desc">Registra tus sesiones, tonelaje y 1RM.</p>
+    <div class="seg coach-seg" id="entrenoModeSeg" style="display:none">
+      <span class="on" data-mode="rutinas"  onclick="setEntrenoMode('rutinas')">Mis rutinas</span>
+      <span data-mode="clientes" onclick="setEntrenoMode('clientes')">Clientes</span>
+    </div>
     <div class="subnav" id="entrenoSubnav">
       <button data-sub="sesion"     class="active" onclick="subEntreno('sesion')">Sesión</button>
       <button data-sub="plantillas" onclick="subEntreno('plantillas')">Plantillas</button>
@@ -288,6 +292,7 @@
       <button data-sub="records"    onclick="subEntreno('records')">Records</button>
       <button data-sub="medidas"    onclick="subEntreno('medidas')">Medidas</button>
     </div>
+    <div id="coachRoot" style="display:none"></div>
 
     <div class="subview active" id="ent-sesion"></div>
 
