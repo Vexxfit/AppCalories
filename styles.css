@@ -780,6 +780,52 @@ html[data-theme="dark"] .coach-warn{color:var(--warn)}
 .coach-note-x{position:absolute;top:8px;right:9px;color:var(--muted);cursor:pointer;display:inline-flex}
 .coach-note-x:hover{color:var(--bad)}
 
+/* ---- 19b · Editor Profesional (programas) ---- */
+.pgm-title{flex:1;min-width:0;font-size:20px;font-weight:800;letter-spacing:-.025em;background:transparent;border:none;padding:2px 0;color:var(--text);font-family:var(--font)}
+.pgm-sub{width:100%;font-size:13px;color:var(--muted);background:transparent;border:none;padding:2px 0 10px;font-family:var(--font)}
+.pgm-weeks{display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-bottom:14px;padding-bottom:2px}
+.pgm-weeks::-webkit-scrollbar{display:none}
+.pgm-weeks span{flex:0 0 auto;font-size:12.5px;font-weight:650;padding:8px 13px;border-radius:999px;background:var(--bg2);color:var(--muted);white-space:nowrap;cursor:pointer}
+.pgm-weeks span.on{background:var(--accent);color:#fff}
+.pgm-weeks span.add{background:var(--accent-soft);color:var(--accent);font-weight:800}
+.pgm-weeks span.add.del{background:rgba(255,69,58,.12);color:var(--bad)}
+.pgm-day{background:var(--surface);border:1px solid var(--hairline);border-radius:18px;box-shadow:var(--shadow-sm);padding:13px;margin-bottom:12px}
+.pgm-dayhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.pgm-dayname{flex:1;min-width:0;font-size:15.5px;font-weight:750;background:transparent;border:none;padding:2px 0;color:var(--text);font-family:var(--font)}
+.pgm-daymeta{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.pgm-x{background:none;border:none;color:var(--bad);cursor:pointer;display:flex;padding:4px;border-radius:8px}
+.pgm-ex{display:flex;align-items:center;gap:9px;background:var(--bg2);border-radius:12px;padding:10px 11px;margin-bottom:8px;cursor:pointer}
+.pgm-num,.pgm-ss{width:22px;height:22px;border-radius:7px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+.pgm-num{background:var(--surface3);color:var(--muted)}
+.pgm-ss{color:#fff}
+.pgm-exn{flex:1;min-width:0;font-size:13.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pgm-scheme{font-size:12px;color:var(--muted);font-weight:600;white-space:nowrap}
+.pgm-tag{font-size:9.5px;font-weight:800;color:#a86400;background:color-mix(in srgb,var(--warn) 20%,transparent);border-radius:5px;padding:1px 5px;vertical-align:middle}
+html[data-theme="dark"] .pgm-tag{color:var(--warn)}
+.pgm-ex.expanded{display:block;background:var(--surface);border:1px solid var(--accent);box-shadow:0 0 0 3px var(--accent-soft);padding:12px}
+.pgm-ex-top{display:flex;align-items:center;gap:9px;cursor:pointer;margin-bottom:11px}
+.pgm-ex-top .pgm-exn{font-size:14.5px;font-weight:700}
+.pgm-collapse{color:var(--muted);display:flex;transform:rotate(90deg)}
+.pgm-params{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ppair label{display:block;font-size:10px;font-weight:650;color:var(--muted);text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px}
+.ppair input{width:100%;background:var(--bg2);border:none;border-radius:9px;padding:9px 8px;font-size:13.5px;font-weight:650;text-align:center;color:var(--text);font-family:var(--font)}
+.pgm-chiprow{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.pgm-chip{flex:1;min-width:120px;font-size:12px;font-weight:600;padding:9px 10px;border-radius:10px;background:var(--bg2);color:var(--muted);border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px}
+.pgm-chip.on{background:var(--accent-soft);color:var(--accent)}
+.pgm-note{width:100%;background:var(--bg2);border:none;border-radius:10px;padding:9px 11px;font-size:12.5px;color:var(--text);font-family:var(--font);margin-top:8px}
+.pgm-exact{display:flex;gap:7px;margin-top:11px}
+.pgm-addex{width:100%;text-align:center;font-size:13px;font-weight:650;color:var(--accent);background:var(--accent-soft);border:none;border-radius:11px;padding:10px;cursor:pointer;margin-bottom:9px}
+.pgm-search{width:100%;background:var(--bg2);border:none;border-radius:11px;padding:11px 13px;font-size:14px;color:var(--text);font-family:var(--font);margin-bottom:11px}
+.pgm-picklist{max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.pgm-pick{display:flex;align-items:center;gap:10px;padding:9px 2px;border-bottom:1px solid var(--hairline-soft)}
+.pgm-pick:last-child{border-bottom:none}
+.pgm-pi{width:30px;height:30px;border-radius:8px;background:var(--accent-soft);color:var(--accent);display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+.pgm-pn{flex:1;min-width:0}
+.pgm-pn b{display:block;font-size:14px;font-weight:600}
+.pgm-pn span{font-size:11.5px;color:var(--muted)}
+.pgm-plus{width:30px;height:30px;border-radius:50%;background:var(--accent);color:#fff;border:none;display:flex;align-items:center;justify-content:center;flex:0 0 auto;cursor:pointer}
+@media(max-width:360px){ .pgm-params{grid-template-columns:repeat(2,1fr)} }
+
 /* ---- 18 · Dieta palomeable + suplementos ---- */
 .mi-name{cursor:pointer;-webkit-user-select:none;user-select:none}
 .meal-item.eaten .mi-name{color:var(--muted)}

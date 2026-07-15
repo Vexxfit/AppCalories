@@ -2859,6 +2859,8 @@ const EXP_LABELS={principiante:"Principiante",intermedia:"Intermedia",avanzada:"
 /* ---- raíz: lista o ficha ---- */
 function renderCoach(){
   const el=document.getElementById("coachRoot"); if(!el) return;
+  if(coachProgramId && programById(coachProgramId)) return renderProgram(el);
+  coachProgramId=null;
   if(coachClientId && clientById(coachClientId)) renderClientDetail(el); else { coachClientId=null; renderClientList(el); }
 }
 function renderClientList(el){
@@ -3060,9 +3062,152 @@ function viewClientRoutine(cid,rid){
   openModal("exInfoModal");
 }
 function delClientRoutine(cid,rid){ const c=clientById(cid); if(!c) return; c.routines=(c.routines||[]).filter(x=>x.id!==rid); save(); closeModal("exInfoModal"); renderCoach(); }
-/* placeholders de fase 2 (editor Pro) */
-function newProgramForClient(id){ toast("El editor profesional llega en la fase 2 — ya casi 💪"); }
-function openProgram(id){ toast("Editor profesional: fase 2"); }
+/* ====================================================================
+   EDITOR PROFESIONAL — programas multi-semana para clientes
+   ==================================================================== */
+let coachProgramId=null, progWeek=0, progExpanded=null;
+let progPickerDay=null, progPickerReplace=null, progPickerFilter="Todos", progPickerQuery="";
+function programById(id){ return (state.programs||[]).find(p=>p.id===id); }
+function curProgram(){ return programById(coachProgramId); }
+function curWeek(){ const p=curProgram(); return p? (p.weeks[progWeek]||p.weeks[0]) : null; }
+function newProgramForClient(clientId){
+  const c=clientById(clientId); const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent="Nuevo programa"+(c?" · "+c.name:"");
+  b.innerHTML=`
+    <div class="field"><label>Nombre</label><input id="pgName" placeholder="Ej. Hipertrofia — bloque 1"></div>
+    <div class="field"><label>División</label><input id="pgSplit" placeholder="Ej. Upper/Lower, PPL, Full body"></div>
+    <div class="row"><div class="field"><label>Días / semana</label><input id="pgDays" type="number" inputmode="numeric" value="4"></div>
+      <div class="field"><label>Semanas</label><input id="pgWeeks" type="number" inputmode="numeric" value="4"></div></div>
+    <small class="hint" style="display:block;margin-bottom:12px">Puedes cambiar todo después: agregar/duplicar semanas y días, y renombrarlos.</small>
+    <button class="btn-primary" style="width:100%" onclick="createProgram('${clientId}')">Crear programa</button>`;
+  openModal("exInfoModal");
+}
+function createProgram(clientId){
+  const name=(val("pgName")||"").trim()||"Programa";
+  const split=(val("pgSplit")||"").trim();
+  const nD=Math.max(1,Math.min(7,parseInt(val("pgDays"))||3));
+  const nW=Math.max(1,Math.min(20,parseInt(val("pgWeeks"))||4));
+  const mkWeek=()=>({days:Array.from({length:nD},(_,i)=>({name:"Día "+(i+1),notes:"",items:[]}))});
+  const weeks=Array.from({length:nW},()=>JSON.parse(JSON.stringify(mkWeek())));
+  const p={id:"pg_"+Date.now().toString(36), clientId:clientId||null, name, split, createdAt:todayStr(), weeks};
+  state.programs.push(p); save(); closeModal("exInfoModal");
+  coachProgramId=p.id; progWeek=0; progExpanded=null; renderCoach();
+}
+function openProgram(id){ coachProgramId=id; progWeek=0; progExpanded=null; renderCoach(); }
+function closeProgram(){ coachProgramId=null; progExpanded=null; renderCoach(); }
+function renderProgram(el){
+  const p=curProgram(); if(!p){ closeProgram(); return; }
+  const wk=curWeek(); if(!wk) return;
+  const cli=clientById(p.clientId);
+  el.innerHTML=`
+    <button class="coach-back" onclick="closeProgram()">${ic('chev',15)} ${cli?cli.name:'Programa'}</button>
+    <div class="flex-between" style="gap:8px;margin-bottom:6px">
+      <input class="pgm-title" value="${(p.name||'').replace(/"/g,'&quot;')}" onchange="progField('name',this.value)">
+      <button class="btn-ghost btn-sm" title="Compartir por link" onclick="shareProgram()">${ic('share',15)}</button></div>
+    <input class="pgm-sub" value="${(p.split||'').replace(/"/g,'&quot;')}" placeholder="División (Upper/Lower, PPL…)" onchange="progField('split',this.value)">
+    <div class="pgm-weeks">${p.weeks.map((w,i)=>`<span class="${i===progWeek?'on':''}" onclick="progSetWeek(${i})">Sem ${i+1}</span>`).join("")}
+      <span class="add" title="Añadir semana" onclick="progAddWeek()">＋</span>
+      <span class="add" title="Duplicar esta semana" onclick="progDupWeek()">⧉</span>
+      ${p.weeks.length>1?`<span class="add del" title="Borrar esta semana" onclick="progDelWeek()">${ic('x',12)}</span>`:''}</div>
+    <div>${wk.days.map((d,di)=>renderProgDay(p,d,di)).join("")}</div>
+    <button class="btn-ghost btn-sm" style="width:100%;margin-top:4px" onclick="progAddDay()">+ Día</button>`;
+}
+function renderProgDay(p,d,di){
+  return `<div class="pgm-day">
+    <div class="pgm-dayhead"><input class="pgm-dayname" value="${(d.name||'').replace(/"/g,'&quot;')}" onchange="progDayField(${di},'name',this.value)">
+      <span class="pgm-daymeta">${d.items.length} ej</span>
+      <button class="pgm-x" title="Borrar día" onclick="progDelDay(${di})">${ic('x',14)}</button></div>
+    <div>${d.items.map((it,xi)=>renderProgEx(it,di,xi)).join("")}</div>
+    <button class="pgm-addex" onclick="openExPicker(${di})">+ Añadir ejercicio</button>
+    <input class="pgm-note" value="${(d.notes||'').replace(/"/g,'&quot;')}" placeholder="Nota del día (opcional)" onchange="progDayField(${di},'notes',this.value)">
+  </div>`;
+}
+function renderProgEx(it,di,xi){
+  const ex=exById(it.exId)||{name:it.exId,group:""};
+  const key=di+":"+xi, expanded=progExpanded===key;
+  const ssCol=it.superset?(SS_COLORS[it.superset]||'var(--accent)'):null;
+  const badge=it.superset?`<span class="pgm-ss" style="background:${ssCol}">${it.superset}</span>`:`<span class="pgm-num">${xi+1}</span>`;
+  const scheme=`${it.warmup?it.warmup+'cal · ':''}${it.sets||0}×${it.reps||'—'}${it.rir!==''&&it.rir!=null?' · RIR '+it.rir:''}`;
+  if(!expanded) return `<div class="pgm-ex" onclick="progToggleExpand('${key}')">${badge}
+    <span class="pgm-exn">${ex.name}${it.drop?' <span class="pgm-tag">drop</span>':''}</span>
+    <span class="pgm-scheme">${scheme}</span></div>`;
+  const fld=(lbl,f,ph,numeric)=>`<div class="ppair"><label>${lbl}</label><input ${numeric?'type="number" inputmode="numeric"':''} value="${(it[f]==null?'':String(it[f])).replace(/"/g,'&quot;')}" placeholder="${ph||''}" onchange="progExField(${di},${xi},'${f}',this.value)"></div>`;
+  return `<div class="pgm-ex expanded">
+    <div class="pgm-ex-top" onclick="progToggleExpand(null)">${badge}<span class="pgm-exn">${ex.name}</span><span class="pgm-collapse">${ic('chev',14)}</span></div>
+    <div class="pgm-params">${fld('Series','sets','3',true)}${fld('Reps','reps','8-10')}${fld('RIR','rir','1-2')}${fld('Tempo','tempo','3-1-1')}${fld('Descanso','rest','90s')}${fld('Calent.','warmup','0',true)}</div>
+    <div class="pgm-chiprow">
+      <button class="pgm-chip ${it.superset?'on':''}" onclick="progCycleSS(${di},${xi})">${ic('link',13)} Superserie ${it.superset||'—'}</button>
+      <button class="pgm-chip ${it.drop?'on':''}" onclick="progToggleDrop(${di},${xi})">Dropset ${it.drop?'✓':'—'}</button>
+    </div>
+    <input class="pgm-note" value="${(it.progression||'').replace(/"/g,'&quot;')}" placeholder="Progresión (ej. +2.5 kg/semana)" onchange="progExField(${di},${xi},'progression',this.value)">
+    <input class="pgm-note" value="${(it.notes||'').replace(/"/g,'&quot;')}" placeholder="Nota del ejercicio" onchange="progExField(${di},${xi},'notes',this.value)">
+    <div class="pgm-exact">
+      <button class="btn-ghost btn-sm" onclick="progMoveEx(${di},${xi},-1)" ${xi===0?'disabled':''}>↑</button>
+      <button class="btn-ghost btn-sm" onclick="progMoveEx(${di},${xi},1)">↓</button>
+      <button class="btn-ghost btn-sm" onclick="openExPicker(${di},${xi})">${ic('swap',14)} Cambiar</button>
+      <button class="btn-danger btn-sm" style="margin-left:auto" onclick="progDelEx(${di},${xi})">Quitar</button>
+    </div></div>`;
+}
+/* --- edición de campos (guardan sin re-render para no perder foco) --- */
+function progField(f,v){ const p=curProgram(); if(!p) return; p[f]=(v||"").trim(); save(); }
+function progDayField(di,f,v){ const d=curWeek()&&curWeek().days[di]; if(!d) return; d[f]=(v||"").trim(); save(); }
+function progExField(di,xi,f,v){ const it=curWeek()&&curWeek().days[di]&&curWeek().days[di].items[xi]; if(!it) return;
+  if(f==="sets"||f==="warmup") it[f]=Math.max(0,parseInt(v)||0); else it[f]=(v||"").trim(); save(); }
+/* --- estructura (re-render) --- */
+function progToggleExpand(key){ progExpanded = (progExpanded===key)?null:key; renderCoach(); }
+function progSetWeek(i){ progWeek=i; progExpanded=null; renderCoach(); }
+function progAddWeek(){ const p=curProgram(); if(!p) return; const base=p.weeks[p.weeks.length-1]||{days:[{name:"Día 1",notes:"",items:[]}]};
+  p.weeks.push({days:base.days.map(d=>({name:d.name,notes:d.notes,items:[]}))}); progWeek=p.weeks.length-1; save(); renderCoach(); }
+function progDupWeek(){ const p=curProgram(); if(!p) return; const w=curWeek();
+  p.weeks.splice(progWeek+1,0,JSON.parse(JSON.stringify(w))); progWeek=progWeek+1; save(); renderCoach(); toast("Semana duplicada ✓"); }
+function progDelWeek(){ const p=curProgram(); if(!p||p.weeks.length<=1) return; if(!confirm("¿Borrar esta semana?")) return;
+  p.weeks.splice(progWeek,1); progWeek=Math.max(0,progWeek-1); save(); renderCoach(); }
+function progAddDay(){ const w=curWeek(); if(!w) return; w.days.push({name:"Día "+(w.days.length+1),notes:"",items:[]}); save(); renderCoach(); }
+function progDelDay(di){ const w=curWeek(); if(!w) return; if(!confirm("¿Borrar este día?")) return; w.days.splice(di,1); progExpanded=null; save(); renderCoach(); }
+function progDelEx(di,xi){ const d=curWeek()&&curWeek().days[di]; if(!d) return; d.items.splice(xi,1); progExpanded=null; save(); renderCoach(); }
+function progMoveEx(di,xi,dir){ const d=curWeek()&&curWeek().days[di]; if(!d) return; const j=xi+dir; if(j<0||j>=d.items.length) return; [d.items[xi],d.items[j]]=[d.items[j],d.items[xi]]; progExpanded=di+":"+j; save(); renderCoach(); }
+function progCycleSS(di,xi){ const it=curWeek()&&curWeek().days[di]&&curWeek().days[di].items[xi]; if(!it) return;
+  const order=["","A","B","C","D","E"]; it.superset=order[(order.indexOf(it.superset||"")+1)%order.length]; save(); renderCoach(); }
+function progToggleDrop(di,xi){ const it=curWeek()&&curWeek().days[di]&&curWeek().days[di].items[xi]; if(!it) return; it.drop=!it.drop; save(); renderCoach(); }
+/* --- biblioteca con filtros (hoja) --- */
+function openExPicker(di,replaceXi){ progPickerDay=di; progPickerReplace=(replaceXi==null?null:replaceXi); progPickerFilter="Todos"; progPickerQuery=""; drawExPicker(); openModal("exInfoModal"); }
+function pickListHTML(){
+  const q=progPickerQuery.toLowerCase().trim();
+  const list=(state.exercises||[]).filter(e=>(progPickerFilter==="Todos"||e.group===progPickerFilter)&&(!q||(e.name||"").toLowerCase().includes(q)));
+  return list.length? list.map(e=>`<div class="pgm-pick"><div class="pgm-pi">${ic('dumbbell',14)}</div>
+    <div class="pgm-pn"><b>${e.name}</b><span>${e.group||''}</span></div>
+    <button class="pgm-plus" onclick="pickerAdd('${e.id}')">${ic(progPickerReplace==null?'copy':'swap',13)}</button></div>`).join("")
+    : `<div class="empty" style="margin:0">Sin resultados.</div>`;
+}
+function drawExPicker(){
+  const t=document.getElementById("exInfoTitle"), b=document.getElementById("exInfoBody"); if(!t||!b) return;
+  t.textContent=progPickerReplace==null?"Añadir ejercicio":"Cambiar ejercicio";
+  const groups=[...new Set((state.exercises||[]).map(e=>e.group).filter(Boolean))];
+  b.innerHTML=`
+    <input class="pgm-search" id="exPickSearch" placeholder="Buscar ejercicio…" value="${progPickerQuery.replace(/"/g,'&quot;')}" oninput="pickerSearch(this.value)">
+    <div class="coach-tabs" style="margin-bottom:12px">${["Todos",...groups].map(g=>`<span class="${g===progPickerFilter?'on':''}" onclick="pickerFilter('${(g||'').replace(/'/g,'')}')">${g}</span>`).join("")}</div>
+    <div class="pgm-picklist" id="exPickList">${pickListHTML()}</div>
+    <button class="btn-primary" style="width:100%;margin-top:12px" onclick="closeModal('exInfoModal');renderCoach()">Listo</button>`;
+}
+function pickerSearch(v){ progPickerQuery=v; const l=document.getElementById("exPickList"); if(l) l.innerHTML=pickListHTML(); }
+function pickerFilter(g){ progPickerFilter=g; drawExPicker(); }
+function pickerAdd(exId){
+  const d=curWeek()&&curWeek().days[progPickerDay]; if(!d) return; const ex=exById(exId)||{};
+  const base={exId, sets:3, reps:ex.repRange||"8-12", rir:ex.rir||"1-2", tempo:"", rest:"90s", warmup:0, superset:"", drop:false, progression:"", notes:""};
+  if(progPickerReplace!=null){ const old=d.items[progPickerReplace]||{};
+    ["sets","reps","rir","tempo","rest","warmup","superset","drop","progression","notes"].forEach(k=>{ if(old[k]!=null&&old[k]!=="") base[k]=old[k]; });
+    d.items[progPickerReplace]=base; save(); closeModal("exInfoModal"); progPickerReplace=null; renderCoach(); return; }
+  d.items.push(base); save(); toast((ex.name||"Ejercicio")+" añadido ✓");   // se queda abierto para agregar varios
+}
+/* --- compartir programa (exporta la semana actual como rutina) --- */
+function shareProgram(){
+  const p=curProgram(); if(!p) return; const wk=curWeek();
+  const templates=wk.days.filter(d=>d.items.length).map(d=>({name:d.name, exercises:d.items.map(it=>({exId:it.exId,sets:it.sets,repRange:it.reps,rir:it.rir}))}));
+  if(!templates.length) return toast("Agrega ejercicios primero");
+  const note=[(p.split||""),"Semana "+(progWeek+1)+" de "+p.weeks.length].filter(Boolean).join(" · ");
+  buildAndShare({v:1,type:"folder",name:p.name||"Programa",note,key:shortId(),changelog:"",templates,exercises:customExsFor(templates)}, p.name||"Programa");
+  toast("Se comparte la semana "+(progWeek+1)+" (series, reps y RIR).");
+}
 function renderEntreno(){
   updateUnitToggle();
   const seg=document.getElementById("entrenoModeSeg");
