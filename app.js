@@ -3789,7 +3789,11 @@ const EX_MUSCLES={
   e_sentadilla:{cuadriceps:1,gluteo:0.6,femoral:0.3}, e_extcuad:{cuadriceps:1}, e_prensa:{cuadriceps:1,gluteo:0.5}, e_zancadas:{cuadriceps:1,gluteo:0.7}, e_bulgara:{cuadriceps:1,gluteo:0.8},
   e_hipthrust:{gluteo:1,femoral:0.4}, e_abductor:{gluteo:1}, e_aductor:{aductor:1},
   e_pantprensa:{pantorrilla:1}, e_pantsent:{pantorrilla:1}, e_gemelopie:{pantorrilla:1},
-  e_plancha:{core:1}, e_crunchpolea:{core:1}, e_elevpiernas:{core:1}, e_abruedita:{core:1}
+  e_plancha:{core:1}, e_crunchpolea:{core:1}, e_elevpiernas:{core:1}, e_abruedita:{core:1},
+  e_latmaq:{deltLat:1}, e_copastriceps:{triceps:1}, e_predicadormaq:{biceps:1,antebrazo:0.2},
+  e_remohammer:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_costurera:{aductor:1},
+  e_pendulo:{cuadriceps:1,gluteo:0.5,femoral:0.3}, e_movcadera:{core:0.3,gluteo:0.2},
+  ce_1782313044383:{femoral:1}
 };
 const GROUP_FALLBACK={ "Pecho":{pecho:1,deltAnt:0.4,triceps:0.4},"Hombro":{deltLat:1,deltAnt:0.5},"Espalda":{dorsal:1,espaldaAlta:0.5,biceps:0.4,deltPost:0.3},
   "Bíceps":{biceps:1,antebrazo:0.3},"Tríceps":{triceps:1},"Cuádriceps":{cuadriceps:1,gluteo:0.4},"Femoral":{femoral:1,gluteo:0.4},"Glúteo":{gluteo:1,femoral:0.3},"Pantorrilla":{pantorrilla:1},"Core":{core:1} };

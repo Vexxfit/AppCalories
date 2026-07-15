@@ -156,6 +156,14 @@ const DEFAULT_EXERCISES = [
   {id:"ce_1782311296032", name:"Remo en polea alta unilateral",              group:"Espalda",    repRange:"10-15", rir:"0-1", muscles:{dorsal:0.7,deltPost:0.45,biceps:0.35}},
   {id:"ce_1782313044383", name:"Curl femoral individual",                    group:"Femoral",    repRange:"10-12", rir:"0-1"},
   {id:"ce_1782334604277", name:"Extensión de cuádriceps unilateral",         group:"Cuádriceps", repRange:"6-10",  rir:"0-1", muscles:{cuadriceps:1}},
+  // Nuevos (rutina de 6 días)
+  {id:"e_latmaq",         name:"Laterales en máquina",                       group:"Hombro",     repRange:"10-15", rir:"0-1"},
+  {id:"e_copastriceps",   name:"Copas de tríceps unilateral en polea",       group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_predicadormaq",  name:"Curl predicador en máquina",                 group:"Bíceps",     repRange:"8-12",  rir:"0-1"},
+  {id:"e_remohammer",     name:"Remo en máquina Hammer",                     group:"Espalda",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_costurera",      name:"Costurera (aductor)",                        group:"Glúteo",     repRange:"10-15", rir:"0-1"},
+  {id:"e_pendulo",        name:"Sentadilla péndulo",                         group:"Cuádriceps", repRange:"6-10",  rir:"0-1"},
+  {id:"e_movcadera",      name:"Movilidad de cadera",                        group:"Core",       repRange:"6-10",  rir:"2-3"},
 ];
 
 /* Tips de técnica por ejercicio (clave + error común), en lenguaje simple */
@@ -222,7 +230,14 @@ const EX_TIPS={
   e_abruedita:"Abdomen apretado todo el tiempo; no dejes caer la zona lumbar.",
   ce_1782310417636:"Pecho al frente; sube hasta pasar la barbilla. Evita medias reps con balanceo.",
   ce_1782311296032:"Codo alto y jala hacia la cadera; controla la vuelta.",
-  ce_1782334604277:"Una pierna: sube con control, aprieta 1 seg arriba y baja lento."
+  ce_1782334604277:"Una pierna: sube con control, aprieta 1 seg arriba y baja lento.",
+  e_latmaq:"Baja LENTO y controlado; lleva los codos hacia afuera-arriba sin encoger el cuello. Aprieta el deltoide lateral arriba.",
+  e_copastriceps:"Codo pegado al cuerpo y fijo; extiende completo y aprieta abajo 1 seg. Una mano a la vez, sin balanceo.",
+  e_predicadormaq:"Tríceps/brazo apoyado; aprieta arriba en cada rep y baja controlado casi hasta extender. Evita medias reps.",
+  e_remohammer:"Pecho apoyado; jala con los codos hacia atrás, no con las manos. Aprieta la espalda 1 seg y controla la vuelta.",
+  e_costurera:"Cierra las piernas con control y aprieta 1 seg; ajusta el rango a lo que tu cadera permita sin dolor.",
+  e_pendulo:"Baja controlado buscando profundidad; talones firmes y empuja parejo. Prioriza técnica sobre peso.",
+  e_movcadera:"Circuito de movilidad (6 reps por lado salvo indicado): elevación de pierna hacia atrás · rotar cadera adentro/afuera · flexión lateral · sentadilla sin peso 5 reps + isometría 15 s · alcanzar puntas de pie · rodilla toca talón 10 y 10 · girar y pegar pecho al suelo · tocar puntas sentado · tocar puntas parado y cruzado."
 };
 function _te(exId,sets,repRange,rir){ return {exId,sets,repRange,rir}; }
 const DEFAULT_TEMPLATES = [
