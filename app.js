@@ -3046,7 +3046,7 @@ function importRoutineToClient(p, dest){
   const c=clientById(clientId); if(!c){ return toast("No encontré ese cliente"); }
   if(!c.routines) c.routines=[];
   c.routines.push({id:"cr_"+Date.now().toString(36), name:p.name||"Rutina", at:Date.now(), note:p.note||"",
-    templates:(p.templates||[]).map(t=>({name:t.name, exercises:(t.exercises||[]).map(x=>({exId:x.exId,sets:x.sets,repRange:x.repRange,rir:x.rir}))}))});
+    templates:(p.templates||[]).map(t=>({name:t.name, exercises:(t.exercises||[]).map(x=>({...x}))}))});
   entrenoMode="clientes"; coachClientId=clientId; coachTab="rutinas";
   save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno");
   toast(`Guardada en ${c.name} ✓`);
@@ -3057,7 +3057,7 @@ function viewClientRoutine(cid,rid){
   t.textContent=r.name;
   b.innerHTML=(r.note?`<div class="coach-note" style="margin-bottom:12px">${ic('note',13)} ${r.note}</div>`:"")+
     r.templates.map(day=>`<div class="card" style="margin-bottom:10px;padding:14px"><div style="font-weight:750;margin-bottom:8px">${day.name}</div>${
-      day.exercises.map(e=>`<div class="kv"><span>${(exById(e.exId)||{}).name||e.exId}</span><b>${e.sets}×${e.repRange||"—"}${e.rir?` · RIR ${e.rir}`:""}</b></div>`).join("")}</div>`).join("")+
+      day.exercises.map(e=>{ const rx=coachRxLine(e); return `<div style="padding:9px 0;border-bottom:1px solid var(--hairline-soft)"><div class="flex-between" style="gap:10px"><span style="font-size:14px">${(exById(e.exId)||{}).name||e.exId}${e.superset?` <span class="pgm-ss" style="display:inline-flex;width:18px;height:18px;background:${SS_COLORS[e.superset]||'var(--accent)'};vertical-align:-3px">${e.superset}</span>`:''}</span><b style="white-space:nowrap">${e.sets}×${e.repRange||"—"}${e.rir?` · RIR ${e.rir}`:""}</b></div>${rx?`<div style="font-size:11.5px;color:var(--muted);margin-top:3px">${rx}</div>`:""}${e.notes?`<div style="font-size:11.5px;color:var(--accent);margin-top:2px">${ic('note',11)} ${e.notes}</div>`:""}</div>`; }).join("")}</div>`).join("")+
     `<button class="btn-danger btn-sm" style="width:100%;margin-top:6px" onclick="delClientRoutine('${cid}','${rid}')">Quitar esta rutina</button>`;
   openModal("exInfoModal");
 }
@@ -3202,11 +3202,13 @@ function pickerAdd(exId){
 /* --- compartir programa (exporta la semana actual como rutina) --- */
 function shareProgram(){
   const p=curProgram(); if(!p) return; const wk=curWeek();
-  const templates=wk.days.filter(d=>d.items.length).map(d=>({name:d.name, exercises:d.items.map(it=>({exId:it.exId,sets:it.sets,repRange:it.reps,rir:it.rir}))}));
+  const templates=wk.days.filter(d=>d.items.length).map(d=>({name:d.name, exercises:d.items.map(it=>({
+    exId:it.exId, sets:it.sets, repRange:it.reps, rir:it.rir,
+    tempo:it.tempo, rest:it.rest, warmup:it.warmup, superset:it.superset, drop:it.drop, progression:it.progression, notes:it.notes}))}));
   if(!templates.length) return toast("Agrega ejercicios primero");
   const note=[(p.split||""),"Semana "+(progWeek+1)+" de "+p.weeks.length].filter(Boolean).join(" · ");
   buildAndShare({v:1,type:"folder",name:p.name||"Programa",note,key:shortId(),changelog:"",templates,exercises:customExsFor(templates)}, p.name||"Programa");
-  toast("Se comparte la semana "+(progWeek+1)+" (series, reps y RIR).");
+  toast("Se comparte la semana "+(progWeek+1)+" completa (tempo, descanso, superseries…).");
 }
 function renderEntreno(){
   updateUnitToggle();
@@ -3259,8 +3261,10 @@ function startSession(){
       const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||te.rir||"", type:s.type, drops:s.drops?s.drops.map(d=>({weight:d.weight||0,reps:d.reps||0})):undefined, repsL:s.repsL, repsR:s.repsR}))
                         : Array.from({length:Math.max(1,te.sets||1)}, ()=>({weight:0,reps:0,rir:te.rir||""}));
       const uni = !!(last && last.some(s=>s.repsL!=null||s.repsR!=null));
+      // prescripción del entrenador (si la rutina vino con parámetros Pro): se muestra al entrenar
+      const rx=coachRxLine(te); const note=[rx, te.notes].filter(Boolean).join(" · ");
       return { exId:te.exId, name:ex?ex.name:te.exId, group:ex?ex.group:"—",
-        repRange:te.repRange, rir:te.rir, prefilled:!!last, uni, sets };
+        repRange:te.repRange, rir:te.rir, tempo:te.tempo||"", exNote:note||"", sg:te.superset||undefined, prefilled:!!last, uni, sets };
     })
   };
   closeModal("startModal"); renderSesion();
@@ -3643,12 +3647,18 @@ function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.fo
   ids.forEach(id=>{ if(!defIds.has(id)){ const e=exById(id); if(e){ const o={id:e.id,name:e.name,group:e.group,repRange:e.repRange,rir:e.rir,custom:true}; if(e.muscles)o.muscles=e.muscles; out.push(o); } } });
   return out; }
 /* esquema compacto (arrays) para acortar al máximo el link */
-function compactShare(p){ const ex=e=>[e.exId,e.sets,e.repRange,e.rir], ce=x=>[x.id,x.name,x.group,x.repRange,x.rir];
+/* parámetros Pro por ejercicio que viajan en el link (5º elemento, opcional).
+   Claves cortas: t=tempo r=descanso w=calentamiento s=superserie d=dropset pr=progresión n=nota */
+function exParamsPack(e){ const o={}; if(e.tempo)o.t=e.tempo; if(e.rest)o.r=e.rest; if(e.warmup)o.w=e.warmup; if(e.superset)o.s=e.superset; if(e.drop)o.d=1; if(e.progression)o.pr=e.progression; if(e.notes)o.n=e.notes; return Object.keys(o).length?o:0; }
+function exParamsUnpack(o){ const r={}; if(!o||typeof o!=="object") return r; if(o.t)r.tempo=o.t; if(o.r)r.rest=o.r; if(o.w)r.warmup=o.w; if(o.s)r.superset=o.s; if(o.d)r.drop=true; if(o.pr)r.progression=o.pr; if(o.n)r.notes=o.n; return r; }
+function compactShare(p){ const ex=e=>{ const a=[e.exId,e.sets,e.repRange,e.rir]; const pk=exParamsPack(e); if(pk) a.push(pk); return a; }, ce=x=>[x.id,x.name,x.group,x.repRange,x.rir];
   if(p.type==="folder") return [2,p.name,p.templates.map(t=>[t.name,t.exercises.map(ex)]),(p.exercises||[]).map(ce),p.note||"",p.key||"",p.changelog||""];
   return [1,p.name,p.templates[0].exercises.map(ex),(p.exercises||[]).map(ce)]; }
-function expandShare(a){ const ex=t=>({exId:t[0],sets:t[1],repRange:t[2],rir:t[3]}), ce=c=>({id:c[0],name:c[1],group:c[2],repRange:c[3],rir:c[4],custom:true});
+function expandShare(a){ const ex=t=>Object.assign({exId:t[0],sets:t[1],repRange:t[2],rir:t[3]}, exParamsUnpack(t[4])), ce=c=>({id:c[0],name:c[1],group:c[2],repRange:c[3],rir:c[4],custom:true});
   if(a[0]===2) return {type:"folder",name:a[1],templates:(a[2]||[]).map(t=>({name:t[0],exercises:(t[1]||[]).map(ex)})),exercises:(a[3]||[]).map(ce),note:a[4]||"",key:a[5]||"",changelog:a[6]||""};
   return {type:"tpl",name:a[1],templates:[{name:a[1],exercises:(a[2]||[]).map(ex)}],exercises:(a[3]||[]).map(ce)}; }
+/* texto compacto de la prescripción Pro (para mostrar donde aterriza) */
+function coachRxLine(x){ const p=[]; if(x.tempo)p.push("tempo "+x.tempo); if(x.rest)p.push("desc. "+x.rest); if(x.warmup)p.push(x.warmup+" calent."); if(x.superset)p.push("superserie "+x.superset); if(x.drop)p.push("dropset"); if(x.progression)p.push("↑ "+x.progression); return p.join(" · "); }
 function loadLZ(){ return new Promise(res=>{ if(window.LZString) return res(); const s=document.createElement("script"); s.src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"; s.onload=res; s.onerror=res; document.head.appendChild(s); }); }
 function shortId(){ const c="abcdefghijkmnpqrstuvwxyz23456789"; let s=""; for(let i=0;i<7;i++) s+=c[Math.floor(Math.random()*c.length)]; return s; }
 function shareBase(){ return location.origin+location.pathname; }
@@ -3698,6 +3708,7 @@ async function importRoutineFromHash(){
       : `<p class="card-sub" style="margin-bottom:10px">Te compartieron ${payload.type==="folder"?`la carpeta <b>${payload.name}</b> (${n} rutina${n>1?'s':''})`:`la rutina <b>${payload.name}</b>`}. ¿Guardarla en tus plantillas?</p>`)+
     (updFolder&&payload.changelog?`<div style="font-size:12.5px;background:var(--accent-soft);color:var(--accent);border-radius:12px;padding:10px 12px;margin-bottom:10px;line-height:1.5"><b>Qué cambió:</b> ${payload.changelog}</div>`:"")+
     payload.templates.map(t=>`<div class="kv"><span>${t.name}</span><b>${t.exercises.length} ej</b></div>`).join("")+
+    (payload.templates.some(t=>t.exercises.some(e=>e.tempo||e.rest||e.superset||e.drop||e.progression||e.notes||e.warmup))?`<div style="font-size:12px;color:var(--accent);background:var(--accent-soft);border-radius:12px;padding:9px 12px;margin-top:10px;line-height:1.5">${ic('note',13)} Incluye prescripción del entrenador (tempo, descanso, superseries, dropsets, progresión y notas). La verás al entrenar.</div>`:"")+
     (payload.note?`<div style="font-size:12.5px;color:var(--muted);background:var(--bg2);border-radius:12px;padding:10px 12px;margin-top:12px;line-height:1.5">${ic('note',13)} ${payload.note}</div>`:"")+
     ((state.templates||[]).length?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:12px" onclick="duelRoutines()">${ic('scale',14)} Duelo: comparar con MI rutina</button>`:"");
   if(isCoach()){
