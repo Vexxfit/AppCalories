@@ -89,7 +89,7 @@
       <div class="card">
         <h3 id="dishBuilderTitle">Nuevo platillo</h3>
         <div class="field"><label>Nombre del platillo</label><input id="dishName" placeholder="Ej. Bowl de pollo"></div>
-        <div class="field"><label>Rinde (porciones) <span style="font-weight:400;text-transform:none">· opcional, para recetas</span></label><input type="number" id="dishServings" min="1" step="1" inputmode="numeric" placeholder="Ej. 6 (hotcakes)"></div>
+        <div class="field"><label>Rinde (porciones) <span style="font-weight:400;text-transform:none">· opcional, para recetas</span></label><input type="number" id="dishServings" min="1" step="1" inputmode="numeric" placeholder="Ej. 6 (hotcakes)" onchange="onDishServingsChange(this)"></div>
         <div class="row" style="align-items:flex-end">
           <div class="field" style="flex:2"><label>Ingrediente</label>
             <select id="dishIngSelect"></select></div>
@@ -291,6 +291,7 @@
       <button data-sub="progreso"   onclick="subEntreno('progreso')">Progreso</button>
       <button data-sub="records"    onclick="subEntreno('records')">Records</button>
       <button data-sub="medidas"    onclick="subEntreno('medidas')">Medidas</button>
+      <button data-sub="movilidad"  onclick="subEntreno('movilidad')">Movilidad</button>
     </div>
     <div id="coachRoot" style="display:none"></div>
 
@@ -317,6 +318,7 @@
     </div>
 
     <div class="subview" id="ent-progreso">
+      <div id="cycleProgBox"></div>
       <div class="card">
         <h3>Tonelaje semanal por día</h3>
         <p class="card-sub">% de cambio vs la semana anterior · semáforo VEXX.</p>
@@ -331,6 +333,7 @@
       <div class="card" style="margin-top:16px"><h3>Equilibrio muscular</h3><div id="imbalanceBox" style="margin-top:8px"></div></div>
       <div class="card" style="margin-top:16px"><h3>Qué ha progresado</h3><div id="muscleProgressBox" style="margin-top:8px"></div></div>
       <div class="card" style="margin-top:16px"><h3>Calidad del entrenamiento</h3><div id="qualityBox" style="margin-top:8px"></div></div>
+      <div class="card" style="margin-top:16px"><h3>Asimetrías izquierda / derecha</h3><p class="card-sub">Historial de tus ejercicios a una mano/pierna: detecta si un lado se atrasa de forma sistemática.</p><div id="asymBox"></div></div>
     </div>
 
     <div class="subview" id="ent-records">
@@ -401,6 +404,8 @@
         <div class="table-wrap"><div id="measTable"></div></div>
       </div>
     </div>
+
+    <div class="subview" id="ent-movilidad"></div>
   </section>
 
   <!-- ============ AJUSTES (hub) ============ -->
@@ -494,6 +499,7 @@
       <button class="btn-ghost btn-sm" onclick="openScanner()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><path d="M4 6v12M7.5 6v12M11 6v12M14 6v12M17 6v12M20 6v12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg> Escanear</button>
       <button class="btn-ghost btn-sm" onclick="openFoodSearch()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><circle cx="12" cy="12" r="8.4" stroke="currentColor" stroke-width="1.8"/><path d="M3.6 12h16.8M12 3.6c2.6 2.4 2.6 14.4 0 16.8M12 3.6c-2.6 2.4-2.6 14.4 0 16.8" stroke="currentColor" stroke-width="1.6"/></svg> Buscar online</button>
       <button class="btn-ghost btn-sm" onclick="openFreeFood()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg> Escribir</button>
+      <button class="btn-ghost btn-sm" onclick="openFreeFood('out')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style="vertical-align:-3px"><path d="M5 3v5M7.5 3v5M10 3v5M5 8a2.5 2.5 0 0 0 5 0M7.5 10.5V21M18 3c-2.4 2-3.6 4.7-3.6 7.4 0 1.7 1.3 2.6 3.6 2.6M18 3v18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg> Comí fuera</button>
     </div>
     <div id="apResults" class="add-results"></div>
     <div id="apQty"></div>
@@ -531,7 +537,9 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('tplExModal')">×</button>
     <h3 id="tplExModalTitle">Añadir ejercicio al día</h3>
-    <div class="field"><label>Ejercicio</label><select id="tplExSelect"></select></div>
+    <div class="coach-tabs" id="tplExEquip" style="margin-bottom:10px"></div>
+    <div class="field"><label>Ejercicio</label><select id="tplExSelect" onchange="tplExAutofill()"></select></div>
+    <div id="tplExHint" style="font-size:12px;color:var(--accent);margin:-8px 0 10px;min-height:0"></div>
     <div class="row">
       <div class="field"><label>Series objetivo</label><input type="number" id="tplExSets" value="3" min="1"></div>
       <div class="field"><label>Rango de reps</label><input id="tplExReps" value="8-12"></div>
@@ -633,7 +641,9 @@
   <div class="modal">
     <button class="modal-close" onclick="closeModal('freeFoodModal')">×</button>
     <h3>Escribe tu comida</h3>
-    <p class="card-sub" style="margin:4px 0 10px">Ej.: “2 huevos y una tortilla” o “150 g de pollo, media taza de arroz”.</p>
+    <div class="seg" id="ffModeSeg" style="margin:6px 0 10px"><span class="on" data-m="mine" onclick="setFFMode('mine')">Mis alimentos</span><span data-m="out" onclick="setFFMode('out')">Comí fuera</span></div>
+    <p class="card-sub" id="ffHelp" style="margin:4px 0 10px">Ej.: “2 huevos y una tortilla” o “150 g de pollo, media taza de arroz”.</p>
+    <div id="ffOutOpts" style="display:none;margin-bottom:10px"></div>
     <textarea id="ffText" placeholder="2 huevos y una tortilla…" style="width:100%;min-height:64px;background:var(--bg2);border:none;border-radius:12px;padding:12px 14px;font-family:inherit;font-size:16px;resize:vertical"></textarea>
     <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="runFreeFood()">Analizar</button>
     <div id="ffResults" style="margin-top:10px"></div>
@@ -802,6 +812,7 @@
       <button class="btn-primary" onclick="copyShareLink()">Copiar link</button>
       <button class="btn-ghost btn-sm" id="shareNativeBtn" onclick="shareNative()">Compartir…</button>
     </div>
+    <button class="btn-ghost btn-sm" id="sendCoachBtn" style="width:100%;margin-top:10px" onclick="openSendToCoach()">Enviar directo a mi entrenador (en VEXX)</button>
   </div>
 </div>
 

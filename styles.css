@@ -757,6 +757,78 @@ nav button.active svg{stroke-width:2.2}
 .meal-row:active,.settings-row:active,.list-row:active,.rk-row:active{transform:scale(.985)}
 .meal-row,.settings-row,.list-row,.rk-row{transition:transform .1s ease,background .15s,box-shadow .15s}
 
+/* ---- 24 · Reporte imprimible (PDF) ---- */
+#printReport{display:none;position:fixed;inset:0;z-index:200;overflow-y:auto;background:#f2f2f5;-webkit-overflow-scrolling:touch}
+body.rp-open{overflow:hidden}
+.rp-bar{position:sticky;top:0;display:flex;justify-content:flex-end;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:rgba(242,242,245,.94);backdrop-filter:blur(10px);z-index:2}
+.rp-page{max-width:760px;margin:0 auto 40px;background:#fff;color:#1d1d1f;padding:28px 28px 36px;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.08);font-family:var(--font)}
+.rp-head{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #7C3AED;padding-bottom:10px;margin-bottom:16px}
+.rp-logo{font-size:26px;font-weight:800;color:#7C3AED;letter-spacing:-.02em}
+.rp-sub{font-size:13px;color:#666}
+.rp-date{font-size:12px;color:#666}
+.rp-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:8px}
+.rp-kpis div{background:#f5f3ff;border-radius:10px;padding:10px;text-align:center}
+.rp-kpis b{display:block;font-size:16px}
+.rp-kpis span{font-size:11px;color:#666}
+.rp-page h2{font-size:15px;margin:22px 0 8px;color:#1d1d1f;letter-spacing:-.01em}
+.rp-page table{width:100%;border-collapse:collapse;font-size:11.5px}
+.rp-page th,.rp-page td{border-bottom:1px solid #eee;padding:6px 5px;text-align:left}
+.rp-page th{color:#666;font-weight:600;text-transform:none;font-size:11px}
+.rp-empty{font-size:12px;color:#888;padding:8px 0}
+.rp-foot{margin-top:22px;font-size:10.5px;color:#999;text-align:center}
+@media print{
+  body.rp-open > *:not(#printReport){display:none!important}
+  #printReport{position:static;background:#fff;overflow:visible}
+  .no-print{display:none!important}
+  .rp-page{box-shadow:none;border-radius:0;margin:0;padding:0;max-width:none}
+  .rp-page h2{break-after:avoid}
+  .rp-page table,.rp-page svg{break-inside:avoid}
+}
+
+/* ---- 23 · Movilidad ---- */
+.mob-row{display:flex;align-items:center;gap:10px;padding:10px 4px;border-bottom:1px solid var(--hairline-soft)}
+.mob-row:last-child{border-bottom:none}
+.mob-row.ok .mob-main b{color:var(--muted)}
+.mob-chk{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:none;background:var(--bg2);color:var(--muted);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+.mob-row.ok .mob-chk{background:rgba(52,199,89,.14);color:var(--ok)}
+.mob-row.ok .mob-chk svg{stroke:var(--ok)}
+.mob-main{flex:1;min-width:0;cursor:pointer}
+.mob-main b{display:block;font-size:14.5px;font-weight:650}
+.mob-main span{font-size:12px;color:var(--muted)}
+.mob-steps{margin:0 0 12px 18px;padding:0;font-size:14px;line-height:1.55}
+.mob-steps li{margin-bottom:5px}
+.mob-box{border-radius:12px;padding:10px 12px;font-size:13.5px;line-height:1.5;margin-bottom:8px}
+.mob-box.ok{background:rgba(52,199,89,.10)}
+.mob-box.warn{background:color-mix(in srgb,var(--warn) 13%,transparent)}
+.mob-hoy{display:flex;align-items:center;gap:10px;padding:14px 16px;cursor:pointer}
+
+/* ---- 22 · Sugerencias de comida frecuente ---- */
+.meal-sugg{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:8px 4px 2px 56px}
+.meal-sugg button{background:var(--accent-soft);color:var(--accent);border:none;border-radius:999px;padding:6px 11px;font-size:12px;font-weight:650;cursor:pointer}
+.meal-sugg button small{opacity:.7;font-weight:600}
+.meal-sugg button.ghost{background:transparent;color:var(--muted);text-decoration:underline;padding:6px 4px;font-weight:500}
+
+/* ---- 21 · Avisos inteligentes + puntaje diario ---- */
+.smart-alert{background:var(--surface);border:1px solid var(--hairline);border-left:3px solid var(--accent);border-radius:14px;padding:12px 14px;margin-top:12px;box-shadow:var(--shadow-sm)}
+.smart-alert.warn{border-left-color:var(--warn)}
+.smart-alert .sa-t{font-weight:700;font-size:14px;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.smart-alert .sa-b{font-size:13px;color:var(--muted);line-height:1.5}
+.smart-alert .sa-a{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.score-card{display:flex;align-items:center;gap:14px;padding:14px 16px}
+.score-num{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:19px;font-variant-numeric:tabular-nums}
+.score-chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+.score-chips span{font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;background:var(--bg2);color:var(--muted)}
+.score-chips span.ok{background:rgba(52,199,89,.13);color:var(--ok)}
+.score-chips span.mid{background:color-mix(in srgb,var(--warn) 16%,transparent);color:#a86400}
+.score-chips span.low{background:rgba(255,69,58,.10);color:var(--bad)}
+html[data-theme="dark"] .score-chips span.mid{color:var(--warn)}
+
+/* ---- 20 · Mapa de músculos en tarjetas de ejercicio ---- */
+.ex-mmap{display:flex;align-items:center;gap:12px;background:var(--surface);border:1px solid var(--hairline-soft);border-radius:12px;padding:6px 12px;margin:0 0 12px}
+.ex-mmap-l{flex:1;min-width:0;font-size:11.5px;line-height:1.5;color:var(--text)}
+.pgm-ex.expanded .ex-mmap{background:var(--bg2);border:none}
+#exInfoBody .ex-mmap{background:var(--bg2);border:none;margin-bottom:14px}
+
 /* ---- 19 · Coach (clientes) ---- */
 .coach-seg{margin-bottom:14px}
 .coach-list{display:flex;flex-direction:column;gap:9px}

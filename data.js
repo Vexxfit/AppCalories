@@ -231,6 +231,48 @@ const EX_TIPS={
   e_pendulo:"Baja controlado buscando profundidad; talones firmes y empuja parejo. Prioriza técnica sobre peso.",
   e_movcadera:"Circuito de movilidad (6 reps por lado salvo indicado): elevación de pierna hacia atrás · rotar cadera adentro/afuera · flexión lateral · sentadilla sin peso 5 reps + isometría 15 s · alcanzar puntas de pie · rodilla toca talón 10 y 10 · girar y pegar pecho al suelo · tocar puntas sentado · tocar puntas parado y cruzado."
 };
+/* Movilidad (días de descanso, antes de dormir). Ficha distinta a fuerza.
+   type: estatico = estiramiento estático · dinamico = movilidad dinámica · cars = rotación articular controlada */
+const MOBILITY_DEFAULT=[
+  {id:"mb_9090", name:"90/90 de cadera", zone:"Cadera", type:"estatico", dose:"60–90 s por lado",
+   steps:["Siéntate en el piso con la pierna de adelante doblada a 90° y la de atrás también a 90°, hacia un costado.","Mantén el torso alto y el pecho mirando hacia la rodilla de adelante.","Inclínate un poco hacia adelante desde la cadera, sin redondear la espalda baja.","Respira lento y mantén; luego cambia de lado."],
+   feel:"Estiramiento profundo en el glúteo y la parte externa de la cadera de la pierna de adelante.",
+   error:"Redondear la espalda o dejar caer el torso: el estiramiento se va a la zona lumbar."},
+  {id:"mb_hipcars", name:"CARs de cadera", zone:"Cadera", type:"cars", dose:"5 círculos lentos por lado",
+   steps:["De pie apoyado en una pared (o en cuatro puntos), aprieta abdomen y el glúteo de la pierna de apoyo.","Sube la rodilla al frente lo más alto que puedas.","Ábrela hacia el lado, gira la rodilla hacia adentro y llévala atrás, dibujando el círculo más grande posible.","Regresa por el mismo camino muy despacio; solo se mueve la cadera, el resto del cuerpo queda quieto."],
+   feel:"Trabajo lento y controlado en todo el rango de la cadera, como si la 'aceitaras' completa.",
+   error:"Girar el tronco o la pelvis para agrandar el círculo: el movimiento debe salir solo de la cadera."},
+  {id:"mb_wgs", name:"Zancada del mundo", zone:"Cadera · isquiotibiales · espalda alta", type:"dinamico", dose:"5 repeticiones por lado",
+   steps:["Da un paso largo al frente con la pierna derecha y apoya ambas manos en el piso, por dentro del pie.","Baja el codo derecho hacia el tobillo derecho, sin forzar.","Gira el torso y lleva el brazo derecho hacia el techo, siguiendo la mano con la mirada.","Regresa la mano al piso, estira la pierna de adelante levantando la cadera y siente la parte de atrás del muslo.","Vuelve a la zancada y repite; después cambia de lado."],
+   feel:"Estiramiento del flexor de cadera de la pierna de atrás y apertura del pecho y la espalda alta.",
+   error:"Dejar que la rodilla de atrás toque el piso o que la cadera se hunda: mantén la pierna de atrás activa."},
+  {id:"mb_deepsq", name:"Sentadilla profunda sostenida", zone:"Cadera · tobillo", type:"estatico", dose:"30–60 s, 2–3 veces",
+   steps:["Pies un poco más abiertos que los hombros y puntas ligeramente hacia afuera.","Baja lo más profundo que puedas con los talones pegados al piso.","Junta las manos al frente y usa los codos para empujar suavemente las rodillas hacia afuera.","Mantén el pecho alto y respira; sal despacio."],
+   feel:"Estiramiento en aductores, cadera y tobillos, con la espalda baja relajada.",
+   error:"Levantar los talones o redondear mucho la espalda; si pasa, pon algo bajo los talones o no bajes tanto."},
+  {id:"mb_adductor", name:"Estiramiento de aductor lateral", zone:"Aductores · cadera", type:"estatico", dose:"45–60 s por lado",
+   steps:["De pie (o de rodillas), abre una pierna hacia el lado, estirada y con el pie apoyado.","Lleva la cadera hacia atrás y hacia la pierna doblada, con la espalda recta.","Baja hasta sentir el interior del muslo de la pierna estirada.","Mantén respirando lento y cambia de lado."],
+   feel:"Estiramiento en la parte interna del muslo de la pierna estirada.",
+   error:"Redondear la espalda o dejar que la punta del pie estirado se voltee hacia arriba."},
+  {id:"mb_hamstring", name:"Isquiotibiales acostado con toalla", zone:"Isquiotibiales", type:"estatico", dose:"45 s por pierna",
+   steps:["Acuéstate boca arriba y pasa una toalla o banda por la planta de un pie.","Sube esa pierna estirada hasta sentir tensión atrás del muslo; la otra queda en el piso.","Relaja los hombros y respira; en cada exhalación sube un poco más.","Cambia de pierna."],
+   feel:"Estiramiento a lo largo de la parte de atrás del muslo, no detrás de la rodilla.",
+   error:"Doblar la rodilla de la pierna del piso o despegar la cadera para subir más."},
+  {id:"mb_ankle", name:"Rodilla a la pared (tobillo)", zone:"Tobillo", type:"dinamico", dose:"10 repeticiones por lado",
+   steps:["Párate frente a una pared con un pie adelante, a unos 10 cm.","Lleva la rodilla hacia la pared sin despegar el talón del piso.","Si tocas fácil, aleja un poco el pie; si no llegas, acércalo.","Hazlo controlado y cambia de lado."],
+   feel:"Estiramiento en la pantorrilla y el frente del tobillo al llevar la rodilla adelante.",
+   error:"Levantar el talón o dejar que la rodilla se vaya hacia adentro."},
+  {id:"mb_catcow", name:"Gato-vaca", zone:"Columna", type:"dinamico", dose:"8–10 repeticiones lentas",
+   steps:["En cuatro puntos, manos bajo hombros y rodillas bajo cadera.","Exhala y redondea toda la espalda, llevando la barbilla al pecho.","Inhala y arquea suave, llevando el pecho al frente y la mirada un poco arriba.","Muévete vértebra por vértebra, despacio."],
+   feel:"La columna se mueve completa y se suelta la espalda baja y media.",
+   error:"Hacerlo rápido o solo con el cuello; el movimiento debe recorrer toda la espalda."},
+  {id:"mb_circuit", name:"Circuito de movilidad de cadera (tu rutina)", zone:"Cadera", type:"dinamico", dose:"≈ 6–8 minutos",
+   steps:["Elevación de la pierna hacia atrás: 6 por pierna.","Rotar la cadera hacia afuera y hacia adentro: 6 por pierna.","Flexión lateral: 6 por pierna.","Sentadilla sin peso: 5 repeticiones y luego isometría abajo 15 s.","Alcanzar puntas en parado: 8 repeticiones.","Rodilla toca talón: 10 y 10.","Girar y pegar el pecho al suelo: 6 por lado.","Tocar puntas sentado: 6 repeticiones.","Tocar puntas parado y cruzado: 8 repeticiones."],
+   feel:"Cadera suelta y caliente, con los movimientos cada vez más amplios y fluidos.",
+   error:"Ir con prisa o rebotar al final del rango; cada repetición debe ser controlada."}
+];
+const MOB_TYPES={estatico:"Estiramiento estático", dinamico:"Movilidad dinámica", cars:"Rotación articular controlada"};
+const MOB_DEFAULT_ROUTINE=["mb_9090","mb_hipcars","mb_wgs","mb_deepsq","mb_adductor"];
 function _te(exId,sets,repRange,rir){ return {exId,sets,repRange,rir}; }
 const DEFAULT_TEMPLATES = [
   {id:"t_push",   name:"Push",   exercises:[
