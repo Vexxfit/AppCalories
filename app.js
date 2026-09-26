@@ -2859,6 +2859,7 @@ const EXP_LABELS={principiante:"Principiante",intermedia:"Intermedia",avanzada:"
 /* ---- raíz: lista o ficha ---- */
 function renderCoach(){
   const el=document.getElementById("coachRoot"); if(!el) return;
+  if(coachUsersOpen) return renderAppUsers(el);
   if(coachProgramId && programById(coachProgramId)) return renderProgram(el);
   coachProgramId=null;
   if(coachClientId && clientById(coachClientId)) renderClientDetail(el); else { coachClientId=null; renderClientList(el); }
@@ -2877,7 +2878,54 @@ function renderClientList(el){
     <div class="flex-between" style="margin:2px 0 12px"><div><div style="font-weight:800;font-size:22px;letter-spacing:-.03em">Clientes</div>
       <div style="font-size:12px;color:var(--muted)">${cs.length} activo${cs.length===1?"":"s"} · privado, solo tú lo ves</div></div></div>
     <div class="coach-list">${rows}</div>
-    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="openClientForm()">+ Nuevo cliente</button>`;
+    <button class="btn-primary" style="width:100%;margin-top:14px" onclick="openClientForm()">+ Nuevo cliente</button>
+    <button class="btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="openAppUsers()">${ic('cloud',15)} Usuarios de la app</button>`;
+}
+/* ===== panel de administrador: usuarios que han usado el ranking =====
+   Lee la colección pública "shared" (perfiles publicados al abrir el Ranking).
+   No expone datos privados: Firebase bloquea la colección users por reglas. */
+let coachUsersOpen=false, __appUsers=null, __appUsersLoading=false;
+function openAppUsers(){ coachUsersOpen=true; __appUsers=null; renderCoach(); loadAppUsers(); }
+function closeAppUsers(){ coachUsersOpen=false; renderCoach(); }
+function loadAppUsers(){
+  if(!fbDb){ __appUsers=[]; renderCoach(); return; }
+  __appUsersLoading=true;
+  fbDb.collection("shared").where("t","==","prof").get().then(q=>{
+    const by={};
+    q.forEach(doc=>{ const d=doc.data()||{}; const code=d.code; if(!code) return;
+      const at=d.at||0; if(!by[code]||at>by[code].at) by[code]={code, name:d.name||"", rank:d.rank||null, at, ach:Array.isArray(d.ach)?d.ach.length:0}; });
+    __appUsers=Object.values(by).sort((a,b)=>(b.at||0)-(a.at||0)); __appUsersLoading=false;
+    if(coachUsersOpen) renderCoach();
+  }).catch(()=>{ __appUsers=[]; __appUsersLoading=false; if(coachUsersOpen) renderCoach(); });
+}
+function renderAppUsers(el){
+  const back=`<button class="coach-back" onclick="closeAppUsers()">${ic('chev',15)} Clientes</button>`;
+  if(__appUsers===null){ el.innerHTML=back+`<div class="empty" style="margin:0">Cargando usuarios…</div>`; return; }
+  const now=Date.now(), d7=7*864e5, d30=30*864e5;
+  const a7=__appUsers.filter(u=>u.at&&now-u.at<d7).length, a30=__appUsers.filter(u=>u.at&&now-u.at<d30).length;
+  const rows=__appUsers.length? __appUsers.map(u=>{
+    const rk=rankById(u.rank); const dt=u.at?new Date(u.at).toLocaleDateString('es-MX',{day:'numeric',month:'short'}):"—";
+    const already=(state.clients||[]).some(c=>c.code===u.code);
+    return `<div class="coach-row" style="cursor:default">${clientAvatar({id:u.code,name:u.name},40)}
+      <div class="cr-main"><b>${(u.name||"(sin nombre)")}</b><span>cód ${u.code} · ${u.ach} insignias · últ. ${dt}</span></div>
+      ${rk?`<span class="coach-badge" style="background:${rk.col};color:#fff">${rk.n}</span>`:''}
+      ${already?`<span class="coach-badge">cliente</span>`:`<button class="btn-ghost btn-sm" style="padding:6px 10px" onclick="linkUserAsClient('${u.code}','${(u.name||'').replace(/'/g,'')}')">+ cliente</button>`}</div>`;
+  }).join("") : `<div class="empty" style="margin:0">Aún nadie ha abierto el Ranking (o no hay conexión).</div>`;
+  el.innerHTML=back+`
+    <div style="font-weight:800;font-size:22px;letter-spacing:-.03em">Usuarios de la app</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px">Quienes han abierto el Ranking al menos una vez</div>
+    <div class="stat-grid g3" style="margin-bottom:14px">
+      <div class="stat-card"><div class="sv">${__appUsers.length}</div><div class="sl">en total</div></div>
+      <div class="stat-card"><div class="sv">${a7}</div><div class="sl">activos 7 días</div></div>
+      <div class="stat-card"><div class="sv">${a30}</div><div class="sl">activos 30 días</div></div>
+    </div>
+    <div class="coach-list">${rows}</div>
+    <div class="coach-note" style="margin-top:12px">Solo aparecen quienes usan el Ranking. No puedo ver la lista completa de cuentas ni datos privados (dieta, rutinas): las reglas de la nube lo impiden.</div>`;
+}
+function linkUserAsClient(code,name){
+  if((state.clients||[]).some(c=>c.code===code)) return toast("Ya es cliente");
+  const c={id:"cl_"+Date.now().toString(36), name:name||("Cliente "+code), code, linked:true, sex:"male", experience:"intermedia", goal:"", createdAt:todayStr(), notes:[], measurements:[], routines:[]};
+  latestProfile(code).then(p=>{ if(p) c.snapshot={lifts:p.lifts||{},ach:p.ach||[],rank:p.rank||null,week:p.week||null,at:Date.now()}; state.clients.push(c); save(); renderCoach(); toast((name||"Usuario")+" agregado a clientes ✓"); });
 }
 /* ---- alta de cliente: manual o vincular por código ---- */
 let __clientFormMode="manual";
