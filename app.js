@@ -3819,11 +3819,16 @@ function duelRoutines(){
 }
 /* ----- accesos rápidos: ?a=comida|agua|entreno (shortcuts del ícono o marcadores) ----- */
 function handleQuickAction(){
-  const m=(location.search||"").match(/[?&]a=(comida|agua|entreno)\b/);
+  const m=(location.search||"").match(/[?&]a=(comida|agua250|agua500|agua|entreno|hoy|progreso)\b/);
   if(!m) return;
   history.replaceState(null,"",location.pathname+location.hash);
-  if(m[1]==="comida") setTimeout(()=>openAdd(),150);
-  else if(m[1]==="agua") setTimeout(()=>openWaterModal(),150);
+  const a=m[1];
+  if(a==="comida") setTimeout(()=>openAdd(),150);
+  else if(a==="agua250"){ nav("hoy"); addWater(250); setTimeout(()=>toast("+250 ml de agua ✓"),120); }   // widget: un toque, sin abrir modal
+  else if(a==="agua500"){ nav("hoy"); addWater(500); setTimeout(()=>toast("+500 ml de agua ✓"),120); }
+  else if(a==="agua") setTimeout(()=>openWaterModal(),150);
+  else if(a==="hoy") nav("hoy");
+  else if(a==="progreso") nav("historial");
   else { nav("entreno"); setTimeout(()=>openStartModal(),150); }
 }
 /* ----- importar pasos desde la URL (Atajo de Apple Salud / Health Connect) ----- */
