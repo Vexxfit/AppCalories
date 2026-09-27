@@ -134,9 +134,7 @@ const DEFAULT_EXERCISES = [
   {id:"e_frontraise",     name:"Elevaciones frontales",                      group:"Hombro",     repRange:"10-15", rir:"0-1"},
   {id:"e_reardelt",       name:"Pájaros (deltoide posterior)",               group:"Hombro",     repRange:"12-20", rir:"0-1"},
   {id:"e_facepull",       name:"Face pull",                                  group:"Hombro",     repRange:"12-20", rir:"0-1"},
-  {id:"e_jalonpecho",     name:"Jalón al pecho",                             group:"Espalda",    repRange:"8-12",  rir:"0-1"},
   {id:"e_remomaq",        name:"Remo en máquina",                            group:"Espalda",    repRange:"8-12",  rir:"0-1"},
-  {id:"e_remosentado",    name:"Remo sentado en polea",                      group:"Espalda",    repRange:"8-12",  rir:"0-1"},
   {id:"e_curlmartillo",   name:"Curl martillo",                              group:"Bíceps",     repRange:"8-12",  rir:"0-1"},
   {id:"e_curlconcentrado",name:"Curl concentrado",                           group:"Bíceps",     repRange:"10-15", rir:"0-1"},
   {id:"e_pressfrances",   name:"Press francés",                              group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
@@ -228,7 +226,7 @@ const EX_TIPS={
   e_latmaq:"Baja LENTO y controlado; lleva los codos hacia afuera-arriba sin encoger el cuello. Aprieta el deltoide lateral arriba.",
   e_predicadormaq:"Brazo apoyado; aprieta arriba en cada rep y baja controlado casi hasta extender. Evita medias reps.",
   e_pendulo:"Baja controlado buscando profundidad; talones firmes y empuja parejo. Prioriza técnica sobre peso.",
-  e_movcadera:"Circuito de movilidad (6 reps por lado salvo indicado): elevación de pierna hacia atrás · rotar cadera adentro/afuera · flexión lateral · sentadilla sin peso 5 reps + isometría 15 s · alcanzar puntas de pie · rodilla toca talón 10 y 10 · girar y pegar pecho al suelo · tocar puntas sentado · tocar puntas parado y cruzado."
+  e_movcadera:"Circuito de movilidad (6 reps por lado salvo indicado): elevación de pierna hacia atrás · rotar cadera adentro/afuera · flexión lateral · sentadilla sin peso 5 reps + isometría 15 s · alcanzar puntas de pie · rodilla toca talón 10 y 10 · girar y pegar pecho al suelo · tocar puntas sentado · tocar puntas parado y cruzado.",
 };
 /* Movilidad (días de descanso, antes de dormir). Ficha distinta a fuerza.
    type: estatico = estiramiento estático · dinamico = movilidad dinámica · cars = rotación articular controlada */
