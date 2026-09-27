@@ -1799,7 +1799,7 @@ function stagnationCheck(){
   const wm=(state.measurements||[]).filter(m=>m.peso!=null && (new Date(today)-new Date(m.date))/86400000<=24).sort((a,b)=>a.date<b.date?-1:1);
   if(wm.length<2) return null;
   const wChange=wm[wm.length-1].peso-wm[0].peso;
-  const {rows}=weeklyRows(); let str=0;
+  const rows=weeklyRows().rows.filter(r=>!r.test&&!weekInProgress(r.week)); let str=0;   // solo semanas completas y normales
   if(rows.length>=2){ const a=rows[rows.length-2].total,b=rows[rows.length-1].total; str=a>0?(b-a)/a:0; }
   const flat=Math.abs(wChange)<0.6, strUp=str>0.03, strDown=str<-0.03;
   const cat=(state.goals&&(state.goals.category||goalCategory(state.goals.objective)))||"maintenance";
@@ -3132,6 +3132,31 @@ function mobById(id){ return mobAll().find(m=>m.id===id)||null; }
 function mobRoutine(){ if(!Array.isArray(state.mobRoutine)) state.mobRoutine=MOB_DEFAULT_ROUTINE.slice(); return state.mobRoutine.filter(id=>mobById(id)); }
 function mobDoneToday(){ return ((state.mobLog||{})[todayStr()])||[]; }
 function isRestDay(){ return !(state.workouts||[]).some(w=>w.date===todayStr()); }
+/* ===== calentamiento inteligente: 2-3 ejercicios de movilidad para los músculos de la sesión ===== */
+const MOB_ZONE_MUS={cadera:["gluteo","aductor","cuadriceps","femoral"], isquio:["femoral"], tobillo:["pantorrilla","cuadriceps"], aductor:["aductor"], columna:["core","espaldaAlta","dorsal"], "espalda alta":["espaldaAlta","dorsal","deltPost"], hombro:["deltAnt","deltLat","deltPost","pecho"], pecho:["pecho","deltAnt"], muneca:["antebrazo"], codo:["biceps","triceps","antebrazo"], cuello:["espaldaAlta"]};
+function mobMuscles(m){ if(Array.isArray(m.mus)&&m.mus.length) return m.mus; const z=_norm(m.zone||""), out=new Set(); Object.entries(MOB_ZONE_MUS).forEach(([k,v])=>{ if(z.includes(k)) v.forEach(x=>out.add(x)); }); return [...out]; }
+function smartWarmup(entries){
+  const wt={};
+  (entries||[]).forEach(e=>{ const inv=exMuscles(exById(e.exId)||{id:e.exId,group:e.group}); const n=(e.sets||[]).filter(s=>!isWarmup(s)).length||1; for(const k in inv) wt[k]=(wt[k]||0)+inv[k]*n; });
+  const scored=mobAll().filter(m=>m.id!=="mb_circuit").map(m=>{ let s=mobMuscles(m).reduce((a,k)=>a+(wt[k]||0),0); if(m.type==="estatico") s*=0.5; return {m,s}; })   // antes de levantar: mejor dinámico/CARs que estático largo
+    .filter(x=>x.s>0).sort((a,b)=>b.s-a.s);
+  const pick=[], zones=new Set();
+  for(const x of scored){ const z=(x.m.zone||"").split(" · ")[0]; if(zones.has(z)) continue; pick.push(x.m); zones.add(z); if(pick.length>=3) break; }
+  return pick;
+}
+function smartWarmupHTML(){
+  const d=sessionDraft; if(!d||d.wuHidden) return "";
+  const list=smartWarmup(d.entries); if(!list.length) return "";
+  const done=d.wuDone||[];
+  return `<div class="card" style="margin-top:14px;padding:14px 16px">
+    <div class="flex-between"><div style="font-weight:700;font-size:14.5px">${ic('fire',15)} Calentamiento sugerido <span class="coach-badge">opcional</span></div>
+      <span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="sessionDraft.wuHidden=true;renderSesion()">ocultar</span></div>
+    <div style="font-size:12px;color:var(--muted);margin:2px 0 6px">2-3 min de movilidad para los músculos de hoy, de tu sección de Movilidad.</div>
+    ${list.map(m=>{ const ok=done.includes(m.id); return `<div class="mob-row${ok?' ok':''}"><button class="mob-chk" onclick="toggleWuDone('${m.id}')">${ic(ok?'check':'circle',16)}</button>
+      <div class="mob-main" onclick="openMobDetail('${m.id}')"><b>${m.name}</b><span>${m.zone} · ${m.dose}</span></div></div>`; }).join("")}
+  </div>`;
+}
+function toggleWuDone(id){ const d=sessionDraft; if(!d) return; const a=d.wuDone||[]; d.wuDone=a.includes(id)?a.filter(x=>x!==id):[...a,id]; renderSesion(); }
 let __mobZone="Todas";
 function renderMovilidad(){
   const el=document.getElementById("ent-movilidad"); if(!el) return;
@@ -3473,6 +3498,16 @@ function importRoutineToClient(p, dest){
   const c=clientById(clientId); if(!c){ return toast("No encontré ese cliente"); }
   if(p.__sender && !c.code){ c.code=p.__sender; c.linked=true; }
   if(!c.routines) c.routines=[];
+  // misma rutina (misma clave) que ya tenías de este cliente: se actualiza en su lugar y la anterior queda como versión
+  const same=p.key?c.routines.find(r=>r.key===p.key):null;
+  if(same){
+    if(!same.versions) same.versions=[];
+    same.versions.push({at:Date.now(), by:c.name, why:`Versión anterior (llegó una nueva${p.changelog?": "+p.changelog:""})`, templates:JSON.parse(JSON.stringify(same.templates))});
+    same.templates=(p.templates||[]).map(t=>({name:t.name, exercises:(t.exercises||[]).map(x=>({...x}))})); same.name=p.name||same.name; same.at=Date.now(); if(p.note) same.note=p.note;
+    entrenoMode="clientes"; coachClientId=clientId; coachTab="rutinas";
+    save(); closeModal("importRoutineModal"); pendingImport=null; nav("entreno");
+    return toast(`${c.name}: rutina actualizada (versión anterior guardada) ✓`);
+  }
   c.routines.push({id:"cr_"+Date.now().toString(36), name:p.name||"Rutina", at:Date.now(), note:p.note||"", key:p.key||null, sender:p.__sender||null,
     templates:(p.templates||[]).map(t=>({name:t.name, exercises:(t.exercises||[]).map(x=>({...x}))}))});
   entrenoMode="clientes"; coachClientId=clientId; coachTab="rutinas";
@@ -3487,6 +3522,7 @@ function viewClientRoutine(cid,rid){
     r.templates.map(day=>`<div class="card" style="margin-bottom:10px;padding:14px"><div style="font-weight:750;margin-bottom:8px">${day.name}</div>${
       day.exercises.map(e=>{ const rx=coachRxLine(e); return `<div style="padding:9px 0;border-bottom:1px solid var(--hairline-soft)"><div class="flex-between" style="gap:10px"><span style="font-size:14px">${(exById(e.exId)||{}).name||e.exId}${e.superset?` <span class="pgm-ss" style="display:inline-flex;width:18px;height:18px;background:${SS_COLORS[e.superset]||'var(--accent)'};vertical-align:-3px">${e.superset}</span>`:''}</span><b style="white-space:nowrap">${e.sets}×${e.repRange||"—"}${e.rir?` · RIR ${e.rir}`:""}</b></div>${rx?`<div style="font-size:11.5px;color:var(--muted);margin-top:3px">${rx}</div>`:""}${e.notes?`<div style="font-size:11.5px;color:var(--accent);margin-top:2px">${ic('note',11)} ${e.notes}</div>`:""}</div>`; }).join("")}</div>`).join("")+
     `<button class="btn-primary" style="width:100%;margin-top:6px" onclick="routineToProgram('${cid}','${rid}')">${ic('pencil',14)} Editar en Pro ${(r.sender||c.code)?'y devolver con comentarios':''}</button>
+     ${(r.versions||[]).length?`<button class="btn-ghost btn-sm" style="width:100%;margin-top:8px" onclick="openVersions(null,'${cid}','${rid}')">${ic('clock',13)} Versiones anteriores (${r.versions.length})</button>`:''}
      <button class="btn-danger btn-sm" style="width:100%;margin-top:8px" onclick="delClientRoutine('${cid}','${rid}')">Quitar esta rutina</button>`;
   openModal("exInfoModal");
 }
@@ -3729,6 +3765,28 @@ function openCycleHistory(){
     `<small class="hint" style="display:block;margin-top:6px">Toca un ciclo para ver su progreso completo en la pestaña Progreso.</small>`;
   openModal("exInfoModal");
 }
+/* ---- RIR objetivo progresivo dentro del ciclo ----
+   Semana 1 = tu RIR de plantilla + "off" (más conservador); baja lineal hasta la
+   semana final del ciclo, donde queda tu RIR de plantilla (más cerca del fallo). */
+function rirProgOf(c){ c=c||curCycle(); return Object.assign({on:true, weeks:6, off:2}, c.rirProg||{}); }
+function rirOffsetFor(week,c){
+  const p=rirProgOf(c); if(!p.on||!(p.weeks>1)) return 0;
+  const w=Math.max(1,parseInt(week)||1); if(w>=p.weeks) return 0;
+  return Math.round(p.off*(1-(w-1)/(p.weeks-1)));
+}
+function shiftRir(r,off){ if(r==null||r==="") return off>0?String(off):""; return String(r).replace(/\d+(\.\d+)?/g,n=>String(Math.max(0,Math.round(parseFloat(n)+off)))); }
+function setRirProg(){
+  const c=curCycle(), p=rirProgOf(c);
+  const v=prompt(`RIR progresivo · ${c.name}\n¿Cuántas semanas dura este ciclo? (0 = desactivar)\nLa semana 1 va +${p.off} de RIR sobre tu plantilla y baja hasta tu RIR de plantilla en la última semana.`, p.on?p.weeks:0);
+  if(v==null) return; const n=parseInt(v); if(!(n>=0&&n<=20)) return toast("Escribe un número de 0 a 20");
+  c.rirProg={on:n>1, weeks:n>1?n:p.weeks, off:p.off}; save(); renderEntreno(); toast(n>1?`RIR progresivo: ciclo de ${n} semanas`:"RIR progresivo desactivado");
+}
+function rirProgLineHTML(){
+  const c=curCycle(), p=rirProgOf(c), wk=suggestedWeek();
+  if(!p.on) return `<div style="font-size:12px;color:var(--muted);margin-top:6px">RIR progresivo desactivado · <span style="color:var(--accent);cursor:pointer" onclick="setRirProg()">activar</span></div>`;
+  const off=rirOffsetFor(wk);
+  return `<div style="font-size:12px;color:var(--muted);margin-top:6px">${ic('battery',12)} RIR objetivo · semana ${Math.min(wk,p.weeks)} de ${p.weeks}: <b style="color:var(--text)">${off>0?`+${off} sobre tu plantilla`:'tu RIR de plantilla (cerca del fallo)'}</b> · <span style="color:var(--accent);cursor:pointer" onclick="setRirProg()">ajustar</span></div>`;
+}
 /* ---- meta semanal editable: días de entreno por semana ---- */
 function weekGoal(){
   const p=state.prefs||{}; if(p.weekGoal>0) return p.weekGoal;
@@ -3765,6 +3823,7 @@ function cycleGoalCardHTML(){
       <span style="color:var(--accent);cursor:pointer;font-weight:600" onclick="setWeekGoal()">${ic('pencil',12)} meta ${g} d/sem</span></div>
     <div class="rk-bar" style="height:7px;margin-top:6px"><i style="width:${pct}%;background:${done>=g?'var(--ok)':'var(--accent)'}"></i></div>
     <div style="font-size:12px;color:var(--muted);margin-top:7px">${done>=g?'✓ Meta de la semana cumplida · ':`Te faltan ${g-done} día${g-done===1?'':'s'} · `}racha: <b style="color:var(--text)">${st} semana${st===1?'':'s'}</b> cumpliendo tu meta</div>
+    ${rirProgLineHTML()}
   </div>`;
 }
 /* semana sugerida: la MISMA de tu última sesión DEL CICLO ACTUAL; avanza si ya
@@ -3794,13 +3853,16 @@ function startSession(){
     entries: t.exercises.map(te=>{
       const ex=exById(te.exId);
       const last=lastSetsFor(te.exId, t.id);
-      const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||te.rir||"", type:s.type, drops:s.drops?s.drops.map(d=>({weight:d.weight||0,reps:d.reps||0})):undefined, repsL:s.repsL, repsR:s.repsR}))
-                        : Array.from({length:Math.max(1,te.sets||1)}, ()=>({weight:0,reps:0,rir:te.rir||""}));
+      // RIR objetivo progresivo del ciclo: empieza más conservador y llega a tu RIR de plantilla al final
+      const off=rirOffsetFor(week), rirTarget=off>0?shiftRir(te.rir,off):"";
+      const setRir=s=>(off>0?rirTarget:(s.rir||te.rir||""));
+      const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:setRir(s), type:s.type, drops:s.drops?s.drops.map(d=>({weight:d.weight||0,reps:d.reps||0})):undefined, repsL:s.repsL, repsR:s.repsR}))
+                        : Array.from({length:Math.max(1,te.sets||1)}, ()=>({weight:0,reps:0,rir:off>0?rirTarget:(te.rir||"")}));
       const uni = !!(last && last.some(s=>s.repsL!=null||s.repsR!=null));
       // prescripción del entrenador (si la rutina vino con parámetros Pro): se muestra al entrenar
       const rx=coachRxLine(te); const note=[rx, te.notes].filter(Boolean).join(" · ");
       return { exId:te.exId, name:ex?ex.name:te.exId, group:ex?ex.group:"—",
-        repRange:te.repRange, rir:te.rir, tempo:te.tempo||"", exNote:note||"", sg:te.superset||undefined, prefilled:!!last, uni, sets };
+        repRange:te.repRange, rir:te.rir, rirTarget:rirTarget||undefined, tempo:te.tempo||"", exNote:note||"", sg:te.superset||undefined, prefilled:!!last, uni, sets };
     })
   };
   closeModal("startModal"); renderSesion();
@@ -3995,7 +4057,9 @@ function appendTplToSession(tplId){
     const sets = last ? last.map(s=>({weight:s.weight||0,reps:s.reps||0,rir:s.rir||te.rir||"", type:s.type, drops:s.drops?s.drops.map(dp=>({weight:dp.weight||0,reps:dp.reps||0})):undefined, repsL:s.repsL, repsR:s.repsR}))
                       : Array.from({length:Math.max(1,te.sets||1)}, ()=>({weight:0,reps:0,rir:te.rir||""}));
     const uni=!!(last&&last.some(s=>s.repsL!=null||s.repsR!=null));
-    sessionDraft.entries.push({exId:te.exId, name:ex?ex.name:te.exId, group:ex?ex.group:"—", repRange:te.repRange, rir:te.rir, prefilled:!!last, uni, srcTpl:tplId, sets});
+    const off=rirOffsetFor(sessionDraft.week), rirTarget=off>0?shiftRir(te.rir,off):undefined;
+    if(rirTarget) sets.forEach(s=>s.rir=rirTarget);
+    sessionDraft.entries.push({exId:te.exId, name:ex?ex.name:te.exId, group:ex?ex.group:"—", repRange:te.repRange, rir:te.rir, rirTarget, prefilled:!!last, uni, srcTpl:tplId, sets});
   });
   renderSesion(); toast(t.name+" anexado a la sesión");
 }
@@ -4052,6 +4116,8 @@ function renderSesion(){
       <button class="btn-ghost btn-sm" style="width:100%;margin-top:10px" onclick="openModal('guiaModal')">${ic('bulb',15)} ¿Cómo registrar mis series? · Guía rápida</button>
       ${(((state.prefs&&state.prefs.deloadWeeks)||0)>0 && d.week>0 && d.week%state.prefs.deloadWeeks===0)?`<div style="margin-top:10px;background:rgba(255,159,10,.12);border:1px solid var(--warn);border-radius:10px;padding:9px 11px;font-size:12px;color:var(--warn);font-weight:600">${ic('battery',15)} Semana ${d.week}: buen momento para una <b>descarga (deload)</b> — baja ~40% el volumen y ~10% el peso para recuperar.</div>`:''}
     </div>
+    ${painSessionBannerHTML()}
+    ${smartWarmupHTML()}
     ${d.entries.map((e,i)=>{
       const ton=entryTonnage(e), orm=entryBest1RM(e);
       const sug=progressionSuggest(e.exId,e.repRange,e.group,d.templateId);
@@ -4059,7 +4125,7 @@ function renderSesion(){
       return `<div class="ex-block" style="${ssCol?`border-left:4px solid ${ssCol};`:''}">
         <div class="exh">
           <div><div class="exname" style="cursor:pointer" title="Ver tu historial de este ejercicio" onclick="openExMiniHist('${e.exId}')">${e.name}${e.sg?` <span class="pill" style="background:${ssCol};color:#fff;font-size:10px;padding:1px 8px">${ic('link',12)} Superserie ${e.sg}</span>`:''}</div>
-            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · RIR ${e.rir||"—"}${e.tempo?` · tempo ${e.tempo}`:''}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}${(typeof EX_TIPS!=='undefined'&&EX_TIPS[e.exId])?` · <span style="color:var(--accent);cursor:pointer" onclick="openExTip('${e.exId}')">técnica</span>`:''}</div>
+            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · ${(e.rirTarget&&e.rirTarget!==e.rir)?`<span style="color:var(--accent);font-weight:650">RIR objetivo ${e.rirTarget}</span> <span style="color:var(--muted)">(plantilla ${e.rir||"—"})</span>`:`RIR ${e.rir||"—"}`}${e.tempo?` · tempo ${e.tempo}`:''}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}${(typeof EX_TIPS!=='undefined'&&EX_TIPS[e.exId])?` · <span style="color:var(--accent);cursor:pointer" onclick="openExTip('${e.exId}')">técnica</span>`:''}</div>
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
@@ -4080,7 +4146,7 @@ function renderSesion(){
               <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
               <input type="number" inputmode="numeric" value="${s.repsL!=null?s.repsL:""}" placeholder="izq" onchange="updateSetRepsL(${i},${j},this.value)">
               <input type="number" inputmode="numeric" value="${s.repsR!=null?s.repsR:""}" placeholder="der" onchange="updateSetRepsR(${i},${j},this.value)">
-              <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)">
+              <input type="text" value="${s.rir||""}" placeholder="${e.rirTarget||e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)">
               <button class="sdone${s.done?' on':''}" title="Serie hecha" onclick="toggleSetDone(${i},${j})">✓</button>
               <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
             </div>`;
@@ -4102,7 +4168,7 @@ function renderSesion(){
             ${chip}
             <input type="number" inputmode="decimal" value="${s.weight?uw(s.weight):""}" placeholder="0" onchange="updateSetWeight(${i},${j},this.value)">
             <input type="number" inputmode="numeric" value="${s.reps||""}" placeholder="0" onchange="updateSetReps(${i},${j},this.value)">
-            <input type="text" value="${s.rir||""}" placeholder="${e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)" ${s.type==="f"?'disabled title="Al fallo = RIR 0"':''}>
+            <input type="text" value="${s.rir||""}" placeholder="${e.rirTarget||e.rir||"-"}" onchange="updateSetRir(${i},${j},this.value)" ${s.type==="f"?'disabled title="Al fallo = RIR 0"':''}>
             <button class="sdone${s.done?' on':''}" title="Serie hecha" onclick="toggleSetDone(${i},${j})">✓</button>
             <button class="btn-danger btn-sm" onclick="removeSet(${i},${j})">×</button>
           </div>`;
@@ -4341,7 +4407,12 @@ function returnProgram(){
   const me=localProfile();
   fbDb.collection("shared").doc("r_"+p.returnTo+"_"+String(1e13-Date.now()).padStart(13,"0"))
     .set({t:"rback", from:{code:me.code,name:me.name}, name:p.name, p:JSON.stringify(compactShare(payload)), at:Date.now()})
-    .then(()=>toast("Devuelta ✓ — le llega a su Perfil y se actualiza en su lugar"))
+    .then(()=>{
+      // en la ficha del cliente: la versión que él mandó queda en el historial y la tuya pasa a ser la actual
+      const c=clientById(p.clientId), r=c&&(c.routines||[]).find(x=>x.key===p.srcKey);
+      if(r){ if(!r.versions) r.versions=[]; r.versions.push({at:Date.now(), by:c.name, why:"Versión que te envió (antes de tus cambios)", templates:JSON.parse(JSON.stringify(r.templates))});
+        r.templates=templates.map(t=>({name:t.name, exercises:t.exercises.map(x=>({...x}))})); save(); }
+      toast("Devuelta ✓ — le llega a su Perfil y se actualiza en su lugar"); })
     .catch(()=>toast("No se pudo enviar"));
 }
 function copyShareLink(){ const u=val("shareLinkUrl");
@@ -4399,6 +4470,8 @@ function confirmImportRoutine(){
   let folderId=null, updated=false;
   const updFolder = p.key ? (state.folders||[]).find(fd=>fd.shareKey===p.key) : null;
   const updTpls = (!updFolder && p.key) ? state.templates.filter(t=>t.shareKey===p.key) : [];
+  if(updFolder||updTpls.length) snapshotVersion(p.key, currentTemplatesForKey(p.key), "Tú (versión anterior)",
+    `Reemplazada por la versión de ${p.__senderName||"quien te la compartió"}${p.changelog?": "+p.changelog:""}`);
   if(!updFolder && updTpls.length){
     // ACTUALIZACIÓN de rutina(s) sueltas (p. ej. las que enviaste a tu entrenador): se reemplazan en su lugar
     updated=true;
@@ -4572,6 +4645,8 @@ function tplCard(t){
       <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
       <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.exercises.length} ej · ${groups||"—"}</div>
       ${t.coachNote?`<div style="font-size:11.5px;color:var(--accent);margin-top:2px">${ic('note',11)} ${t.coachNote}</div>`:''}
+      ${(()=>{ if(!t.shareKey||t.folder) return ''; const n=((state.routineVersions||{})[t.shareKey]||[]).length;
+        return n?`<div style="font-size:11.5px;color:var(--accent);margin-top:2px;cursor:pointer" onclick="openVersions('${t.shareKey}')">${ic('clock',11)} ${n===1?'1 versión':n+' versiones'} anterior${n===1?'':'es'}</div>`:''; })()}
     </div>
     <button class="icon-btn" style="flex:0 0 auto" title="Analizar rutina" onclick="openRoutineAnalysis('${t.id}')">${ic('chart',16)}</button>
     <button class="icon-btn" style="flex:0 0 auto" title="Compartir por link" onclick="shareTemplate('${t.id}')">${ic('share',16)}</button>
@@ -4592,6 +4667,7 @@ function renderTemplateList(){
     const items=inFolder(f.id), col=collapsedFolders[f.id];
     html+=`<div style="display:flex;align-items:center;gap:8px;margin:8px 2px 6px">
       <span style="cursor:pointer;font-weight:700;font-size:14px;flex:1;min-width:0" onclick="toggleFolder('${f.id}')">${col?'▸':'▾'} ${folderIcon(15)} ${f.name} <span style="color:var(--muted);font-weight:400;font-size:12px">(${items.length})</span></span>
+      ${f.shareKey&&((state.routineVersions||{})[f.shareKey]||[]).length?`<span title="Versiones anteriores" style="cursor:pointer;color:var(--accent);font-size:11.5px;display:inline-flex;align-items:center;gap:2px" onclick="openVersions('${f.shareKey}')">${ic('clock',14)}${state.routineVersions[f.shareKey].length}</span>`:''}
       <span title="Analizar carpeta" style="cursor:pointer;font-size:13px" onclick="analyzeFolder('${f.id}')">${ic('chart',15)}</span>
       <span title="Compartir carpeta por link" style="cursor:pointer;font-size:13px" onclick="shareFolder('${f.id}')">${ic('share',15)}</span>
       <span title="Nota de la rutina" style="color:${f.note?'var(--accent)':'var(--muted)'};cursor:pointer" onclick="editFolderNote('${f.id}')">${ic('note',14)}</span>
@@ -4741,8 +4817,78 @@ function saveTemplate(){
   templateDraft.name=name;
   const fq=parseInt(val("tplFreq"))||0; if(fq>0) templateDraft.freqWeek=Math.min(7,fq); else delete templateDraft.freqWeek;
   if(editingTemplateId==="new"){ state.templates.push(templateDraft); }
-  else{ const idx=state.templates.findIndex(t=>t.id===editingTemplateId); if(idx>=0) state.templates[idx]=templateDraft; }
+  else{ const idx=state.templates.findIndex(t=>t.id===editingTemplateId);
+    if(idx>=0){ const old=state.templates[idx], key=routineKeyOfTemplate(old);   // rutina compartida: guarda la versión anterior
+      if(key && JSON.stringify(old.exercises)!==JSON.stringify(templateDraft.exercises)) snapshotVersion(key, currentTemplatesForKey(key), "Tú", "Edición manual de "+old.name);
+      state.templates[idx]=templateDraft; } }
   save(); closeTemplateEditor(); renderTemplateList(); toast("Día guardado");
+}
+/* ===== HISTORIAL DE VERSIONES de rutinas compartidas (van y vienen entre entrenador y cliente) ===== */
+function routineKeyOfTemplate(t){ if(!t) return null; if(t.shareKey) return t.shareKey; const f=(state.folders||[]).find(x=>x.id===t.folder); return (f&&f.shareKey)||null; }
+function currentTemplatesForKey(key){
+  const f=(state.folders||[]).find(x=>x.shareKey===key);
+  const ts=f?state.templates.filter(t=>t.folder===f.id):state.templates.filter(t=>t.shareKey===key);
+  return ts.map(t=>({name:t.name, exercises:(t.exercises||[]).map(x=>({...x}))}));
+}
+function snapshotVersion(key, templates, by, why){
+  if(!key||!templates||!templates.length) return;
+  if(!state.routineVersions) state.routineVersions={};
+  const arr=state.routineVersions[key]||(state.routineVersions[key]=[]);
+  arr.push({at:Date.now(), by:by||"", why:why||"", templates:JSON.parse(JSON.stringify(templates))});
+  if(arr.length>20) arr.splice(0,arr.length-20);
+}
+/* qué cambió entre dos versiones (por día y ejercicio) */
+function diffTemplates(a,b){
+  const out=[], byName=l=>Object.fromEntries((l||[]).map(t=>[t.name,t]));
+  const A=byName(a), B=byName(b), names=[...new Set([...Object.keys(A),...Object.keys(B)])];
+  const fmt=x=>`${x.sets||"?"}×${x.repRange||x.reps||"—"}${x.rir!=null&&x.rir!==""?` RIR ${x.rir}`:''}`;
+  names.forEach(n=>{ const da=A[n], db=B[n];
+    if(!da){ out.push(`<b style="color:var(--ok)">+ Día nuevo: ${n}</b>`); return; }
+    if(!db){ out.push(`<b style="color:var(--bad)">− Se quitó el día: ${n}</b>`); return; }
+    const ea=Object.fromEntries(da.exercises.map(x=>[x.exId,x])), eb=Object.fromEntries(db.exercises.map(x=>[x.exId,x])), lines=[];
+    Object.keys(eb).forEach(id=>{ if(!ea[id]) lines.push(`<span style="color:var(--ok)">+ ${exName(id)} (${fmt(eb[id])})</span>`); });
+    Object.keys(ea).forEach(id=>{ if(!eb[id]) lines.push(`<span style="color:var(--bad)">− ${exName(id)}</span>`); });
+    Object.keys(ea).forEach(id=>{ const x=ea[id], y=eb[id]; if(!y) return; const ch=[];
+      if(fmt(x)!==fmt(y)) ch.push(`${fmt(x)} → ${fmt(y)}`);
+      if((x.notes||"")!==(y.notes||"")&&y.notes) ch.push(`nota: “${y.notes}”`);
+      ["tempo","rest","superset","progression"].forEach(k=>{ if((x[k]||"")!==(y[k]||"")&&y[k]) ch.push(`${k==="rest"?"descanso":(k==="superset"?"superserie":k)}: ${y[k]}`); });
+      if(ch.length) lines.push(`${exName(id)}: ${ch.join(" · ")}`); });
+    if(lines.length) out.push(`<div style="margin-top:6px"><b>${n}</b><br>${lines.join("<br>")}</div>`);
+  });
+  return out.length?out.join(""):`<span style="color:var(--muted)">Sin cambios en los ejercicios.</span>`;
+}
+let __verCtx=null;
+function openVersions(key, cid, rid){
+  let vers, current;
+  if(cid){ const c=clientById(cid), r=c&&(c.routines||[]).find(x=>x.id===rid); if(!r) return; vers=r.versions||[]; current=r.templates; __verCtx={cid,rid}; }
+  else { vers=(state.routineVersions||{})[key]||[]; current=currentTemplatesForKey(key); __verCtx={key}; }
+  document.getElementById("exInfoTitle").textContent="Versiones de la rutina";
+  const list=vers.map((v,i)=>({v,i})).reverse();
+  document.getElementById("exInfoBody").innerHTML=`<div class="card-sub" style="margin:0 0 10px">${vers.length===1?'1 versión':vers.length+' versiones'} anterior${vers.length===1?'':'es'} guardada${vers.length===1?'':'s'}. La actual es la que está en uso.</div>`+
+    (list.length?list.map(({v,i})=>{ const next=i<vers.length-1?vers[i+1].templates:current;
+      return `<div class="card" style="padding:12px 14px;margin-bottom:10px">
+        <div class="flex-between"><div><b style="font-size:14px">${new Date(v.at).toLocaleDateString('es-MX',{day:'numeric',month:'short',year:'numeric'})} · ${new Date(v.at).toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'})}</b>
+          <div style="font-size:12px;color:var(--muted)">${v.by?v.by+' · ':''}${v.why||''}</div></div>
+          <button class="btn-ghost btn-sm" onclick="restoreVersion(${i})">Restaurar</button></div>
+        <details style="margin-top:8px"><summary style="font-size:12.5px;color:var(--accent);cursor:pointer">Qué cambió después de esta versión</summary><div style="font-size:12.5px;line-height:1.55;margin-top:6px">${diffTemplates(v.templates,next)}</div></details>
+      </div>`; }).join(""):`<div class="empty" style="margin:0">Aún no hay versiones anteriores.</div>`);
+  openModal("exInfoModal");
+}
+function restoreVersion(i){
+  const ctx=__verCtx; if(!ctx) return; if(!confirm("¿Restaurar esta versión? La actual se guarda como versión para no perderla.")) return;
+  if(ctx.cid){ const c=clientById(ctx.cid), r=c&&(c.routines||[]).find(x=>x.id===ctx.rid); if(!r||!r.versions||!r.versions[i]) return;
+    r.versions.push({at:Date.now(), by:"Tú", why:"Antes de restaurar", templates:JSON.parse(JSON.stringify(r.templates))});
+    r.templates=JSON.parse(JSON.stringify(r.versions[i].templates)); save(); closeModal("exInfoModal"); renderCoach(); return toast("Versión restaurada ✓"); }
+  const vers=(state.routineVersions||{})[ctx.key]; if(!vers||!vers[i]) return;
+  const target=JSON.parse(JSON.stringify(vers[i].templates));
+  snapshotVersion(ctx.key, currentTemplatesForKey(ctx.key), "Tú", "Antes de restaurar");
+  const f=(state.folders||[]).find(x=>x.shareKey===ctx.key);
+  if(f){ const names=new Set(target.map(t=>t.name));
+    state.templates=state.templates.filter(t=>t.folder!==f.id||names.has(t.name));   // días que no existían en esa versión
+    target.forEach((t,k)=>{ const o=state.templates.find(x=>x.folder===f.id&&x.name===t.name);
+      if(o) o.exercises=t.exercises; else state.templates.push({id:"t_"+Date.now()+"_"+k, name:t.name, exercises:t.exercises, folder:f.id}); }); }
+  else { const ts=state.templates.filter(t=>t.shareKey===ctx.key); target.forEach((t,k)=>{ const o=ts.find(x=>x.name===t.name)||ts[k]; if(o) o.exercises=t.exercises; }); }
+  save(); closeModal("exInfoModal"); renderTemplateList(); toast("Versión restaurada ✓");
 }
 function deleteTemplate(id){
   if(!confirm("¿Eliminar este día?")) return;
@@ -4803,6 +4949,42 @@ document.addEventListener("input", e=>{ if(e.target.id==="exSearch"){ exFilter.q
    PROGRESO semanal + volumen por grupo
    ==================================================================== */
 const DAY_ORDER=["Push","Pull","Leg","Push 2","Density"];
+/* ===== evolución de TODAS las semanas del ciclo: mejor serie por ejercicio y semana ===== */
+function topSetOf(e){
+  let best=null;
+  (e.sets||[]).forEach(s=>{ if(isWarmup(s)) return;
+    const w=(s.type==="d"&&s.drops&&s.drops[0])?s.drops[0].weight:(s.weight||0), r=s.reps||Math.max(s.repsL||0,s.repsR||0);
+    if(!(w>0&&r>0)) return; if(!best||w>best.w||(w===best.w&&r>best.r)) best={w,r}; });
+  return best;
+}
+function renderCycleEvolution(){
+  const el=document.getElementById("cycleEvoBox"); if(!el) return;
+  const ws=scopeWorkouts(), c=viewCycle(), weeks=[...new Set(ws.map(w=>w.week||1))].sort((a,b)=>a-b);
+  if(weeks.length<2){ el.innerHTML=`<div class="empty" style="margin:0">Necesito al menos 2 semanas en este ciclo para mostrar la evolución.</div>`; return; }
+  const ex={};
+  ws.forEach(w=>(w.entries||[]).forEach(e=>{ const t=topSetOf(e); if(!t) return; const m=(ex[e.exId]=ex[e.exId]||{}); const cur=m[w.week]; if(!cur||t.w>cur.w||(t.w===cur.w&&t.r>cur.r)) m[w.week]=t; }));
+  const ids=Object.keys(ex).sort((a,b)=>Object.keys(ex[b]).length-Object.keys(ex[a]).length).slice(0,24);
+  const cmp=(a,b)=>!b?0:(a.w>b.w+1e-6?1:(a.w<b.w-1e-6?-1:(a.r>b.r?1:(a.r<b.r?-1:0))));
+  let ups=0, downs=0;
+  const rows=ids.map(id=>{ let prev=null;
+    const cells=weeks.map(wk=>{ const t=ex[id][wk]; if(!t) return `<td class="r" style="color:var(--muted)">·</td>`;
+      const test=isTestWeek(c,wk); const d=test?0:cmp(t,prev); if(!test){ if(d>0) ups++; if(d<0) downs++; prev=t; }
+      const col=test?'var(--muted)':(d>0?'var(--ok)':(d<0?'var(--bad)':'var(--text)'));
+      return `<td class="r num" style="color:${col};white-space:nowrap">${uw(t.w)}×${t.r}${d>0?' ▲':(d<0?' ▼':'')}</td>`; }).join("");
+    return `<tr><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${exName(id)}</td>${cells}</tr>`; }).join("");
+  el.innerHTML=`<div style="font-size:12.5px;color:var(--muted);margin-bottom:8px">${c.name}: <b style="color:var(--ok)">${ups} mejoras</b> · <b style="color:var(--bad)">${downs} bajadas</b> semana a semana</div>
+    <table><thead><tr><th>Ejercicio</th>${weeks.map(wk=>`<th class="r">S${wk}${isTestWeek(c,wk)?'*':''}</th>`).join("")}</tr></thead><tbody>${rows}</tbody></table>
+    <small class="hint">Mejor serie de cada semana (${unit()} × reps). ▲ más peso, o mismo peso con más reps · ▼ menos. ${weeks.some(wk=>isTestWeek(c,wk))?'* semana de prueba (no se compara).':''}</small>`;
+}
+/* días distintos entrenados en una semana del ciclo en vista */
+function weekDaysCount(wk){ return new Set(scopeWorkouts().filter(w=>w.week===wk).map(w=>w.date)).size; }
+/* semana en curso = la última del ciclo ACTUAL que todavía no llega a tu meta de días */
+function weekInProgress(wk){
+  const v=viewCycle(); if(v.end) return false;
+  const ws=scopeWorkouts(); if(!ws.length) return false;
+  const maxW=Math.max(...ws.map(w=>w.week||1)); if(wk!==maxW) return false;
+  return weekDaysCount(wk)<weekGoal();
+}
 /* semanas / días / filas del ciclo EN VISTA (los números de semana se reinician en cada ciclo) */
 function sortedWeeks(){ return [...new Set(scopeWorkouts().map(w=>w.week))].sort((a,b)=>a-b); }
 function sortedDays(){
@@ -4859,21 +5041,32 @@ function renderProgreso(){
   const cb=document.getElementById("cycleProgBox"); if(cb) cb.innerHTML=cycleProgHTML();
   const {weeks,days,rows}=weeklyRows();
   const tbl=document.getElementById("weeklyTonnageTable");
-  if(!rows.length){ tbl.innerHTML=`<div class="empty">Registra sesiones en este ciclo para ver el progreso semanal.</div>`; }
+  if(!rows.length){ tbl.innerHTML=`<div class="empty">Registra sesiones en este ciclo para ver el progreso semanal.</div>`; renderCycleEvolution(); }
   else{
     let html=`<table><thead><tr><th>Semana</th>${days.map(d=>`<th class="r">${d}</th>`).join("")}<th class="r">Total</th><th class="r">vs ant.</th></tr></thead><tbody>`;
+    let pendingNote="";
     rows.forEach((r,i)=>{
       // se compara contra la última semana NORMAL anterior (las de prueba no cuentan)
       let prevRow=null; for(let k=i-1;k>=0;k--){ if(!rows[k].test){ prevRow=rows[k]; break; } }
+      const live=weekInProgress(r.week);   // semana en curso: aún no se compara (entrenas días no consecutivos)
       let pct=null;
-      if(prevRow && !r.test){ const md=days.filter(d=>(r.byDay[d]>0)&&(prevRow.byDay[d]>0));   // solo rutinas hechas en AMBAS semanas
+      if(prevRow && !r.test && !live){ const md=days.filter(d=>(r.byDay[d]>0)&&(prevRow.byDay[d]>0));   // solo rutinas hechas en AMBAS semanas
         if(md.length){ const a=md.reduce((s,d)=>s+r.byDay[d],0), b=md.reduce((s,d)=>s+prevRow.byDay[d],0); if(b>0) pct=(a-b)/b*100; } }
       const st=trendStatus(pct);
+      let lastCell;
+      if(r.test) lastCell=`<span style="color:var(--muted);font-weight:700;font-size:12px">no cuenta</span>`;
+      else if(live){ const done=weekDaysCount(r.week), left=Math.max(0,weekGoal()-done);
+        lastCell=`<span style="color:var(--accent);font-weight:700;font-size:12px">en curso · faltan ${left}</span>`;
+        const missing=prevRow?days.filter(d=>prevRow.byDay[d]>0&&!(r.byDay[d]>0)):[];
+        pendingNote=`<div style="border-left:3px solid var(--accent);background:var(--accent-soft);border-radius:0 12px 12px 0;padding:9px 12px;margin:10px 0 2px;font-size:13px;line-height:1.5">Semana ${r.week} en curso: llevas <b>${done} de ${weekGoal()}</b> días. Se compara con la anterior cuando la termines.${missing.length?` Te falta: <b>${missing.join(", ")}</b>.`:''}</div>`; }
+      else lastCell=`<span style="color:${st.color};font-weight:700;font-size:12px">${st.txt}</span>`;
       html+=`<tr style="${r.test?'opacity:.62':''}"><td><b style="cursor:pointer" title="Tocar para marcar/desmarcar como semana de prueba" onclick="toggleTestWeek(${r.week})">Sem ${r.week}</b>${r.test?' <span class="pgm-tag" style="color:var(--accent);background:var(--accent-soft)">prueba</span>':''}</td>
         ${days.map(d=>`<td class="r num">${r.byDay[d]?nfmt(fromKg(r.byDay[d])):"·"}</td>`).join("")}
         <td class="r num" style="color:var(--accent2)">${nfmt(fromKg(r.total))}</td>
-        <td class="r"><span style="color:${r.test?'var(--muted)':st.color};font-weight:700;font-size:12px">${r.test?'no cuenta':st.txt}</span></td></tr>`;
+        <td class="r">${lastCell}</td></tr>`;
     });
+    html=pendingNote+html;
+    setTimeout(renderCycleEvolution,0);
     html+=`</tbody></table><small class="hint">Tonelaje en ${unit()} · “vs ant.” compara solo las rutinas hechas en ambas semanas. ▲ sube · ▬ ±2% · ▼ baja. Toca “Sem N” para marcarla como <b>semana de prueba</b> (test de fuerza/evaluación): no entra en las comparativas.</small>`;
     tbl.innerHTML=routineProgressHTML()+html;
   }
@@ -4886,8 +5079,9 @@ function renderProgreso(){
     renderMuscleAnalysis(cur);
   }else{
     sel.innerHTML="";
-    document.getElementById("bodyMap").innerHTML=bodyMapSVG({});
-    document.getElementById("groupVolumeTable").innerHTML=`<div class="empty">Aún sin sesiones. Registra un entreno para ver tus músculos trabajados.</div>`;
+    const pm=__volMode==="pain";
+    document.getElementById("bodyMap").innerHTML=`<div class="seg" style="max-width:300px;margin:0 auto 10px"><span class="${pm?'':'on'}" onclick="setVolMode('sets')">Series</span><span class="${pm?'on':''}" onclick="setVolMode('pain')">Molestias</span></div>`+bodyMapSVG({}, pm?{painTap:true}:{pain:true});
+    document.getElementById("groupVolumeTable").innerHTML=pm?painListHTML(null):`<div class="empty">Aún sin sesiones. Registra un entreno para ver tus músculos trabajados.</div>`;
     ["imbalanceBox","muscleProgressBox","qualityBox"].forEach(id=>{const el=document.getElementById(id); if(el) el.innerHTML=`<div class="empty" style="margin:0">Sin datos aún.</div>`;});
   }
   renderAsymmetry();
@@ -4950,7 +5144,8 @@ function renderMuscleAnalysis(wk){
   document.getElementById("imbalanceBox").innerHTML = imb||`<div class="empty" style="margin:0">Registra una sesión para ver tu equilibrio.</div>`;
   // progreso vs semana anterior
   const vc=viewCycle(), weeks=sortedWeeks().filter(x=>x===wk||!isTestWeek(vc,x)), idx=weeks.indexOf(wk), pb=document.getElementById("muscleProgressBox");
-  if(idx>0 && !isTestWeek(vc,wk)){
+  if(weekInProgress(wk)){ pb.innerHTML=`<div class="empty" style="margin:0">Semana ${wk} en curso (${weekDaysCount(wk)} de ${weekGoal()} días): la comparo con la anterior cuando la completes.</div>`; }
+  else if(idx>0 && !isTestWeek(vc,wk)){
     const prev=effVolByMuscle(weeks[idx-1]);
     const deltas=SUBMUSCLES.map(([k,lbl])=>({lbl,d:(ev[k]||0)-(prev[k]||0)})).filter(x=>Math.abs(x.d)>=0.5).sort((a,b)=>b.d-a.d);
     if(deltas.length){
@@ -5030,10 +5225,15 @@ function volStatus(mk,sets){ const r=MV_SUB[mk]; if(!r) return {label:"—",colo
 let __volMode="sets";
 function setVolMode(m){ __volMode=m; renderProgreso(); }
 function renderGroupVolume(wk){
-  const ev=effVolByMuscle(wk), et=effTonByMuscle(wk), ton=__volMode==="ton";
-  document.getElementById("bodyMap").innerHTML =
-    `<div class="seg" style="max-width:300px;margin:0 auto 10px"><span class="${ton?'':'on'}" onclick="setVolMode('sets')">Series efectivas</span><span class="${ton?'on':''}" onclick="setVolMode('ton')">Tonelaje efectivo</span></div>`+
-    bodyMapSVG(ton?et:ev, ton?{mode:"ton"}:{});
+  const ev=effVolByMuscle(wk), et=effTonByMuscle(wk), ton=__volMode==="ton", pain=__volMode==="pain";
+  const nAct=Object.keys(activePains()).length;
+  const seg=`<div class="seg" style="max-width:340px;margin:0 auto 10px"><span class="${!ton&&!pain?'on':''}" onclick="setVolMode('sets')">Series</span><span class="${ton?'on':''}" onclick="setVolMode('ton')">Tonelaje</span><span class="${pain?'on':''}" onclick="setVolMode('pain')">Molestias${nAct?` (${nAct})`:''}</span></div>`;
+  if(pain){   // el diagrama del volumen con las articulaciones tocables encima
+    document.getElementById("bodyMap").innerHTML=seg+bodyMapSVG(ev,{painTap:true});
+    document.getElementById("groupVolumeTable").innerHTML=painListHTML(wk);
+    return;
+  }
+  document.getElementById("bodyMap").innerHTML = seg + bodyMapSVG(ton?et:ev, ton?{mode:"ton",pain:true}:{pain:true});
   const worked=SUBMUSCLES.filter(([k])=>(ev[k]||0)>0||(et[k]||0)>0).sort((a,b)=>ton?((et[b[0]]||0)-(et[a[0]]||0)):((ev[b[0]]||0)-(ev[a[0]]||0)));
   const el=document.getElementById("groupVolumeTable");
   el.innerHTML = worked.length ? `<table><thead><tr><th>Músculo</th><th class="r">Series efect.</th><th class="r">Tonelaje efect.</th><th class="r">Estado</th></tr></thead><tbody>
@@ -5041,6 +5241,68 @@ function renderGroupVolume(wk){
     </tbody></table><small class="hint">Volumen <b>efectivo</b> = series ponderadas por cercanía al fallo (RIR). <b>Tonelaje efectivo</b> = tonelaje de cada ejercicio × la fracción con la que trabaja ese músculo (p. ej. press banca: pecho 100%, tríceps 50%). En ${unit()}.</small>` : `<div class="empty">Sin datos en esta semana.</div>`;
 }
 function muscleColor(s){ if(!s) return "#E2DBF1"; if(s<=4) return "#D2C2F4"; if(s<=8) return "#B79CF0"; if(s<=12) return "#9466E8"; if(s<=16) return "#7C3AED"; return "#5B21B6"; }
+/* ===== MOLESTIAS por articulación, marcadas sobre el mismo diagrama del volumen =====
+   Vista de frente: tu lado derecho está a la IZQUIERDA de la pantalla. */
+const JOINTS=[["cuello","Cuello",86,44],["hombro_d","Hombro derecho",58,50],["hombro_i","Hombro izquierdo",114,50],["codo_d","Codo derecho",48,106],["codo_i","Codo izquierdo",124,106],
+  ["muneca_d","Muñeca derecha",46,153],["muneca_i","Muñeca izquierda",126,153],["cadera_d","Cadera derecha",70,152],["cadera_i","Cadera izquierda",102,152],
+  ["rodilla_d","Rodilla derecha",75,214],["rodilla_i","Rodilla izquierda",97,214],["tobillo_d","Tobillo derecho",74,271],["tobillo_i","Tobillo izquierdo",98,271],
+  ["espalda_alta","Espalda alta / media",258,72],["lumbar","Espalda baja",258,118]];
+const JOINT_LBL=Object.fromEntries(JOINTS.map(j=>[j[0],j[1]]));
+const JOINT_MUS={cuello:["espaldaAlta"],hombro:["deltAnt","deltLat","deltPost","pecho"],codo:["biceps","triceps","antebrazo"],muneca:["antebrazo"],cadera:["gluteo","aductor","cuadriceps","femoral"],rodilla:["cuadriceps","femoral"],tobillo:["pantorrilla"],espalda_alta:["espaldaAlta","dorsal","deltPost"],lumbar:["femoral","gluteo","core","espaldaAlta"]};
+const PAIN_LVL=["Sin molestia","Leve","Moderada","Fuerte"], PAIN_COL=["#34C759","#FF9F0A","#FF6B00","#FF3B30"];
+function jointMuscles(j){ return JOINT_MUS[j]||JOINT_MUS[j.replace(/_[di]$/,"")]||[]; }
+function activePains(){   // última marca por articulación en los últimos 21 días (nivel 0 = resuelta)
+  const since=dayShift(todayStr(),-21), last={};
+  (state.painLog||[]).slice().sort((a,b)=>a.at-b.at).forEach(p=>{ if(p.date>=since) last[p.j]=p; });
+  const out={}; Object.values(last).forEach(p=>{ if(p.lvl>0&&JOINT_LBL[p.j]) out[p.j]=p; }); return out;
+}
+function painLayerSVG(tap){
+  const act=activePains();
+  return JOINTS.map(([j,lbl,x,y])=>{ const p=act[j];
+    if(p) return `<g ${tap?`onclick="openPainLog('${j}')" style="cursor:pointer"`:''}><circle cx="${x}" cy="${y}" r="${5+p.lvl*1.6}" fill="${PAIN_COL[p.lvl]}" fill-opacity=".85" stroke="#fff" stroke-width="1.4"/><title>${lbl}: ${PAIN_LVL[p.lvl]}</title></g>`;
+    return tap?`<g onclick="openPainLog('${j}')" style="cursor:pointer"><circle cx="${x}" cy="${y}" r="5.5" fill="#fff" fill-opacity=".55" stroke="#9C8CD6" stroke-width="1.2" stroke-dasharray="2 1.6"/><title>${lbl}: tocar para registrar</title></g>`:"";
+  }).join("");
+}
+function openPainLog(j){
+  const hist=(state.painLog||[]).filter(p=>p.j===j).sort((a,b)=>b.at-a.at).slice(0,8), cur=activePains()[j];
+  document.getElementById("exInfoTitle").textContent=JOINT_LBL[j]||"Molestia";
+  document.getElementById("exInfoBody").innerHTML=`
+    <div class="card-sub" style="margin:0 0 10px">${cur?`Ahora: <b style="color:${PAIN_COL[cur.lvl]}">${PAIN_LVL[cur.lvl]}</b> desde ${cur.date}`:'Sin molestia activa'} · ¿cómo está hoy?</div>
+    <div class="pain-lvls">${PAIN_LVL.map((l,i)=>`<button style="--pc:${PAIN_COL[i]}" onclick="savePain('${j}',${i})"><i></i>${l}</button>`).join("")}</div>
+    <div class="field" style="margin-top:12px"><label>Nota (opcional)</label><input id="painNote" placeholder="Ej. al bajar en press banca, al despertar…"></div>
+    ${hist.length?`<div style="font-weight:700;font-size:13px;margin:6px 0 4px">Historial</div>${hist.map(p=>`<div class="kv"><span>${p.date}${p.note?` <span style="color:var(--muted);font-size:12px">· ${p.note}</span>`:''}</span><b style="color:${PAIN_COL[p.lvl]}">${PAIN_LVL[p.lvl]}</b></div>`).join("")}`:''}`;
+  openModal("exInfoModal");
+}
+function savePain(j,lvl){
+  if(!state.painLog) state.painLog=[];
+  state.painLog.push({at:Date.now(), date:todayStr(), j, lvl, note:((document.getElementById("painNote")||{}).value||"").trim().slice(0,120)});
+  save(); closeModal("exInfoModal"); if(currentView==="entreno"){ if(entrenoSub==="progreso") renderProgreso(); else if(sessionDraft) renderSesion(); }
+  toast(lvl?`${JOINT_LBL[j]}: ${PAIN_LVL[lvl].toLowerCase()} registrada`:`${JOINT_LBL[j]}: marcada como resuelta`);
+}
+/* lista de molestias activas cruzada con el volumen de los músculos relacionados */
+function painListHTML(wk){
+  const act=activePains(), js=Object.keys(act);
+  const weeks=sortedWeeks(), idx=weeks.indexOf(wk), prevWk=idx>0?weeks[idx-1]:null;
+  const ev=effVolByMuscle(wk), pv=prevWk!=null?effVolByMuscle(prevWk):null;
+  const rows=js.map(j=>{ const p=act[j], ms=jointMuscles(j), s=ms.reduce((a,k)=>a+(ev[k]||0),0), ps=pv?ms.reduce((a,k)=>a+(pv[k]||0),0):null;
+    const ch=(ps&&ps>0&&!weekInProgress(wk))?Math.round((s-ps)/ps*100):null;   // semana en curso: no se compara hasta completarla
+    return `<div class="kv" style="align-items:flex-start;cursor:pointer" onclick="openPainLog('${j}')"><span><b style="color:${PAIN_COL[p.lvl]}">●</b> ${JOINT_LBL[j]} <span style="color:var(--muted);font-size:12px">· ${PAIN_LVL[p.lvl].toLowerCase()} desde ${p.date}</span>
+      <br><span style="font-size:11.5px;color:var(--muted)">Músculos relacionados (${ms.map(k=>SUBLABEL[k]).join(", ")}): ${r1(s)} series efect. esta semana${weekInProgress(wk)&&ps!=null?` <span>(en curso · la anterior: ${r1(ps)})</span>`:''}${ch!=null?` <b style="color:${ch>15?'var(--warn)':'var(--muted)'}">(${ch>0?'+':''}${ch}% vs la anterior)</b>`:''}</span></span></div>`; }).join("");
+  const hist=(state.painLog||[]).slice().sort((a,b)=>b.at-a.at).slice(0,6);
+  return (rows?`<div style="font-weight:700;font-size:13px;margin-bottom:4px">Molestias activas</div>${rows}`:`<div style="border-left:3px solid var(--ok);background:var(--bg2);border-radius:0 10px 10px 0;padding:9px 12px;font-size:13px">Sin molestias activas. Toca un punto del diagrama para registrar una.</div>`)+
+    (hist.length?`<div style="font-weight:700;font-size:13px;margin:12px 0 4px">Últimos registros</div>${hist.map(p=>`<div class="kv"><span>${p.date} · ${JOINT_LBL[p.j]||p.j}${p.note?` <span style="color:var(--muted);font-size:12px">· ${p.note}</span>`:''}</span><b style="color:${PAIN_COL[p.lvl]}">${PAIN_LVL[p.lvl]}</b></div>`).join("")}`:'')+
+    `<small class="hint" style="display:block;margin-top:8px">Si una molestia aparece cuando sube mucho el volumen de sus músculos, baja carga o series esa semana. Vista de frente: tu lado derecho está a la izquierda de la pantalla.</small>`;
+}
+/* aviso en la sesión si hoy trabajas músculos relacionados con una molestia activa */
+function painSessionBannerHTML(){
+  const d=sessionDraft, act=activePains(); if(!d||!Object.keys(act).length) return "";
+  const hits=[];
+  Object.values(act).forEach(p=>{ const ms=jointMuscles(p.j);
+    const exs=d.entries.filter(e=>{ const inv=exMuscles(exById(e.exId)||{id:e.exId,group:e.group}); return ms.some(k=>(inv[k]||0)>=0.5); }).map(e=>e.name);
+    if(exs.length) hits.push(`<b style="color:${PAIN_COL[p.lvl]}">${JOINT_LBL[p.j]}</b> (${PAIN_LVL[p.lvl].toLowerCase()}) — cuida: ${[...new Set(exs)].slice(0,3).join(", ")}`); });
+  if(!hits.length) return "";
+  return `<div class="smart-alert warn" style="margin-top:14px"><div class="sa-t">${ic('note',15)} Molestia activa</div><div class="sa-b">${hits.join("<br>")}<br>Baja carga o rango si molesta; si duele, cámbialo con “Cambiar”.</div></div>`;
+}
 /* color del mapa según modo: sets = series efectivas (escala fija) · ton = tonelaje (relativo al máximo)
    · frac = participación de UN ejercicio (0-1: primario/secundario) */
 function muscleColorBy(v,opts){
@@ -5107,7 +5369,8 @@ function bodyMapSVG(ev,opts){
     const strip=s=>s.replace(/<text[^>]*>[^<]*<\/text>/g,"");
     return `<svg viewBox="0 0 344 290" width="100%" style="max-width:${opts.width||170}px;display:block;margin:0 auto" aria-label="Músculos trabajados">${strip(front)}${strip(back)}</svg>`;
   }
-  return `<div class="table-wrap"><svg viewBox="0 0 344 332" width="100%" style="max-width:360px;display:block;margin:0 auto">${front}${back}${legend}</svg></div>`;
+  const painLayer=opts.painTap||opts.pain?painLayerSVG(!!opts.painTap):"";
+  return `<div class="table-wrap"><svg viewBox="0 0 344 332" width="100%" style="max-width:360px;display:block;margin:0 auto">${front}${back}${painLayer}${opts.painTap?'':legend}</svg></div>`;
 }
 /* mapa mini de un ejercicio (qué músculos trabaja) + leyenda textual */
 function exMuscleMapHTML(exId,width){
@@ -5740,11 +6003,22 @@ function analyzeSet(ids, title){
   document.getElementById("routineAnalysisTitle").textContent="Análisis · "+(title||(ids.length+" rutinas"));
   const body=document.getElementById("routineAnalysisBody");
   if(!SUBMUSCLES.some(([k])=>ev[k]>0)){ body.innerHTML=`<div class="empty">Las rutinas elegidas no tienen series.</div>`; openModal("routineAnalysisModal"); return; }
-  body.innerHTML =
-    `<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Volumen semanal estimado por músculo</div>`+
+  body.innerHTML = weekGoalVerdictHTML(ids)+
+    `<div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Volumen semanal estimado por músculo (referencia)</div>`+
     muscleSetsTable(ev,true)+`<div class="divider"></div>`+balanceAndWarnings(ev)+
-    `<p class="card-sub" style="margin-top:8px">Suma semanal: cada rutina cuenta por su <b>frecuencia</b> (las que tienen meta semanal, como Abdomen ×2, se incluyen aunque no las elijas). El "Estado" compara con los rangos semanales MEV–MRV.</p>`;
+    `<p class="card-sub" style="margin-top:8px">Suma semanal: cada rutina cuenta por su <b>frecuencia</b> (las que tienen meta semanal, como Abdomen ×2, se incluyen aunque no las elijas). El "Estado" de cada músculo es solo <b>referencia</b> (rangos MEV–MRV): entrenando 3-4 días no siempre es realista llegar a los ideales, así que no cuenta para cumplir tu semana.</p>`;
   openModal("routineAnalysisModal");
+}
+/* ¿la semana armada cumple tu meta de días? (solo días de entreno, no rangos ideales) */
+function weekGoalVerdictHTML(ids){
+  const sel=(ids||[]).map(tplById).filter(Boolean);
+  const isAnnex=t=>t.freqWeek>0&&(t.exercises||[]).length<4;   // p. ej. "Abdomen ×2": se anexa a otras sesiones, no es un día aparte
+  const days=sel.reduce((a,t)=>a+(isAnnex(t)?0:(t.freqWeek>1?t.freqWeek:1)),0), g=weekGoal();
+  let col, msg;
+  if(days===g){ col="var(--ok)"; msg=`<b>Cumple tu meta</b>: ${days} días de entreno, justo tu meta de ${g}.`; }
+  else if(days<g){ col="var(--warn)"; msg=`<b>Se queda corta</b>: ${days} de ${g} días. Te falta${g-days>1?'n':''} <b>${g-days}</b> día${g-days>1?'s':''} para tu meta.`; }
+  else { col="var(--accent)"; msg=`<b>Se pasa de tu meta</b>: ${days} días (tu meta es ${g}). Quita ${days-g} o <span style="text-decoration:underline;cursor:pointer" onclick="closeModal('routineAnalysisModal');setWeekGoal()">sube tu meta</span>.`; }
+  return `<div style="border-left:3px solid ${col};background:var(--bg2);border-radius:0 12px 12px 0;padding:10px 13px;margin-bottom:14px;font-size:13.5px;line-height:1.5">${ic('calendar',14)} ${msg}<div style="font-size:11.5px;color:var(--muted);margin-top:3px">Cada rutina elegida cuenta como un día (o sus veces por semana si tiene meta de frecuencia). Las rutinas cortas que se anexan, como abdomen, no cuentan como día aparte.</div></div>`;
 }
 function openSetAnalysis(){
   const el=document.getElementById("analyzeSelectList");

@@ -757,6 +757,11 @@ nav button.active svg{stroke-width:2.2}
 .meal-row:active,.settings-row:active,.list-row:active,.rk-row:active{transform:scale(.985)}
 .meal-row,.settings-row,.list-row,.rk-row{transition:transform .1s ease,background .15s,box-shadow .15s}
 
+/* ---- 25 · Molestias ---- */
+.pain-lvls{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.pain-lvls button{display:flex;align-items:center;gap:8px;justify-content:flex-start;background:var(--bg2);border:none;border-radius:12px;padding:11px 12px;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer}
+.pain-lvls button i{width:12px;height:12px;border-radius:50%;background:var(--pc);flex:0 0 auto}
+
 /* ---- 24 · Reporte imprimible (PDF) ---- */
 #printReport{display:none;position:fixed;inset:0;z-index:200;overflow-y:auto;background:#f2f2f5;-webkit-overflow-scrolling:touch}
 body.rp-open{overflow:hidden}
