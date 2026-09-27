@@ -3194,7 +3194,7 @@ function openMobDetail(id){
   document.getElementById("exInfoTitle").textContent=m.name;
   const pose=mobPoseSVG(m);
   document.getElementById("exInfoBody").innerHTML=`
-    ${pose?`<div class="ex-howto"><div class="xa-big">${pose}</div><div class="xa-cap">${(m.mus||[]).length?`Zona que trabaja marcada en morado: ${(m.mus||[]).map(k=>SUBLABEL[k]||k).join(" · ")}.<br><br>`:''}Figura tenue = posición inicial · flecha = recorrido.</div></div>`:''}
+    ${pose?xaHowtoHTML(mobPoseSVG(m,{anim:true}),pose,(m.mus||[]).length?`Zona que trabaja en morado: ${(m.mus||[]).map(k=>SUBLABEL[k]||k).join(" · ")}.`:''):''}
     <div class="paramchips" style="margin:0 0 12px;display:flex;gap:6px;flex-wrap:wrap"><span class="pill">${m.zone}</span><span class="pill">${MOB_TYPES[m.type]||m.type}</span><span class="pill">${m.dose}</span></div>
     <div style="font-weight:700;margin-bottom:6px">Paso a paso</div>
     <ol class="mob-steps">${(m.steps||[]).map(s=>`<li>${s}</li>`).join("")}</ol>
@@ -3955,7 +3955,7 @@ function openExTip(exId){ const ex=exById(exId); const tip=(typeof EX_TIPS!=="un
   const inv=exMuscles(ex||{id:exId}), ks=Object.keys(inv);
   document.getElementById("exInfoTitle").textContent=ex?ex.name:"Técnica";
   document.getElementById("exInfoBody").innerHTML=
-    (pose?`<div class="ex-howto"><div class="xa-big">${pose}</div><div class="xa-cap">Figura marcada = posición final, con los músculos que trabaja. Figura tenue = posición inicial. La flecha es el recorrido.</div></div>`:'')+
+    (pose?xaHowtoHTML(exPoseSVG(exId,{anim:true}),pose,"Músculos que trabaja en morado."):'')+
     (ks.length?`<div class="ex-mmap"><div style="flex:0 0 150px;width:150px">${bodyMapSVG(inv,{mode:"frac",compact:true,width:150})}</div><div class="ex-mmap-l">${ks.sort((a,b)=>inv[b]-inv[a]).map(k=>`${SUBLABEL[k]||k}${inv[k]<1?` <span style="color:var(--muted)">${Math.round(inv[k]*100)}%</span>`:''}`).join(" · ")}</div></div>`:'')+
     (tip?`<div style="font-size:14.5px;line-height:1.6">${tip}</div>`:'');
   openModal("exInfoModal"); }
@@ -5429,7 +5429,7 @@ const XA_P={
   calfstand:{A:{H:[48,53],t:180,arm:['S',2,28,'b'],leg:[48,93.5,'f'],toe:[55,91]}, B:{H:[48,45],leg:[48,85.5,'f']}, w:'W0', st:`<rect x="50" y="91" width="18" height="3" rx="1" ${XA_EQ}/>`},
   calfsit:{A:{H:[40,61],t:182,arm:['H',19,-3,'d'],leg:[61,86,'u'],toe:[68,85]}, B:{leg:[61,79,'u']}, pad:'K0', padDy:-3, st:xaSeat(28,64)+`<rect x="63" y="86" width="10" height="8" rx="1" ${XA_EQ}/>`},
   legpress:{A:{H:[38,66],t:225,arm:['H',-2,4,'d'],leg:[69.5,39.6,'u'],toe:['A',-4,-5]}, B:{leg:[63,44,'u']}, plate:true, st:`<line x1="15" y1="44" x2="38" y2="72" ${XA_EQL}/><line x1="44" y1="80" x2="92" y2="40" ${XA_EQL}/>`},
-  calfpress:{A:{H:[38,66],t:225,arm:['H',-2,4,'d'],leg:[66,42,'u'],toe:['A',-4,-5]}, B:{leg:[67.5,41,'u'],toe:['A',-1.5,-6.3]}, plate:true, st:`<line x1="15" y1="44" x2="38" y2="72" ${XA_EQL}/><line x1="44" y1="80" x2="92" y2="40" ${XA_EQL}/>`},
+  calfpress:{A:{H:[38,66],t:225,arm:['H',-2,4,'d'],leg:[64.5,44,'u'],toe:['A',-4.6,-4.4]}, B:{leg:[67.8,40.8,'u'],toe:['A',-0.8,-6.4]}, plate:true, st:`<line x1="15" y1="44" x2="38" y2="72" ${XA_EQL}/><line x1="44" y1="80" x2="92" y2="40" ${XA_EQL}/>`},
   bench:{ua:[15,9], A:{H:[62,62],t:-90,arm:[38,33,'d'],leg:[74,92,'f']}, B:{arm:['S',4,-6,'d']}, w:'W0', pr:6.5, st:xaBench(18,66,50)},
   floorpress:{ua:[15,9], A:{H:[62,88],t:-90,arm:[37,59,'d'],leg:[76,92,'u']}, B:{arm:[41,78,'d']}, w:'W0', pr:6},
   incline:{ua:[15,9], A:{H:[58,70],t:-130,arm:['S',1,-29,'d'],leg:[74,92,'f']}, B:{arm:['S',5,-5,'d']}, w:'W0', pr:6, st:`<line x1="63" y1="75" x2="30" y2="47" ${XA_EQL}/><rect x="52" y="73" width="18" height="4.5" rx="2" ${XA_EQ}/><rect x="59" y="77" width="4" height="17" ${XA_EQ}/>`},
@@ -5657,19 +5657,58 @@ function xaArrow(P,A,B,Js){
   return {pts:q, svg:`<path d="M${q.map(p=>xr(p[0])+','+xr(p[1])).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`+head(q[q.length-1],q[q.length-2])+head(q[0],q[1])};
 }
 /* pose del ejercicio: posición final marcada con los músculos + la inicial tenue + flecha del recorrido */
+/* une varios cuadros del mismo dibujo en uno solo animado (SMIL): cada atributo que cambia recibe <animate> */
+function xaMergeFrames(strs,dur){
+  const re=/<(line|circle|path)\b([^>]*?)\/>/g;
+  const parse=str=>[...str.matchAll(re)].map(m=>({tag:m[1], attrs:[...m[2].matchAll(/([\w-]+)="([^"]*)"/g)].map(x=>[x[1],x[2]])}));
+  const F=strs.map(parse), n=F[0].length;
+  if(F.some(f=>f.length!==n)) return strs[0];
+  let out="";
+  for(let i=0;i<n;i++){ const e=F[0][i]; let at="", an="";
+    e.attrs.forEach(([k,v],j)=>{ const vals=F.map(f=>(f[i].attrs[j]||[k,v])[1]); at+=` ${k}="${v}"`;
+      if(vals.some(x=>x!==v)) an+=`<animate attributeName="${k}" dur="${dur}" repeatCount="indefinite" values="${vals.join(";")}"/>`; });
+    out+=an?`<${e.tag}${at}>${an}</${e.tag}>`:`<${e.tag}${at}/>`; }
+  return out;
+}
+/* bloque de la ficha: animación (toca para pausar) o pose fija con recorrido */
+let __xaHow=null;
+function xaHowtoHTML(animSVG,poseSVG,cap){
+  __xaHow={anim:animSVG,pose:poseSVG};
+  const same=animSVG===poseSVG;   // ejercicio estático (plancha, estiramientos sostenidos)
+  return `<div class="ex-howto">
+    ${same?'':`<div class="xa-seg"><button class="on" onclick="xaHowMode(this,'anim')">Animación</button><button onclick="xaHowMode(this,'pose')">Pose fija</button></div>`}
+    <div class="xa-big" id="xaHowBox" onclick="xaToggleAnim(this)">${animSVG}</div>
+    <div class="xa-cap" id="xaHowCap">${cap?cap+' ':''}${same?'':'Toca la figura para pausar.'}</div></div>`;
+}
+function xaHowMode(btn,mode){
+  if(!__xaHow) return; const box=document.getElementById("xaHowBox"), cap=document.getElementById("xaHowCap");
+  box.innerHTML=__xaHow[mode]; box.classList.remove("paused");
+  [...btn.parentNode.children].forEach(b=>b.classList.toggle("on",b===btn));
+  if(cap) cap.textContent=mode==="anim"?"Toca la figura para pausar.":"Figura marcada = posición final · tenue = inicial · flecha = recorrido.";
+}
+function xaToggleAnim(el){ const s=el.querySelector("svg"); if(!s||!s.pauseAnimations) return; if(s.animationsPaused()){ s.unpauseAnimations(); el.classList.remove("paused"); } else { s.pauseAnimations(); el.classList.add("paused"); } }
 function xaRender(pat,load,inv,opts){
   opts=opts||{}; const P=XA_P[pat]; if(!P) return "";
   const A=P.A, B=Object.assign({},P.A,P.B), sS=P.solid==='A'?0:1;
   const Js=xaFrame(P,A,B,sS), Jg=xaFrame(P,A,B,1-sS);
-  const moved=['W0','A0','H','Hd','E0','K0'].some(k=>Math.hypot(Js[k][0]-Jg[k][0],Js[k][1]-Jg[k][1])>3);
+  const moved=['W0','A0','H','Hd','E0','K0','T0'].some(k=>Math.hypot(Js[k][0]-Jg[k][0],Js[k][1]-Jg[k][1])>3);
   const body=P.v==='f'?xaBodyFront:xaBodySide;
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const anim=opts.anim&&moved&&!reduce;
   let s=(P.nofloor?'':`<line x1="4" y1="94.6" x2="96" y2="94.6" stroke="${XS.far}" stroke-width="1.2"/>`)+(P.st||"");
-  if(moved&&!opts.thumb){ const g=xaProps(P,load,Jg,false); s+=`<g opacity=".3">${g.back}${body(Jg,null)}${g.fore}</g>`; }
-  const pr=xaProps(P,load,Js,true); s+=pr.back+body(Js,inv)+pr.fore;
-  const ar=moved&&!opts.thumb?xaArrow(P,A,B,Js):{svg:"",pts:[]}; s+=ar.svg;
-  // encuadre automático: la figura (y su posición inicial) llena el recuadro
-  const pts=[]; [Js].concat(moved&&!opts.thumb?[Jg]:[]).forEach(J=>Object.values(J).forEach(p=>{ if(Array.isArray(p)&&p.length===2&&isFinite(p[0])) pts.push(p); })); ar.pts.forEach(p=>pts.push(p));
-  const pd=opts.thumb?6:12; let x0=Math.min(...pts.map(p=>p[0]))-pd, x1=Math.max(...pts.map(p=>p[0]))+pd, y0=Math.min(...pts.map(p=>p[1]))-pd, y1=Math.max(...pts.map(p=>p[1]))+pd;
+  const pts=[], addPts=J=>Object.values(J).forEach(p=>{ if(Array.isArray(p)&&p.length===2&&isFinite(p[0])) pts.push(p); });
+  if(anim){   // animación: la figura hace el movimiento completo (ida y regreso)
+    const N=14, frames=[]; for(let k=0;k<=N;k++) frames.push(xaFrame(P,A,B,(1-Math.cos(2*Math.PI*k/N))/2));
+    s+=xaMergeFrames(frames.map(J=>{ const pr=xaProps(P,load,J,true); return pr.back+body(J,inv)+pr.fore; }), P.dur||"3.4s");
+    frames.forEach(addPts);
+  } else {
+    if(moved&&!opts.thumb){ const g=xaProps(P,load,Jg,false); s+=`<g opacity=".3">${g.back}${body(Jg,null)}${g.fore}</g>`; }
+    const pr=xaProps(P,load,Js,true); s+=pr.back+body(Js,inv)+pr.fore;
+    const ar=moved&&!opts.thumb?xaArrow(P,A,B,Js):{svg:"",pts:[]}; s+=ar.svg;
+    [Js].concat(moved&&!opts.thumb?[Jg]:[]).forEach(addPts); ar.pts.forEach(p=>pts.push(p));
+  }
+  // encuadre automático: la figura (y su recorrido) llena el recuadro
+  const pd=opts.thumb?6:(anim?9:12); let x0=Math.min(...pts.map(p=>p[0]))-pd, x1=Math.max(...pts.map(p=>p[0]))+pd, y0=Math.min(...pts.map(p=>p[1]))-pd, y1=Math.max(...pts.map(p=>p[1]))+pd;
   if(!P.nofloor&&y1>82) y1=Math.max(y1,97);
   let w=x1-x0, h=y1-y0; const side=Math.max(60,w,h/1.06);
   x0-=(side-w)/2; y0-=(side*1.06-h)/2; w=side; h=side*1.06;
@@ -6454,7 +6493,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=23;   // subir junto con CACHE de sw.js
+const APP_VER=24;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){

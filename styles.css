@@ -836,6 +836,11 @@ html[data-theme="dark"] .score-chips span.mid{color:var(--warn)}
 .ex-mmap-l:empty{display:none}
 .ex-howto{background:var(--bg2);border-radius:16px;padding:12px 14px 10px;margin-bottom:12px;text-align:center}
 .ex-howto .xa-big{width:100%;max-width:230px;margin:0 auto}
+.xa-seg{display:inline-flex;background:var(--surface);border-radius:10px;padding:3px;margin-bottom:6px;gap:2px}
+.xa-seg button{border:none;background:none;font:inherit;font-size:12px;font-weight:650;color:var(--muted);padding:5px 12px;border-radius:8px;cursor:pointer}
+.xa-seg button.on{background:var(--accent);color:#fff}
+#xaHowBox{cursor:pointer;position:relative}
+#xaHowBox.paused::after{content:"❚❚";position:absolute;top:6px;right:8px;font-size:11px;color:var(--muted)}
 .ex-howto .xa-cap{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:6px}
 .lr-thumb{flex:0 0 44px;width:44px;height:44px;border-radius:11px;background:var(--bg2);display:flex;align-items:center;justify-content:center;cursor:pointer}
 .tpl-card{background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:10px 10px 6px 12px;margin-bottom:8px}
