@@ -131,7 +131,6 @@ const DEFAULT_EXERCISES = [
   {id:"e_crossover",      name:"Cruce de poleas (crossover)",                group:"Pecho",      repRange:"10-15", rir:"0-1"},
   {id:"e_pressmaqhombro", name:"Press de hombro en máquina",                 group:"Hombro",     repRange:"8-12",  rir:"0-1"},
   {id:"e_landmine",       name:"Press landmine unilateral",                  group:"Hombro",     repRange:"8-12",  rir:"0-1"},
-  {id:"e_arnold",         name:"Press Arnold",                               group:"Hombro",     repRange:"8-12",  rir:"0-1"},
   {id:"e_frontraise",     name:"Elevaciones frontales",                      group:"Hombro",     repRange:"10-15", rir:"0-1"},
   {id:"e_reardelt",       name:"Pájaros (deltoide posterior)",               group:"Hombro",     repRange:"12-20", rir:"0-1"},
   {id:"e_facepull",       name:"Face pull",                                  group:"Hombro",     repRange:"12-20", rir:"0-1"},
