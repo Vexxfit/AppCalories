@@ -559,7 +559,8 @@ function renderAjustes(){
     {ic:ic('download',18),label:"Exportar historial en Excel",val:".xlsx",act:"exportExcel()"},
     {ic:ic('note',18),label:"Reporte en PDF (con gráficas)",val:"",act:"openPrintReport()"},
     {ic:ic('download',18),label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
-    {ic:ic('upload',18),label:"Importar respaldo",val:"",act:"triggerImport()"}
+    {ic:ic('upload',18),label:"Importar respaldo",val:"",act:"triggerImport()"},
+    {ic:ic('cycle',18),label:"Versión de la app (buscar actualización)",val:"v"+APP_VER,act:"checkAppUpdate()"}
   ];
   let html=cloudCardHTML();
   if(g&&g.calories){
@@ -3153,6 +3154,7 @@ function smartWarmupHTML(){
       <span style="font-size:12px;color:var(--muted);cursor:pointer" onclick="sessionDraft.wuHidden=true;renderSesion()">ocultar</span></div>
     <div style="font-size:12px;color:var(--muted);margin:2px 0 6px">2-3 min de movilidad para los músculos de hoy, de tu sección de Movilidad.</div>
     ${list.map(m=>{ const ok=done.includes(m.id); return `<div class="mob-row${ok?' ok':''}"><button class="mob-chk" onclick="toggleWuDone('${m.id}')">${ic(ok?'check':'circle',16)}</button>
+      <div class="lr-thumb" onclick="openMobDetail('${m.id}')">${mobPoseSVG(m,{thumb:true,size:40})}</div>
       <div class="mob-main" onclick="openMobDetail('${m.id}')"><b>${m.name}</b><span>${m.zone} · ${m.dose}</span></div></div>`; }).join("")}
   </div>`;
 }
@@ -3166,6 +3168,7 @@ function renderMovilidad(){
   const row=(m,inRt)=>{ const ok=done.includes(m.id);
     return `<div class="mob-row${ok?' ok':''}">
       ${inRt?`<button class="mob-chk" title="Hecho hoy" onclick="toggleMobDone('${m.id}')">${ic(ok?'check':'circle',16)}</button>`:''}
+      <div class="lr-thumb" onclick="openMobDetail('${m.id}')">${mobPoseSVG(m,{thumb:true,size:40})}</div>
       <div class="mob-main" onclick="openMobDetail('${m.id}')"><b>${m.name}</b><span>${m.zone} · ${MOB_TYPES[m.type]||m.type} · ${m.dose}</span></div>
       ${inRt?`<button class="pgm-x" style="color:var(--muted)" title="Quitar de mi rutina" onclick="toggleMobRoutine('${m.id}')">${ic('x',14)}</button>`
             :`<button class="btn-ghost btn-sm" onclick="toggleMobRoutine('${m.id}')">${rt.includes(m.id)?'En rutina ✓':'+ Rutina'}</button>`}
@@ -3189,7 +3192,9 @@ function toggleMobRoutine(id){ const rt=mobRoutine(); state.mobRoutine=rt.includ
 function openMobDetail(id){
   const m=mobById(id); if(!m) return;
   document.getElementById("exInfoTitle").textContent=m.name;
+  const pose=mobPoseSVG(m);
   document.getElementById("exInfoBody").innerHTML=`
+    ${pose?`<div class="ex-howto"><div class="xa-big">${pose}</div><div class="xa-cap">${(m.mus||[]).length?`Zona que trabaja marcada en morado: ${(m.mus||[]).map(k=>SUBLABEL[k]||k).join(" · ")}.<br><br>`:''}Figura tenue = posición inicial · flecha = recorrido.</div></div>`:''}
     <div class="paramchips" style="margin:0 0 12px;display:flex;gap:6px;flex-wrap:wrap"><span class="pill">${m.zone}</span><span class="pill">${MOB_TYPES[m.type]||m.type}</span><span class="pill">${m.dose}</span></div>
     <div style="font-weight:700;margin-bottom:6px">Paso a paso</div>
     <ol class="mob-steps">${(m.steps||[]).map(s=>`<li>${s}</li>`).join("")}</ol>
@@ -3946,11 +3951,11 @@ function openExMiniHist(exId){
   openModal("exInfoModal");
 }
 function openExTip(exId){ const ex=exById(exId); const tip=(typeof EX_TIPS!=="undefined")&&EX_TIPS[exId];
-  const anim=exAnimSVG(exId); if(!tip&&!anim) return;
+  const pose=exPoseSVG(exId); if(!tip&&!pose) return;
   const inv=exMuscles(ex||{id:exId}), ks=Object.keys(inv);
   document.getElementById("exInfoTitle").textContent=ex?ex.name:"Técnica";
   document.getElementById("exInfoBody").innerHTML=
-    (anim?`<div class="ex-howto"><div class="xa-big">${anim}</div><div class="xa-cap"><b style="color:var(--text);font-size:13px">Cómo se hace</b><br>La figura repite el movimiento completo: posición inicial → final → regreso controlado.${ks.length?`<br><br>${ks.sort((a,b)=>inv[b]-inv[a]).slice(0,3).map(k=>SUBLABEL[k]||k).join(" · ")}`:''}</div></div>`:'')+
+    (pose?`<div class="ex-howto"><div class="xa-big">${pose}</div><div class="xa-cap">Figura marcada = posición final, con los músculos que trabaja. Figura tenue = posición inicial. La flecha es el recorrido.</div></div>`:'')+
     (ks.length?`<div class="ex-mmap"><div style="flex:0 0 150px;width:150px">${bodyMapSVG(inv,{mode:"frac",compact:true,width:150})}</div><div class="ex-mmap-l">${ks.sort((a,b)=>inv[b]-inv[a]).map(k=>`${SUBLABEL[k]||k}${inv[k]<1?` <span style="color:var(--muted)">${Math.round(inv[k]*100)}%</span>`:''}`).join(" · ")}</div></div>`:'')+
     (tip?`<div style="font-size:14.5px;line-height:1.6">${tip}</div>`:'');
   openModal("exInfoModal"); }
@@ -4130,11 +4135,11 @@ function renderSesion(){
       return `<div class="ex-block" style="${ssCol?`border-left:4px solid ${ssCol};`:''}">
         <div class="exh">
           <div><div class="exname" style="cursor:pointer" title="Ver tu historial de este ejercicio" onclick="openExMiniHist('${e.exId}')">${e.name}${e.sg?` <span class="pill" style="background:${ssCol};color:#fff;font-size:10px;padding:1px 8px">${ic('link',12)} Superserie ${e.sg}</span>`:''}</div>
-            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · ${(e.rirTarget&&e.rirTarget!==e.rir)?`<span style="color:var(--accent);font-weight:650">RIR objetivo ${e.rirTarget}</span> <span style="color:var(--muted)">(plantilla ${e.rir||"—"})</span>`:`RIR ${e.rir||"—"}`}${e.tempo?` · tempo ${e.tempo}`:''}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''} · <span style="color:var(--accent);cursor:pointer" onclick="openExTip('${e.exId}')">cómo se hace</span></div>
+            <div class="exmeta">${e.group} · objetivo ${e.repRange||"—"} reps · ${(e.rirTarget&&e.rirTarget!==e.rir)?`<span style="color:var(--accent);font-weight:650">RIR objetivo ${e.rirTarget}</span> <span style="color:var(--muted)">(plantilla ${e.rir||"—"})</span>`:`RIR ${e.rir||"—"}`}${e.tempo?` · tempo ${e.tempo}`:''}${e.prefilled?' · <span style="color:var(--accent)">↺ última vez</span>':''}</div>
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
-        ${exMuscleMapHTML(e.exId,96)}
+        ${exMuscleMapHTML(e.exId,112)}
         <div class="set-head${e.uni?' uni':''}">${e.uni?`<span></span><span>Peso (${unit()})</span><span>Izq</span><span>Der</span><span>RIR</span><span></span><span></span>`:`<span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span><span></span>`}</div>
         ${e.sets.map((s,j)=>{
           if(s.type==="u") delete s.type;   // limpieza del experimento LD por serie (descartado)
@@ -4645,20 +4650,26 @@ function mealIcon(m){
 }
 function tplCard(t){
   const groups=[...new Set(t.exercises.map(x=>exGroupOf(x.exId)))].join(", ");
-  return `<div style="background:var(--surface2);border:1px solid var(--border-soft);border-radius:12px;padding:9px 10px 9px 12px;margin-bottom:8px;display:flex;align-items:center;gap:6px">
+  // nombre completo arriba (sin cortar) y los botones en su propia fila
+  return `<div class="tpl-card">
+    <div class="tpl-card-top">
     <div style="flex:1;min-width:0">
-      <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.name}</div>
-      <div style="font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.exercises.length} ej · ${groups||"—"}</div>
+      <div class="tpl-card-name">${t.name}</div>
+      <div style="font-size:11px;color:var(--muted)">${t.exercises.length} ej · ${groups||"—"}</div>
       ${t.coachNote?`<div style="font-size:11.5px;color:var(--accent);margin-top:2px">${ic('note',11)} ${t.coachNote}</div>`:''}
       ${(()=>{ if(!t.shareKey||t.folder) return ''; const n=((state.routineVersions||{})[t.shareKey]||[]).length;
         return n?`<div style="font-size:11.5px;color:var(--accent);margin-top:2px;cursor:pointer" onclick="openVersions('${t.shareKey}')">${ic('clock',11)} ${n===1?'1 versión':n+' versiones'} anterior${n===1?'':'es'}</div>`:''; })()}
     </div>
-    <button class="icon-btn" style="flex:0 0 auto" title="Analizar rutina" onclick="openRoutineAnalysis('${t.id}')">${ic('chart',16)}</button>
-    <button class="icon-btn" style="flex:0 0 auto" title="Compartir por link" onclick="shareTemplate('${t.id}')">${ic('share',16)}</button>
-    <button class="icon-btn" style="flex:0 0 auto" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">${folderIcon(15)}</button>
-    <button class="icon-btn" style="flex:0 0 auto" title="Duplicar día" onclick="duplicateTemplate('${t.id}')">${ic('copy',15)}</button>
     <button class="btn-ghost btn-sm" style="flex:0 0 auto" onclick="editTemplate('${t.id}')">Editar</button>
-    <button class="icon-btn" style="flex:0 0 auto;color:var(--bad)" title="Eliminar" onclick="deleteTemplate('${t.id}')">×</button>
+    </div>
+    <div class="tpl-card-actions">
+    <button class="icon-btn" title="Analizar rutina" onclick="openRoutineAnalysis('${t.id}')">${ic('chart',16)}</button>
+    <button class="icon-btn" title="Compartir por link" onclick="shareTemplate('${t.id}')">${ic('share',16)}</button>
+    <button class="icon-btn" title="Mover a carpeta" onclick="openMoveFolder('${t.id}')">${folderIcon(15)}</button>
+    <button class="icon-btn" title="Duplicar día" onclick="duplicateTemplate('${t.id}')">${ic('copy',15)}</button>
+    <span style="flex:1"></span>
+    <button class="icon-btn" style="color:var(--bad)" title="Eliminar" onclick="deleteTemplate('${t.id}')">×</button>
+    </div>
   </div>`;
 }
 function renderTemplateList(){
@@ -4918,11 +4929,9 @@ function renderExTable(){
   const el=document.getElementById("exList");
   el.innerHTML = rows.length ? rows.map(e=>`
     <div class="list-row">
-      <div class="lr-thumb" title="Cómo se hace" onclick="openExTip('${e.id}')">${exAnimSVG(e.id,{static:true,size:36})}</div>
+      <div class="lr-thumb" title="Cómo se hace" onclick="openExTip('${e.id}')">${exPoseSVG(e.id,{thumb:true,size:40})}</div>
       <div class="lr-main"><div class="lr-title">${e.name} ${e.custom?'<span class="badge" style="background:var(--accent-soft);color:var(--accent)">propio</span>':''}</div>
-        <div class="lr-sub">${e.repRange} reps · RIR ${e.rir} · ${exEquip(e)}</div></div>
-      <span class="pill">${e.group}</span>
-      <button class="icon-btn" title="Cómo se hace" style="color:var(--accent)" onclick="openExTip('${e.id}')">${ic('bulb',16)}</button>
+        <div class="lr-sub">${e.group} · ${e.repRange} reps · RIR ${e.rir} · ${exEquip(e)}</div><div class="ex-howlink" style="margin-top:2px" onclick="openExTip('${e.id}')">Cómo se hace ›</div></div>
       <button class="icon-btn" onclick="openExModal('${e.id}')" aria-label="Editar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L18.5 9.5a2 2 0 00-3-3L5 17v3z"/></svg></button>
       ${e.custom?`<button class="icon-btn" style="color:var(--bad)" onclick="deleteExercise('${e.id}')" aria-label="Eliminar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2M6 7l1 13a1 1 0 001 1h8a1 1 0 001-1l1-13"/></svg></button>`:''}
     </div>`).join("") : `<div class="empty">Sin ejercicios.</div>`;
@@ -5381,10 +5390,12 @@ function bodyMapSVG(ev,opts){
 /* mapa mini de un ejercicio (qué músculos trabaja) + cómo se hace (animación) + leyenda textual */
 function exMuscleMapHTML(exId,width){
   const ex=exById(exId)||{id:exId}; const inv=exMuscles(ex); const ks=Object.keys(inv);
-  const w=width||150, aw=Math.round(w*0.8), anim=exAnimSVG(exId);
-  if(!ks.length&&!anim) return "";
+  const w=width||150, pose=exPoseSVG(exId);
+  if(!ks.length&&!pose) return "";
   const lbls=ks.sort((a,b)=>inv[b]-inv[a]).map(k=>`${SUBLABEL[k]||k}${inv[k]<1?` <span style="color:var(--muted)">${Math.round(inv[k]*100)}%</span>`:''}`).join(" · ");
-  return `<div class="ex-mmap">${anim?`<div class="ex-anim" style="flex:0 0 ${aw}px;width:${aw}px" title="Cómo se hace" onclick="openExTip('${exId}')">${anim}</div>`:''}${ks.length?`<div style="flex:0 0 ${w}px;width:${w}px">${bodyMapSVG(inv,{mode:"frac",compact:true,width:w})}</div>`:''}<div class="ex-mmap-l">${lbls}</div></div>`;
+  // la figura en la pose del ejercicio ya lleva pintados los músculos que trabaja
+  if(pose) return `<div class="ex-mmap"><div class="ex-pose" style="flex:0 0 ${w}px;width:${w}px" title="Cómo se hace" onclick="openExTip('${exId}')">${pose}</div><div class="ex-mmap-l">${lbls}<div class="ex-howlink" onclick="openExTip('${exId}')">Ver cómo se hace ›</div></div></div>`;
+  return `<div class="ex-mmap"><div style="flex:0 0 ${w}px;width:${w}px">${bodyMapSVG(inv,{mode:"frac",compact:true,width:w})}</div><div class="ex-mmap-l">${lbls}</div></div>`;
 }
 
 /* ====================================================================
@@ -5409,9 +5420,9 @@ const xaBench=(x,y,w)=>`<rect x="${x}" y="${y}" width="${w}" height="5" rx="2" $
 const xaSeat=(x,y)=>`<rect x="${x}" y="${y}" width="22" height="4.5" rx="2" ${XA_EQ}/><rect x="${x+9}" y="${y+4.5}" width="4" height="${94-y-4.5}" ${XA_EQ}/>`;
 const XA_P={
   squat:{A:{H:[46,51],t:176,arm:['S',-5,-1,'d'],leg:[48,92,'f']}, B:{H:[33,69],t:140}, w:'W0', pr:5.5},
-  deadlift:{A:{H:[36,64],t:110,arm:[57,84,'b'],leg:[50,92,'f']}, B:{H:[48,51],t:182,arm:['S',1,29,'b']}, w:'W0', pr:7},
+  deadlift:{solid:'A', A:{H:[36,64],t:110,arm:[57,84,'b'],leg:[50,92,'f']}, B:{H:[48,51],t:182,arm:['S',1,29,'b']}, w:'W0', pr:7},
   rdl:{A:{H:[48,51],t:182,arm:['S',1,29,'b'],leg:[50,92,'f']}, B:{H:[37,54],t:100,arm:['S',-0.5,28.5,'b']}, w:'W0', pr:5.5},
-  hipthrust:{armStill:true, A:{H:[42,82],t:-145,arm:['H',2,-3,'u'],leg:[66,92,'f']}, B:{H:[52,63],t:-92}, w:'H', wdy:-4, pr:6, st:xaBench(6,64,24)},
+  hipthrust:{armStill:true, arrow:"H", A:{H:[42,82],t:-145,arm:['H',2,-3,'u'],leg:[66,92,'f']}, B:{H:[52,63],t:-92}, w:'H', wdy:-4, pr:6, st:xaBench(6,64,24)},
   legext:{A:{H:[40,66],t:190,arm:[43,69,'b'],leg:[61,86,'u']}, B:{leg:[80,69,'u']}, pad:'A0', st:xaSeat(28,68)+`<line x1="29" y1="68" x2="25" y2="40" ${XA_EQL}/>`},
   legcurl:{A:{H:[54,60],t:90,arm:[86,67,'d'],leg:[13,62,'d']}, B:{leg:[40,42,'d']}, pad:'A0', st:xaBench(22,63,64)},
   legcurlsit:{A:{H:[40,66],t:190,arm:[43,69,'b'],leg:[80,69,'u']}, B:{leg:[55,85,'u']}, pad:'A0', st:xaSeat(28,68)+`<line x1="29" y1="68" x2="25" y2="40" ${XA_EQL}/>`},
@@ -5423,7 +5434,7 @@ const XA_P={
   floorpress:{ua:[15,9], A:{H:[62,88],t:-90,arm:[37,59,'d'],leg:[76,92,'u']}, B:{arm:[41,78,'d']}, w:'W0', pr:6},
   incline:{ua:[15,9], A:{H:[58,70],t:-130,arm:['S',1,-29,'d'],leg:[74,92,'f']}, B:{arm:['S',5,-5,'d']}, w:'W0', pr:6, st:`<line x1="63" y1="75" x2="30" y2="47" ${XA_EQL}/><rect x="52" y="73" width="18" height="4.5" rx="2" ${XA_EQ}/><rect x="59" y="77" width="4" height="17" ${XA_EQ}/>`},
   chestpress:{ua:[15,8], A:{H:[36,66],t:188,arm:['S',28,1,'d'],leg:[60,92,'f']}, B:{arm:['S',11,1,'d']}, pad:'W0', st:xaSeat(25,68)+`<line x1="27" y1="68" x2="23" y2="36" ${XA_EQL}/>`},
-  dips:{A:{H:[48,58],t:184,arm:[47,61,'b'],leg:['H',-12,24,'f']}, B:{H:[45,66],t:165}, st:`<rect x="38" y="61" width="30" height="3" rx="1.5" ${XA_EQ}/><rect x="62" y="64" width="3" height="30" ${XA_EQ}/>`},
+  dips:{arrow:"Hd", A:{H:[48,58],t:184,arm:[47,61,'b'],leg:['H',-12,24,'f']}, B:{H:[45,66],t:165}, st:`<rect x="38" y="61" width="30" height="3" rx="1.5" ${XA_EQ}/><rect x="62" y="64" width="3" height="30" ${XA_EQ}/>`},
   ohp:{A:{H:[48,51],t:180,arm:['S',3,-5,'d'],leg:[48,92,'f']}, B:{arm:['S',1,-28.5,'d']}, w:'W0', pr:5},
   ohpsit:{A:{H:[42,66],t:182,arm:['S',3,-5,'d'],leg:[64,92,'f']}, B:{arm:['S',1,-28.5,'d']}, w:'W0', pr:5, st:xaSeat(30,68)+`<line x1="31" y1="68" x2="29" y2="38" ${XA_EQL}/>`},
   landmine:{A:{H:[46,52],t:172,arm:['S',6,-2,'d'],leg:[50,92,'f']}, B:{arm:['S',22,-19,'d']}, bar:[6,93]},
@@ -5437,7 +5448,7 @@ const XA_P={
   preacher:{A:{H:[38,68],t:172,arm:['S',21,20,'u'],leg:[62,92,'f']}, B:{arm:['S',11,-5,'d']}, w:'W0', pr:4.5, st:xaSeat(27,70)+`<line x1="46" y1="47" x2="63" y2="63" style="stroke:var(--muted);opacity:.35;stroke-width:6;stroke-linecap:round"/>`},
   faceaway:{A:{H:[48,51],t:176,arm:['S',-8,28,'b'],leg:[48,92,'f']}, B:{arm:['S',6,4,'b']}, cab:[8,90]},
   conccurl:{A:{H:[38,66],t:140,arm:['S',2,28,'b'],leg:[62,92,'f']}, B:{arm:['S',2,4,'d']}, w:'W0', pr:4, st:xaSeat(26,68)},
-  bentrow:{A:{H:[40,54],t:115,arm:['S',-1,28,'b'],leg:[50,92,'f']}, B:{arm:['S',-10,14,'u']}, w:'W0', pr:6},
+  bentrow:{A:{H:[40,54],t:115,arm:['S',-1,28,'b'],leg:[50,92,'f']}, B:{arm:['S',-10,14,'u']}, w:'W0', pr:5},
   inclrow:{A:{H:[38,66],t:125,arm:['S',0,28,'b'],leg:[42,92,'f']}, B:{arm:['S',-10,13,'u']}, w:'W0', pr:4, st:`<line x1="40" y1="73" x2="66" y2="56" ${XA_EQL}/><rect x="50" y="66" width="4" height="28" ${XA_EQ}/>`},
   cablerow:{A:{H:[34,70],t:165,arm:['S',28.5,2,'d'],leg:[70,80,'u']}, B:{t:185,arm:['S',7,10,'b']}, cab:[96,78], st:`<rect x="16" y="72" width="30" height="4.5" rx="2" ${XA_EQ}/><rect x="72" y="70" width="4" height="24" ${XA_EQ}/>`},
   machrow:{A:{H:[34,70],t:165,arm:['S',28.5,2,'d'],leg:[70,80,'u']}, B:{t:185,arm:['S',7,10,'b']}, pad:'W0', st:`<rect x="16" y="72" width="30" height="4.5" rx="2" ${XA_EQ}/><rect x="72" y="70" width="4" height="24" ${XA_EQ}/>`},
@@ -5454,9 +5465,23 @@ const XA_P={
   revfly:{v:'f', lin:true, A:{H:[50,66],arm:[54,45,'f'],leg:[53,92,'f']}, B:{arm:[86,43,'d']}, st:`<rect x="38" y="30" width="24" height="36" rx="4" ${XA_EQ}/>`+xaSeat(39,66)},
   crossover:{v:'f', A:{H:[50,51],arm:[84,12,'d'],leg:[56,92,'f']}, B:{arm:[55,52,'f']}, cab:[97,-9], cabL:[3,-9]},
   pulldown:{v:'f', A:{H:[50,68],arm:[76,14,'f'],leg:[58,92,'f']}, B:{arm:[72,39,'d']}, barLR:true, st:xaSeat(39,68)},
-  pulldownc:{v:'f', A:{H:[50,68],arm:[55,13,'f'],leg:[58,92,'f']}, B:{arm:[55,47,'d']}, barLR:true, st:xaSeat(39,68)},
+  pulldownc:{v:'f', lin:true, A:{H:[50,68],arm:[55,13,'f'],leg:[58,92,'f']}, B:{arm:[55,47,'d']}, barLR:true, st:xaSeat(39,68)},
   aductor:{v:'f', lin:true, A:{H:[50,64],arm:[70,70,'d'],leg:[74,88,'f']}, B:{leg:[57,92,'f']}, pad:'K', st:xaSeat(39,64)},
   abductor:{v:'f', lin:true, A:{H:[50,64],arm:[70,70,'d'],leg:[57,92,'f']}, B:{leg:[74,88,'f']}, pad:'K', st:xaSeat(39,64)},
+  /* movilidad */
+  m_9090:{A:{H:[46,86],t:180,arm:['S',5,27,'b'],leg:[70,92,'u'],leg2:[24,92,'u']}, B:{t:148,arm:['S',12,24,'b']}, arrow:"Hd"},
+  m_hipcars:{A:{H:[46,51],t:180,arm:['H',4,-2,'b'],leg:['H',21,20,'u'],leg2:[46,92,'f']}, B:{leg:['H',-13,37,'f']}},
+  m_wgs:{A:{H:[40,76],t:118,arm:[64,92,'b'],arm2:[62,92,'b'],leg:[64,92,'f'],leg2:[16,91,'d'],toe2:['A',-4,2]}, B:{arm:['S',2,-28,'u']}},
+  m_deepsq:{A:{H:[40,82],t:158,arm:['S',14,14,'d'],leg:[52,92,'f']}},
+  m_adductor:{v:'f', A:{H:[44,70],arm:[53,70,'f'],arm1:[33,70,'b'],leg:[88,92,'f'],leg1:[31,92,'b']}},
+  m_hamstring:{A:{H:[58,86],t:-90,arm:['H',2,-24,'u'],leg:['H',3,-40,'f'],leg2:[96,90,'u']}, towel:true},
+  m_ankle:{arrow:"K0", A:{H:[54,74],t:175,arm:[89,52,'d'],leg:[76,92,'f'],leg2:[30,92,'d']}, B:{H:[59,73]}, st:`<rect x="89" y="16" width="5" height="78" rx="1" ${XA_EQ}/>`},
+  m_catcow:{A:{H:[34,71],t:107,cv:-5,hd:-45,arm:[60,92,'b'],leg:[14,93,'d']}, B:{cv:4,hd:40}},
+  m_shcars:{A:{H:[48,51],t:180,arm:['S',20,-20,'d'],leg:[48,92,'f']}, B:{arm:['S',-14,-24,'d']}},
+  m_passthru:{A:{H:[48,51],t:180,arm:['S',18,20,'d'],leg:[48,92,'f']}, B:{arm:['S',-18,-22,'d']}, pad:'W0'},
+  m_thoracic:{A:{H:[34,71],t:107,arm:['S',3,8,'d'],arm2:[60,92,'b'],leg:[14,93,'d']}, B:{arm:['S',2,-12,'u'],hd:25}},
+  m_wall:{v:'f', A:{H:[50,51],arm:[70,12,'d'],leg:[54,92,'f']}, B:{arm:[72,-3,'f']}, st:`<rect x="28" y="-8" width="44" height="102" rx="3" style="fill:var(--muted);opacity:.12"/>`},
+  m_wrist:{A:{H:[48,51],t:180,arm:['S',28.5,1,'d'],arm2:['S',24,3,'d'],leg:[48,92,'f']}, B:{arm:['S',8,-4,'d'],arm2:['S',7,-1,'d']}},
 };
 /* ejercicio → [patrón, carga: bar | db | none] */
 const XA_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['incline','none'],e_pressincbarra:['incline','bar'],e_pressincmanc:['incline','db'],
@@ -5470,7 +5495,7 @@ const XA_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['incline','none'],e_pr
   e_sentadilla:['squat','bar'],e_pendulo:['squat','none'],e_extcuad:['legext'],e_prensa:['legpress'],e_abductor:['abductor'],e_aductor:['aductor'],
   e_pantprensa:['calfpress'],e_pantsent:['calfsit'],e_gemelopie:['calfstand','db'],e_pressmaqpecho:['chestpress'],e_pressplanomanc:['bench','db'],
   e_floorpress:['floorpress','db'],e_zancadas:['lunge','db'],e_bulgara:['bulgara','db'],e_hipthrust:['hipthrust','bar'],e_plancha:['plank'],
-  e_crunchpolea:['cablecrunch'],e_elevpiernas:['legraise'],e_abruedita:['abwheel'],e_movcadera:['lunge','none']};
+  e_crunchpolea:['cablecrunch'],e_elevpiernas:['legraise'],e_abruedita:['abwheel'],e_movcadera:['m_hipcars']};
 function xaPatternFor(ex){
   if(!ex) return null;
   if(XA_MAP[ex.id]) return XA_MAP[ex.id];
@@ -5490,7 +5515,9 @@ function xaPatternFor(ex){
 function xaFrame(P,A,B,s){
   const L=(a,b)=>a+(b-a)*s, Lp=(a,b)=>[L(a[0],b[0]),L(a[1],b[1])];
   const front=P.v==='f';
-  const base=Q=>{ const H=Q.H; const S=front?[H[0]+9,H[1]-XA.T]:[H[0]+XA.T*xaDir(Q.t)[0],H[1]+XA.T*xaDir(Q.t)[1]]; return {H:front?[H[0]+5,H[1]]:H, S}; };
+  const base=Q=>{ const H=Q.H;
+    if(front) return {H:[H[0]+5,H[1]], S:[H[0]+9,H[1]-XA.T], H1:[H[0]-5,H[1]], S1:[H[0]-9,H[1]-XA.T]};
+    return {H, S:[H[0]+XA.T*xaDir(Q.t)[0],H[1]+XA.T*xaDir(Q.t)[1]]}; };
   const bA=base(A), bB=base(B), H=Lp(A.H,B.H), t=L(A.t||180,B.t||180), hd=L(A.hd||0,B.hd||0);
   const cur=base({H,t});
   const res=(spec,b)=>typeof spec[0]==='string'?[b[spec[0]][0]+spec[1],b[spec[0]][1]+spec[2]]:[spec[0],spec[1]];
@@ -5501,78 +5528,171 @@ function xaFrame(P,A,B,s){
     let da=pb[0]-pa[0]; while(da>Math.PI) da-=2*Math.PI; while(da<-Math.PI) da+=2*Math.PI;
     const an=pa[0]+da*s, di=L(pa[1],pb[1]); return [rC[0]+di*Math.sin(an), rC[1]+di*Math.cos(an)];
   };
-  const J={H:cur.H, S:cur.S, Hc:H}, UA=P.ua?L(P.ua[0],P.ua[1]):XA.UA;
-  // el codo/rodilla se decide con el extremo más flexionado → sin saltos a mitad del movimiento
+  const J={H:cur.H, S:cur.S, Hc:H, cv:L(A.cv||0,B.cv||0)}, UA=P.ua?L(P.ua[0],P.ua[1]):XA.UA;
+  // el codo/rodilla se decide con el extremo más flexionado → sin saltos
   const bent=(sa,sb,k)=>{ const ta=res(sa,bA), tb=res(sb,bB), da=Math.hypot(ta[0]-bA[k][0],ta[1]-bA[k][1]), db=Math.hypot(tb[0]-bB[k][0],tb[1]-bB[k][1]); return (da<db?xaPref(sa):xaPref(sb))||xaPref(sa); };
-  const arm=tgt(A.arm,B.arm||A.arm,'S'); [J.E0,J.W0]=xaIK(cur.S,arm,UA,XA.FA,bent(A.arm,B.arm||A.arm,'S'));
-  const leg=tgt(A.leg,B.leg||A.leg,'H'); [J.K0,J.A0]=xaIK(cur.H,leg,XA.TH,XA.SH,bent(A.leg,B.leg||A.leg,'H'));
-  const toeOf=(Aj,Kj,spA,spB)=>{ if(spA){ const b1={A:Aj}, ta=typeof spA[0]==='string'?[Aj[0]+spA[1],Aj[1]+spA[2]]:spA, sb=spB||spA, tb=typeof sb[0]==='string'?[Aj[0]+sb[1],Aj[1]+sb[2]]:sb; return Lp(ta,tb); }
+  const limb=(key,root,L1,L2)=>{ const sa=A[key], sb=B[key]||sa; return xaIK(cur[root],tgt(sa,sb,root),L1,L2,bent(sa,sb,root)); };
+  [J.E0,J.W0]=limb('arm','S',UA,XA.FA);
+  [J.K0,J.A0]=limb('leg','H',XA.TH,XA.SH);
+  const toeOf=(Aj,Kj,spA,spB)=>{ if(spA){ const ta=typeof spA[0]==='string'?[Aj[0]+spA[1],Aj[1]+spA[2]]:spA, sb=spB||spA, tb=typeof sb[0]==='string'?[Aj[0]+sb[1],Aj[1]+sb[2]]:sb; return Lp(ta,tb); }
     const sa=Math.atan2(Aj[0]-Kj[0],Aj[1]-Kj[1])*180/Math.PI+90, d=xaDir(sa); return [Aj[0]+6*d[0],Aj[1]+6*d[1]]; };
   if(front){
     const cx=H[0], m=p=>[2*cx-p[0],p[1]];
-    J.Sc=[cx,cur.S[1]]; J.S1=m(cur.S); J.H1=m(cur.H); J.Hd=[cx,cur.S[1]-XA.NK];
-    if(P.uni){ const b0=base(A), t0=res(A.arm,b0); const [e,w]=xaIK(cur.S,[t0[0]-b0.S[0]+cur.S[0],t0[1]-b0.S[1]+cur.S[1]],XA.UA,XA.FA,xaPref(A.arm)); J.E1=m(e); J.W1=m(w); }
+    J.Sc=[cx,cur.S[1]]; J.S1=cur.S1; J.H1=cur.H1; J.Hd=[cx,cur.S[1]-XA.NK];
+    if(A.arm1) [J.E1,J.W1]=limb('arm1','S1',XA.UA,XA.FA);
+    else if(P.uni){ const b0=base(A), t0=res(A.arm,b0); const [e,w]=xaIK(cur.S,[t0[0]-b0.S[0]+cur.S[0],t0[1]-b0.S[1]+cur.S[1]],XA.UA,XA.FA,xaPref(A.arm)); J.E1=m(e); J.W1=m(w); }
     else { J.E1=m(J.E0); J.W1=m(J.W0); }
-    J.K1=m(J.K0); J.A1=m(J.A0); J.T0=[J.A0[0]+3.5,J.A0[1]]; J.T1=[J.A1[0]-3.5,J.A1[1]];
+    if(A.leg1) [J.K1,J.A1]=limb('leg1','H1',XA.TH,XA.SH); else { J.K1=m(J.K0); J.A1=m(J.A0); }
+    J.T0=[J.A0[0]+3.5,J.A0[1]]; J.T1=[J.A1[0]-3.5,J.A1[1]];
     J.Wc=[cx,(J.W0[1]+J.W1[1])/2]; J.K=J.K0;
   } else {
     const hdd=xaDir(t+hd); J.Hd=[cur.S[0]+XA.NK*hdd[0],cur.S[1]+XA.NK*hdd[1]];
     J.T0=toeOf(J.A0,J.K0,A.toe,B.toe);
-    if(A.leg2){ const l2=tgt(A.leg2,B.leg2||A.leg2,'H'); [J.K1,J.A1]=xaIK(cur.H,l2,XA.TH,XA.SH,xaPref(A.leg2)); J.T1=toeOf(J.A1,J.K1,A.toe2,B.toe2); }
+    if(A.leg2){ [J.K1,J.A1]=limb('leg2','H',XA.TH,XA.SH); J.T1=toeOf(J.A1,J.K1,A.toe2,B.toe2); }
+    if(A.arm2){ [J.E1,J.W1]=limb('arm2','S',XA.UA,XA.FA); }
   }
   return J;
 }
-function exAnimSVG(exId,opts){
-  opts=opts||{};
-  const ex=exById(exId)||{id:exId}, pm=xaPatternFor(ex); if(!pm) return "";
-  const P=XA_P[pm[0]]; if(!P) return ""; const load=pm[1]||'none';
-  const A=P.A, B=Object.assign({},P.A,P.B);
-  const still=opts.static||(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches);
-  const N=still?1:12, frames=[];
-  for(let k=0;k<=N;k++){ const s=still?0.55:(1-Math.cos(2*Math.PI*k/N))/2; frames.push(xaFrame(P,A,B,s)); }
-  const f1=v=>Math.round(v*10)/10, dur=pm[0]==='plank'?'4s':'3.2s';
-  const at=(name,vals)=>{ const u=[...new Set(vals.map(f1))]; return u.length===1?` ${name}="${u[0]}"`:''; };
-  const an=(name,vals)=>{ const r=vals.map(f1); return new Set(r).size===1?'':`<animate attributeName="${name}" dur="${dur}" repeatCount="indefinite" values="${r.join(';')}"/>`; };
-  const pt=(ref,dx,dy)=>frames.map(F=>Array.isArray(ref)?ref:[F[ref][0]+(dx||0),F[ref][1]+(dy||0)]);
-  const line=(a,b,style)=>{ const pa=Array.isArray(a)&&Array.isArray(a[0])?a:pt(a), pb=Array.isArray(b)&&Array.isArray(b[0])?b:pt(b);
-    const X1=pa.map(p=>p[0]),Y1=pa.map(p=>p[1]),X2=pb.map(p=>p[0]),Y2=pb.map(p=>p[1]);
-    return `<line${at('x1',X1)}${at('y1',Y1)}${at('x2',X2)}${at('y2',Y2)} style="${style}">${an('x1',X1)}${an('y1',Y1)}${an('x2',X2)}${an('y2',Y2)}</line>`; };
-  const dot=(ps,r,style)=>{ const X=ps.map(p=>p[0]),Y=ps.map(p=>p[1]); return `<circle r="${r}"${at('cx',X)}${at('cy',Y)} style="${style}">${an('cx',X)}${an('cy',Y)}</circle>`; };
-  const BODY='stroke:var(--text);stroke-linecap:round;opacity:.85', LIMB=BODY+';stroke-width:4', FAR='stroke:var(--text);stroke-linecap:round;stroke-width:4;opacity:.32';
-  const CAB='stroke:var(--muted);stroke-width:.9;opacity:.8', WT='fill:var(--text);opacity:.6', PAD='fill:var(--muted);opacity:.55';
-  const F0=frames[0]; let back="", body="", fore="";
-  // la extremidad que se mueve (la que trabaja) va en el color de acento
-  const rng=(k,root)=>{ const r=frames.map(F=>[F[k][0]-F[root][0],F[k][1]-F[root][1]]); return Math.max(...r.map(a=>Math.max(...r.map(b=>Math.hypot(a[0]-b[0],a[1]-b[1]))))); };
-  const ACC='stroke:var(--accent);stroke-linecap:round;stroke-width:4.2';
-  const armC=(!P.armStill&&rng('W0','S')>6)?ACC:LIMB, legC=rng('A0','H')>6?ACC:LIMB;
-  if(!P.nofloor) back+=`<line x1="4" y1="94.5" x2="96" y2="94.5" style="stroke:var(--muted);opacity:.35;stroke-width:1"/>`;
-  back+=P.st||"";
-  // cables detrás del cuerpo
-  const cabTo=(from,ref)=>line([...frames.map(()=>from)],ref,CAB);
-  if(P.cab) back+=cabTo(P.cab, P.v==='f'&&!P.uni?'W0':'W0');
-  if(P.cabL) back+=cabTo(P.cabL,'W1');
-  if(load==='cable'&&!P.cab) back+=cabTo([80,93],'W0');
-  if(P.barLR) back+=cabTo([50,-10],'Wc');
-  if(P.bar) back+=line(frames.map(()=>P.bar),'W0','stroke:var(--muted);stroke-width:3;stroke-linecap:round;opacity:.6');
-  if(P.v==='f'){
-    body+=line('Sc','Hc',BODY+';stroke-width:5.5')+line('S1','S',LIMB)+line('H1','H',LIMB);
-    body+=line('H','K0',legC)+line('K0','A0',legC)+line('H1','K1',legC)+line('K1','A1',legC)+line('A0','T0',BODY+';stroke-width:3')+line('A1','T1',BODY+';stroke-width:3');
-    body+=line('S','E0',armC)+line('E0','W0',armC)+line('S1','E1',P.uni?LIMB:armC)+line('E1','W1',P.uni?LIMB:armC);
-  } else {
-    if(F0.K1) back+=line('H','K1',FAR)+line('K1','A1',FAR)+line('A1','T1',FAR.replace('width:4','width:3'));
-    body+=line('H','S',BODY+';stroke-width:5.5')+line('H','K0',legC)+line('K0','A0',legC)+line('A0','T0',BODY+';stroke-width:3')+line('S','E0',armC)+line('E0','W0',armC);
-  }
-  body+=dot(pt('Hd'),5.3,'fill:var(--text);opacity:.85');
-  if(P.barLR) fore+=line('W1','W0','stroke:var(--muted);stroke-width:2.6;stroke-linecap:round;opacity:.9');
-  const wr=load==='bar'?(P.pr||5.5):3.6;
-  if(P.w&&load!=='none'&&load!=='cable'){ if(P.w==='W'){ fore+=dot(pt('W0'),wr,WT)+dot(pt('W1'),wr,WT); } else fore+=dot(pt(P.w,0,P.wdy||0),wr,WT); }
-  if((P.cab||P.cabL||load==='cable')&&!P.barLR) fore+=dot(pt('W0'),2,PAD)+(P.cabL?dot(pt('W1'),2,PAD):'');
-  if(P.pad){ if(P.pad==='K'){ fore+=dot(pt('K0'),3,PAD)+dot(pt('K1'),3,PAD); } else fore+=dot(pt(P.pad,0,P.padDy||0),3,PAD); }
-  if(P.plate){ fore+=line(pt('T0',2.5,3),pt('T0',-5.5,-6.6),'stroke:var(--muted);stroke-width:3.5;stroke-linecap:round;opacity:.7'); }
-  if(P.wheel) fore+=dot(pt('W0',0,4),4,'fill:none;stroke:var(--accent);stroke-width:2.2');
-  const sz=opts.size?` width="${opts.size}" height="${opts.size}"`:' width="100%"';
-  return `<svg viewBox="0 -10 100 106"${sz} style="display:block;overflow:visible" aria-label="Cómo se hace">${back}${body}${fore}</svg>`;
+/* ---- dibujo con el mismo estilo del mapa corporal de Progreso: silueta en tono piel
+   y los músculos que trabaja pintados encima con la escala morada ---- */
+const XS={skin:"#ECE9F3", far:"#DDD7EB", line:"#CFC7E0", wt:"#6E6588", eq:"#A79FBE"};
+const xr=v=>Math.round(v*10)/10;
+const xaNorm=(a,b)=>{ const dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1; return [dx/l,dy/l]; };
+const xaAt=(a,b,f,n,off)=>[a[0]+(b[0]-a[0])*f+(n?n[0]*off:0), a[1]+(b[1]-a[1])*f+(n?n[1]*off:0)];
+function xaCap(a,b,w,fill,outline,ow){
+  const p=`x1="${xr(a[0])}" y1="${xr(a[1])}" x2="${xr(b[0])}" y2="${xr(b[1])}" stroke-linecap="round"`;
+  return (outline?`<line ${p} stroke="${outline}" stroke-width="${xr(w+(ow||1.3))}"/>`:'')+`<line ${p} stroke="${fill}" stroke-width="${w}"/>`;
 }
+const xaDot=(c,r,fill,outline)=>`<circle cx="${xr(c[0])}" cy="${xr(c[1])}" r="${r}" fill="${fill}"${outline?` stroke="${outline}" stroke-width="1"`:''}/>`;
+const xaMv=(inv,k)=>Array.isArray(k)?Math.max(...k.map(x=>inv[x]||0)):(inv[k]||0);
+const xaMC=v=>muscleColorBy(v,{mode:"frac"});
+/* músculo como “vientre” a lo largo de un segmento (f0→f1, desplazado hacia n) */
+function xaMuscle(inv,k,a,b,f0,f1,n,off,w){ const v=xaMv(inv,k); if(!(v>0)) return ""; return xaCap(xaAt(a,b,f0,n,off),xaAt(a,b,f1,n,off),w,xaMC(v),"#fff",1); }
+function xaMuscleDot(inv,k,c,r){ const v=xaMv(inv,k); return v>0?xaDot(c,r,xaMC(v),"#fff"):""; }
+const XW={ua:3.8,fa:3.2,th:5.6,sh:4.5};
+function xaArmSide(J,E,W,fill,inv){
+  let o=xaCap(J.S,J[E],XW.ua,fill,XS.line)+xaCap(J[E],J[W],XW.fa,fill,XS.line)+xaDot(J[W],2.1,fill,XS.line);
+  if(inv){ const d=xaNorm(J.S,J[E]), n=[d[1],-d[0]];
+    o+=xaMuscleDot(inv,["deltAnt","deltLat","deltPost"],[J.S[0]+d[0]*2,J.S[1]+d[1]*2],3.2)
+      +xaMuscle(inv,"biceps",J.S,J[E],.3,.88,n,.75,2.1)+xaMuscle(inv,"triceps",J.S,J[E],.3,.88,n,-.75,2.1)
+      +xaMuscle(inv,"antebrazo",J[E],J[W],.1,.68,null,0,2); }
+  return o;
+}
+function xaLegSide(J,K,A,T,fill,inv){
+  let o=xaCap(J.H,J[K],XW.th,fill,XS.line)+xaCap(J[K],J[A],XW.sh,fill,XS.line)+xaCap(J[A],J[T],2.7,fill,XS.line);
+  if(inv){ const d=xaNorm(J.H,J[K]), n=[d[1],-d[0]], d2=xaNorm(J[K],J[A]), n2=[d2[1],-d2[0]];
+    o+=xaMuscle(inv,"cuadriceps",J.H,J[K],.2,.88,n,1.25,3.1)+xaMuscle(inv,"femoral",J.H,J[K],.2,.88,n,-1.25,3.1)
+      +(xaMv(inv,"cuadriceps")?'':xaMuscle(inv,"aductor",J.H,J[K],.15,.7,null,0,2.4))
+      +xaMuscle(inv,"pantorrilla",J[K],J[A],.08,.55,n2,-1,3); }
+  return o;
+}
+function xaBodySide(J,inv){
+  let o="";
+  if(J.K1) o+=xaLegSide(J,'K1','A1','T1',XS.far,null);
+  if(J.E1) o+=xaArmSide(J,'E1','W1',XS.far,null);
+  // torso con forma (hombros, cintura, cadera) y curvatura opcional de la columna
+  const d=xaNorm(J.H,J.S), n=[-d[1],d[0]], cv=J.cv||0;
+  const off=(p,k)=>[p[0]+n[0]*k,p[1]+n[1]*k], M=off([(J.H[0]+J.S[0])/2,(J.H[1]+J.S[1])/2],cv);
+  const Sf=off(J.S,4.5), Sb=off(J.S,-4.3), Mf=off(M,3.8), Mb=off(M,-4), Hf=off(J.H,4.1), Hb=off(J.H,-4.7);
+  const C=(m,a,b)=>[2*m[0]-(a[0]+b[0])/2, 2*m[1]-(a[1]+b[1])/2], Cf=C(Mf,Sf,Hf), Cb=C(Mb,Hb,Sb);
+  const nk=[(J.S[0]*.35+J.Hd[0]*.65),(J.S[1]*.35+J.Hd[1]*.65)];
+  o+=xaCap(J.S,nk,3.6,XS.skin,XS.line)+xaDot(J.S,4.4,XS.skin,XS.line)+xaDot(J.H,4.4,XS.skin,XS.line);
+  o+=`<path d="M${xr(Sf[0])},${xr(Sf[1])} Q${xr(Cf[0])},${xr(Cf[1])} ${xr(Hf[0])},${xr(Hf[1])} L${xr(Hb[0])},${xr(Hb[1])} Q${xr(Cb[0])},${xr(Cb[1])} ${xr(Sb[0])},${xr(Sb[1])} Z" fill="${XS.skin}" stroke="${XS.line}" stroke-width="1" stroke-linejoin="round"/>`;
+  if(inv){ const mo=cv*.8, sub=(k,f0,f1,side,w)=>{ const v=xaMv(inv,k); if(!(v>0)) return ""; const a=off(xaAt(J.H,J.S,f0),side+mo*4*f0*(1-f0)), b=off(xaAt(J.H,J.S,f1),side+mo*4*f1*(1-f1)); return xaCap(a,b,w,xaMC(v),"#fff",1); };
+    o+=sub("core",.14,.5,2.5,3.2)+sub("pecho",.6,.86,2.5,3.8)+sub("dorsal",.3,.68,-2.5,3.4)+sub("espaldaAlta",.66,.92,-2.3,3.4)
+      +xaMuscleDot(inv,"gluteo",off(J.H,-2.7),3.4); }
+  o+=xaDot(J.Hd,4.7,XS.skin,XS.line);
+  o+=xaLegSide(J,'K0','A0','T0',XS.skin,inv);
+  o+=xaArmSide(J,'E0','W0',XS.skin,inv);
+  return o;
+}
+function xaBodyFront(J,inv){
+  const cx=J.Hc[0], Sy=J.Sc[1], Hy=J.Hc[1];
+  const legs=(H,K,A,T,sg)=>{ let o=xaCap(J[H],J[K],XW.th+.2,XS.skin,XS.line)+xaCap(J[K],J[A],XW.sh,XS.skin,XS.line)+xaCap(J[A],J[T],2.7,XS.skin,XS.line);
+    if(inv){ const d=xaNorm(J[H],J[K]), n=[d[1]*sg,-d[0]*sg], d2=xaNorm(J[K],J[A]), n2=[d2[1]*sg,-d2[0]*sg];
+      o+=xaMuscle(inv,"cuadriceps",J[H],J[K],.16,.86,n,.5,3.3)+xaMuscle(inv,"aductor",J[H],J[K],.1,.62,n,-1.8,1.9)+xaMuscle(inv,"pantorrilla",J[K],J[A],.1,.5,n2,-.8,2.5); }
+    return o; };
+  const arms=(S,E,W)=>{ let o=xaCap(J[S],J[E],XW.ua,XS.skin,XS.line)+xaCap(J[E],J[W],XW.fa,XS.skin,XS.line)+xaDot(J[W],2.1,XS.skin,XS.line);
+    if(inv) o+=xaMuscle(inv,["biceps","triceps"],J[S],J[E],.28,.88,null,0,2.3)+xaMuscle(inv,"antebrazo",J[E],J[W],.1,.68,null,0,2);
+    return o; };
+  let o=legs('H','K0','A0','T0',1)+legs('H1','K1','A1','T1',-1);
+  o+=xaCap([cx,Sy],[cx,Sy-5],3.8,XS.skin,XS.line);
+  o+=`<path d="M${xr(cx-11)},${xr(Sy+1)} L${xr(cx+11)},${xr(Sy+1)} Q${xr(cx+8)},${xr(Sy+9)} ${xr(cx+7.3)},${xr(Sy+15.5)} Q${xr(cx+7.6)},${xr(Hy-4)} ${xr(cx+8.8)},${xr(Hy+1.8)} L${xr(cx-8.8)},${xr(Hy+1.8)} Q${xr(cx-7.6)},${xr(Hy-4)} ${xr(cx-7.3)},${xr(Sy+15.5)} Q${xr(cx-8)},${xr(Sy+9)} ${xr(cx-11)},${xr(Sy+1)} Z" fill="${XS.skin}" stroke="${XS.line}" stroke-width="1" stroke-linejoin="round"/>`;
+  if(inv){ const pair=(k,a,b,w)=>{ const v=xaMv(inv,k); if(!(v>0)) return ""; return xaCap([cx+a[0],a[1]],[cx+b[0],b[1]],w,xaMC(v),"#fff",1)+xaCap([cx-a[0],a[1]],[cx-b[0],b[1]],w,xaMC(v),"#fff",1); };
+    o+=pair("espaldaAlta",[2.2,Sy-1.4],[7.4,Sy+.4],2.2)+pair("pecho",[2,Sy+4.8],[7.4,Sy+4.4],4.4)+pair("dorsal",[8.4,Sy+7],[7.2,Sy+14.5],2.3);
+    const vc=xaMv(inv,"core"); if(vc>0) o+=xaCap([cx,Sy+11],[cx,Hy-3],5.6,xaMC(vc),"#fff",1);
+    o+=xaMuscleDot(inv,"gluteo",[cx+8.1,Hy-1],2.5)+xaMuscleDot(inv,"gluteo",[cx-8.1,Hy-1],2.5); }
+  o+=arms('S','E0','W0')+arms('S1','E1','W1');
+  o+=xaDot(J.S,4.1,XS.skin,XS.line)+xaDot(J.S1,4.1,XS.skin,XS.line);
+  if(inv){ const dv=["deltAnt","deltLat","deltPost"]; o+=xaMuscleDot(inv,dv,J.S,3.2)+xaMuscleDot(inv,dv,J.S1,3.2); }
+  o+=xaDot(J.Hd,4.7,XS.skin,XS.line);
+  return o;
+}
+function xaProps(P,load,J,solid){
+  let back="", fore="";
+  const cab=(from,to)=>`<line x1="${from[0]}" y1="${from[1]}" x2="${xr(to[0])}" y2="${xr(to[1])}" stroke="${XS.eq}" stroke-width=".9"/>`;
+  if(solid){ if(P.cab) back+=cab(P.cab,J.W0); if(P.cabL) back+=cab(P.cabL,J.W1); if(load==='cable'&&!P.cab) back+=cab([80,93],J.W0); if(P.barLR) back+=cab([50,-10],J.Wc); }
+  if(P.bar) back+=`<line x1="${P.bar[0]}" y1="${P.bar[1]}" x2="${xr(J.W0[0])}" y2="${xr(J.W0[1])}" stroke="${XS.eq}" stroke-width="3" stroke-linecap="round"/>`;
+  if(P.towel) back+=`<line x1="${xr(J.W0[0])}" y1="${xr(J.W0[1])}" x2="${xr(J.A0[0])}" y2="${xr(J.A0[1]-2)}" stroke="${XS.eq}" stroke-width="1.6" stroke-linecap="round"/>`;
+  if(P.barLR) fore+=xaCap(J.W1,J.W0,2.4,XS.eq);
+  const wr=load==='bar'?(P.pr||5.5):3.5;
+  if(P.w&&load!=='none'&&load!=='cable'){ if(P.w==='W') fore+=xaDot(J.W0,wr,XS.wt)+xaDot(J.W1,wr,XS.wt); else fore+=xaDot([J[P.w][0],J[P.w][1]+(P.wdy||0)],wr,XS.wt); }
+  if((P.cab||P.cabL||load==='cable')&&!P.barLR) fore+=xaDot(J.W0,1.8,XS.wt)+(P.cabL?xaDot(J.W1,1.8,XS.wt):'');
+  if(P.pad){ if(P.pad==='K') fore+=xaDot(J.K0,2.8,XS.eq)+xaDot(J.K1,2.8,XS.eq); else fore+=xaDot([J[P.pad][0],J[P.pad][1]+(P.padDy||0)],2.8,XS.eq); }
+  if(P.plate) fore+=xaCap([J.T0[0]+2.5,J.T0[1]+3],[J.T0[0]-5.5,J.T0[1]-6.6],3.2,XS.eq);
+  if(P.wheel) fore+=`<circle cx="${xr(J.W0[0])}" cy="${xr(J.W0[1]+4)}" r="4" fill="none" stroke="${XS.wt}" stroke-width="2"/>`;
+  return {back,fore};
+}
+/* flecha de doble punta que sigue la trayectoria de lo que se mueve (manos, pies o cadera) */
+function xaArrow(P,A,B,Js){
+  const f0=xaFrame(P,A,B,0), f1=xaFrame(P,A,B,1), dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  const disp=k=>f0[k]&&f1[k]?dist(f0[k],f1[k]):0;
+  let k=P.arrow||((!P.armStill&&disp('W0')>=8)?'W0':(disp('A0')>=8?'A0':(P.armStill?['A0','Hd','H']:['W0','A0','Hd','H']).sort((a,b)=>disp(b)-disp(a))[0]));
+  if(disp(k)<4) return {svg:"",pts:[]};
+  const pts=[]; for(let i=0;i<=10;i++) pts.push(xaFrame(P,A,B,i/10)[k]);
+  const c=[pts[10][0]-pts[0][0],pts[10][1]-pts[0][1]], cl=Math.hypot(c[0],c[1])||1; let n=[-c[1]/cl,c[0]/cl];
+  const mid=[(Js.H[0]+Js.S[0])/2,(Js.H[1]+Js.S[1])/2]; if((pts[5][0]-mid[0])*n[0]+(pts[5][1]-mid[1])*n[1]<0) n=[-n[0],-n[1]];
+  const q=pts.slice(1,10).map(p=>[p[0]+n[0]*7,p[1]+n[1]*7]);
+  const head=(p,prev)=>{ const d=xaNorm(prev,p), w=[-d[1],d[0]]; return `<path d="M${xr(p[0]+d[0]*2.6)},${xr(p[1]+d[1]*2.6)} L${xr(p[0]-d[0]*1.6+w[0]*2.3)},${xr(p[1]-d[1]*1.6+w[1]*2.3)} L${xr(p[0]-d[0]*1.6-w[0]*2.3)},${xr(p[1]-d[1]*1.6-w[1]*2.3)} Z" fill="var(--accent)"/>`; };
+  return {pts:q, svg:`<path d="M${q.map(p=>xr(p[0])+','+xr(p[1])).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`+head(q[q.length-1],q[q.length-2])+head(q[0],q[1])};
+}
+/* pose del ejercicio: posición final marcada con los músculos + la inicial tenue + flecha del recorrido */
+function xaRender(pat,load,inv,opts){
+  opts=opts||{}; const P=XA_P[pat]; if(!P) return "";
+  const A=P.A, B=Object.assign({},P.A,P.B), sS=P.solid==='A'?0:1;
+  const Js=xaFrame(P,A,B,sS), Jg=xaFrame(P,A,B,1-sS);
+  const moved=['W0','A0','H','Hd','E0','K0'].some(k=>Math.hypot(Js[k][0]-Jg[k][0],Js[k][1]-Jg[k][1])>3);
+  const body=P.v==='f'?xaBodyFront:xaBodySide;
+  let s=(P.nofloor?'':`<line x1="4" y1="94.6" x2="96" y2="94.6" stroke="${XS.far}" stroke-width="1.2"/>`)+(P.st||"");
+  if(moved&&!opts.thumb){ const g=xaProps(P,load,Jg,false); s+=`<g opacity=".3">${g.back}${body(Jg,null)}${g.fore}</g>`; }
+  const pr=xaProps(P,load,Js,true); s+=pr.back+body(Js,inv)+pr.fore;
+  const ar=moved&&!opts.thumb?xaArrow(P,A,B,Js):{svg:"",pts:[]}; s+=ar.svg;
+  // encuadre automático: la figura (y su posición inicial) llena el recuadro
+  const pts=[]; [Js].concat(moved&&!opts.thumb?[Jg]:[]).forEach(J=>Object.values(J).forEach(p=>{ if(Array.isArray(p)&&p.length===2&&isFinite(p[0])) pts.push(p); })); ar.pts.forEach(p=>pts.push(p));
+  const pd=opts.thumb?6:12; let x0=Math.min(...pts.map(p=>p[0]))-pd, x1=Math.max(...pts.map(p=>p[0]))+pd, y0=Math.min(...pts.map(p=>p[1]))-pd, y1=Math.max(...pts.map(p=>p[1]))+pd;
+  if(!P.nofloor&&y1>82) y1=Math.max(y1,97);
+  let w=x1-x0, h=y1-y0; const side=Math.max(60,w,h/1.06);
+  x0-=(side-w)/2; y0-=(side*1.06-h)/2; w=side; h=side*1.06;
+  const sz=opts.size?` width="${opts.size}" height="${Math.round(opts.size*1.06)}"`:' width="100%"';
+  return `<svg viewBox="${xr(x0)} ${xr(y0)} ${xr(w)} ${xr(h)}"${sz} style="display:block;overflow:hidden" aria-label="Cómo se hace">${s}</svg>`;
+}
+function exPoseSVG(exId,opts){
+  const ex=exById(exId)||{id:exId}, pm=xaPatternFor(ex); if(!pm||!XA_P[pm[0]]) return "";
+  return xaRender(pm[0],pm[1]||'none',opts&&opts.noMus?null:exMuscles(ex),opts);
+}
+/* ---- MOVILIDAD: la misma figura en la postura del estiramiento ---- */
+const MOB_POSE={mb_9090:'m_9090',mb_hipcars:'m_hipcars',mb_wgs:'m_wgs',mb_deepsq:'m_deepsq',mb_adductor:'m_adductor',mb_hamstring:'m_hamstring',mb_ankle:'m_ankle',
+  mb_catcow:'m_catcow',mb_circuit:'m_hipcars',mb_shcars:'m_shcars',mb_passthru:'m_passthru',mb_thoracic:'m_thoracic',mb_wall:'m_wall',mb_wrist:'m_wrist'};
+function mobPattern(m){
+  if(MOB_POSE[m.id]) return MOB_POSE[m.id];
+  const t=((m.name||"")+" "+(m.zone||"")).toLowerCase();
+  const R=[[/gato|vaca|columna|cat/,'m_catcow'],[/tor[aá]cic|rotaci[oó]n/,'m_thoracic'],[/aductor|lateral/,'m_adductor'],[/isquio|femoral|hamstring/,'m_hamstring'],
+    [/tobillo|pantorrilla|gemelo/,'m_ankle'],[/sentadilla|squat/,'m_deepsq'],[/zancada|lunge|psoas|flexor/,'m_wgs'],[/pared|wall/,'m_wall'],
+    [/dislocaci|banda|palo|pecho/,'m_passthru'],[/hombro/,'m_shcars'],[/mu[nñ]eca|codo|antebrazo/,'m_wrist'],[/cadera|gl[uú]teo/,'m_hipcars']];
+  for(const [re,p] of R) if(re.test(t)) return p;
+  return 'm_deepsq';
+}
+function mobPoseSVG(m,opts){ if(!m) return ""; const inv={}; (m.mus||[]).forEach(k=>inv[k]=0.6); return xaRender(mobPattern(m),'none',inv,opts); }
 
 /* ====================================================================
    RECORDS — gráficas + PRs
@@ -6334,10 +6454,29 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
+const APP_VER=23;   // subir junto con CACHE de sw.js
+let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
-    navigator.serviceWorker.register("sw.js").catch(()=>{});
+    let hadCtrl=!!navigator.serviceWorker.controller;
+    navigator.serviceWorker.register("sw.js").then(reg=>{
+      swReg=reg;
+      // al volver a la app (estaba en segundo plano) busca versión nueva
+      document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") reg.update().catch(()=>{}); });
+    }).catch(()=>{});
+    // entró una versión nueva: recarga sola (si hay sesión abierta, avisa en vez de recargar)
+    navigator.serviceWorker.addEventListener("controllerchange",()=>{
+      if(!hadCtrl){ hadCtrl=true; return; }
+      if(window.__swReloading) return;
+      if(!sessionDraft){ window.__swReloading=true; location.reload(); }
+      else toast("Nueva versión lista: se aplicará al guardar la sesión y volver a abrir");
+    });
   }
+}
+function checkAppUpdate(){
+  if(!swReg) return toast("Versión v"+APP_VER);
+  toast("Buscando actualización…");
+  swReg.update().then(()=>setTimeout(()=>{ if(!window.__swReloading) toast("Tienes la versión más reciente (v"+APP_VER+")"); },2500)).catch(()=>toast("Sin conexión"));
 }
 function applyTheme(){ document.documentElement.setAttribute("data-theme", (state.prefs&&state.prefs.theme==="dark")?"dark":"light"); }
 function toggleTheme(){ if(!state.prefs)state.prefs={}; state.prefs.theme=(state.prefs.theme==="dark")?"light":"dark"; save(); applyTheme(); renderAjustes(); toast(state.prefs.theme==="dark"?"Modo oscuro":"Modo claro"); }
