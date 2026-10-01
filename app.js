@@ -5248,10 +5248,10 @@ const EX_MUSCLES={
   e_latmanc:{deltLat:1}, e_latpolea:{deltLat:1}, e_frontraise:{deltAnt:1}, e_reardelt:{deltPost:1,espaldaAlta:0.4}, e_facepull:{deltPost:1,espaldaAlta:0.5},
   e_extrice:{triceps:1}, e_extuni:{triceps:1}, e_pressfrances:{triceps:1},
   e_pulldownneutro:{dorsal:1,biceps:0.5,espaldaAlta:0.3,deltPost:0.2}, e_pulldownabierto:{dorsal:1,biceps:0.4,espaldaAlta:0.3,deltPost:0.2}, e_jalonpecho:{dorsal:1,biceps:0.5,espaldaAlta:0.3},
-  e_remobarra:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.4}, e_remopolea:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_remomanc:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.4},
+  e_remobarra:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.4,lumbar:0.5}, e_remopolea:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_remomanc:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.4},
   e_remogironda:{dorsal:1,espaldaAlta:0.6,biceps:0.4,deltPost:0.4}, e_remomaq:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_remosentado:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_pullover:{dorsal:1,pecho:0.3,triceps:0.2},
   e_predicador:{biceps:1,antebrazo:0.3}, e_curlpolea:{biceps:1,antebrazo:0.3}, e_faceaway:{biceps:1}, e_curlmartillo:{biceps:1,antebrazo:0.6}, e_curlconcentrado:{biceps:1},
-  e_curlfemac:{femoral:1}, e_curlfemsent:{femoral:1}, e_rdl:{femoral:1,gluteo:0.7,espaldaAlta:0.2}, e_rdlmanc:{femoral:1,gluteo:0.6},
+  e_curlfemac:{femoral:1}, e_curlfemsent:{femoral:1}, e_rdl:{femoral:1,gluteo:0.7,espaldaAlta:0.2,lumbar:0.7}, e_rdlmanc:{femoral:1,gluteo:0.6,lumbar:0.6}, e_pesomuerto:{femoral:1,gluteo:0.4,lumbar:0.8},
   e_sentadilla:{cuadriceps:1,gluteo:0.6,femoral:0.3}, e_extcuad:{cuadriceps:1}, e_prensa:{cuadriceps:1,gluteo:0.5}, e_zancadas:{cuadriceps:1,gluteo:0.7}, e_bulgara:{cuadriceps:1,gluteo:0.8},
   e_hipthrust:{gluteo:1,femoral:0.4}, e_abductor:{gluteo:1}, e_aductor:{aductor:1},
   e_pantprensa:{pantorrilla:1}, e_pantsent:{pantorrilla:1}, e_gemelopie:{pantorrilla:1},
@@ -5261,7 +5261,7 @@ const EX_MUSCLES={
   e_pendulo:{cuadriceps:1,gluteo:0.5,femoral:0.3}, e_movcadera:{core:0.3,gluteo:0.2},
   ce_1782313044383:{femoral:1},
   e_pressmilsmith:{deltAnt:1,deltLat:0.5,triceps:0.45}, e_extricebarra:{triceps:1}, e_girondaprono:{espaldaAlta:1,dorsal:0.6,deltPost:0.4,biceps:0.35},
-  e_remounimanc:{dorsal:1,espaldaAlta:0.4,biceps:0.35}, e_hiperext:{lumbar:1}
+  e_remounimanc:{dorsal:1,espaldaAlta:0.4,biceps:0.35}, e_hiperext:{lumbar:1,gluteo:0.5,femoral:0.3}
 };
 const GROUP_FALLBACK={ "Pecho":{pecho:1,deltAnt:0.4,triceps:0.4},"Hombro":{deltLat:1,deltAnt:0.5},"Espalda":{dorsal:1,espaldaAlta:0.5,biceps:0.4,deltPost:0.3},
   "Bíceps":{biceps:1,antebrazo:0.3},"Tríceps":{triceps:1},"Cuádriceps":{cuadriceps:1,gluteo:0.4},"Femoral":{femoral:1,gluteo:0.4},"Glúteo":{gluteo:1,femoral:0.3},"Pantorrilla":{pantorrilla:1},"Core":{core:1} };
