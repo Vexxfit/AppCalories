@@ -5237,7 +5237,7 @@ function renderMuscleAnalysis(wk){
     : `<div style="border-left:3px solid var(--ok);background:var(--bg2);border-radius:0 10px 10px 0;padding:9px 12px;font-size:13px">Sin alertas: tu reparto de volumen se ve equilibrado.</div>`;
 }
 /* ===== Modelo muscular: involucramiento por ejercicio + series efectivas por RIR ===== */
-const SUBMUSCLES=[["pecho","Pecho"],["deltAnt","Hombro ant."],["deltLat","Hombro lat."],["deltPost","Hombro post."],["dorsal","Dorsal"],["espaldaAlta","Espalda alta"],["biceps","Bíceps"],["triceps","Tríceps"],["antebrazo","Antebrazo"],["cuadriceps","Cuádriceps"],["femoral","Femoral"],["gluteo","Glúteo"],["aductor","Aductor"],["pantorrilla","Pantorrilla"],["core","Core"]];
+const SUBMUSCLES=[["pecho","Pecho"],["deltAnt","Hombro ant."],["deltLat","Hombro lat."],["deltPost","Hombro post."],["dorsal","Dorsal"],["espaldaAlta","Espalda alta"],["biceps","Bíceps"],["triceps","Tríceps"],["antebrazo","Antebrazo"],["cuadriceps","Cuádriceps"],["femoral","Femoral"],["gluteo","Glúteo"],["aductor","Aductor"],["pantorrilla","Pantorrilla"],["core","Core"],["lumbar","Espalda baja"]];
 const SUBLABEL=Object.fromEntries(SUBMUSCLES);
 /* involucramiento por ejercicio (primario 1.0, secundarios fraccional) basado en EMG */
 const EX_MUSCLES={
@@ -5261,11 +5261,11 @@ const EX_MUSCLES={
   e_pendulo:{cuadriceps:1,gluteo:0.5,femoral:0.3}, e_movcadera:{core:0.3,gluteo:0.2},
   ce_1782313044383:{femoral:1},
   e_pressmilsmith:{deltAnt:1,deltLat:0.5,triceps:0.45}, e_extricebarra:{triceps:1}, e_girondaprono:{espaldaAlta:1,dorsal:0.6,deltPost:0.4,biceps:0.35},
-  e_remounimanc:{dorsal:1,espaldaAlta:0.4,biceps:0.35}   // e_hiperext usa el mapa por defecto del grupo Core
+  e_remounimanc:{dorsal:1,espaldaAlta:0.4,biceps:0.35}, e_hiperext:{lumbar:1}
 };
 const GROUP_FALLBACK={ "Pecho":{pecho:1,deltAnt:0.4,triceps:0.4},"Hombro":{deltLat:1,deltAnt:0.5},"Espalda":{dorsal:1,espaldaAlta:0.5,biceps:0.4,deltPost:0.3},
   "Bíceps":{biceps:1,antebrazo:0.3},"Tríceps":{triceps:1},"Cuádriceps":{cuadriceps:1,gluteo:0.4},"Femoral":{femoral:1,gluteo:0.4},"Glúteo":{gluteo:1,femoral:0.3},"Pantorrilla":{pantorrilla:1},"Core":{core:1} };
-function exMuscles(ex){ if(!ex) return {}; if(ex.muscles && Object.keys(ex.muscles).length) return ex.muscles; return EX_MUSCLES[ex.id] || GROUP_FALLBACK[ex.group] || (ex.group?{[ex.group]:1}:{}); }
+function exMuscles(ex){ if(!ex) return {}; if(ex.muscles && Object.keys(ex.muscles).length) return ex.muscles; return EX_MUSCLES[ex.id] || (/hiperextensi[oó]n|extensi[oó]n lumbar/i.test(ex.name||"")?{lumbar:1}:null) || GROUP_FALLBACK[ex.group] || (ex.group?{[ex.group]:1}:{}); }
 /* factor de "serie efectiva" por cercanía al fallo (RIR) */
 function effFactor(rir){ if(rir==null||rir==="") return 0.85; const n=String(rir).match(/\d+/g); if(!n) return 0.85; const r=Math.min(...n.map(Number)); if(r<=1) return 1; if(r===2) return 0.85; if(r===3) return 0.6; if(r===4) return 0.3; return 0.1; }
 /* tonelaje EFECTIVO por músculo: tonelaje de cada ejercicio × fracción de ese músculo (músculo:fracción ya definido) */
@@ -5287,7 +5287,7 @@ function effVolByMuscle(wk){
 }
 /* series efectivas/semana recomendadas por submúsculo: [MEV, ideal-lo, ideal-hi, MRV] */
 const MV_SUB={ pecho:[10,12,20,22],deltAnt:[0,6,12,16],deltLat:[8,12,20,26],deltPost:[6,10,16,20],dorsal:[10,14,20,25],espaldaAlta:[6,10,18,22],
-  biceps:[8,12,18,24],triceps:[6,10,16,20],antebrazo:[0,4,12,16],cuadriceps:[8,12,18,22],femoral:[6,10,16,20],gluteo:[4,8,14,18],aductor:[0,4,10,14],pantorrilla:[8,12,18,22],core:[0,6,16,25] };
+  biceps:[8,12,18,24],triceps:[6,10,16,20],antebrazo:[0,4,12,16],cuadriceps:[8,12,18,22],femoral:[6,10,16,20],gluteo:[4,8,14,18],aductor:[0,4,10,14],pantorrilla:[8,12,18,22],core:[0,6,16,25],lumbar:[0,4,10,14] };
 function volStatus(mk,sets){ const r=MV_SUB[mk]; if(!r) return {label:"—",color:"var(--muted)",range:""}; const [mev,lo,hi,mrv]=r,range=`ideal ${lo}–${hi}`;
   if(sets<mev) return {label:"Bajo",color:"var(--warn)",range}; if(sets>mrv) return {label:"Alto",color:"var(--bad)",range};
   if(sets>=lo&&sets<=hi) return {label:"Óptimo",color:"var(--ok)",range}; return {label:"OK",color:"var(--accent)",range}; }
@@ -5317,7 +5317,7 @@ const JOINTS=[["cuello","Cuello",86,44],["hombro_d","Hombro derecho",58,50],["ho
   ["rodilla_d","Rodilla derecha",75,214],["rodilla_i","Rodilla izquierda",97,214],["tobillo_d","Tobillo derecho",74,271],["tobillo_i","Tobillo izquierdo",98,271],
   ["espalda_alta","Espalda alta / media",258,72],["lumbar","Espalda baja",258,118]];
 const JOINT_LBL=Object.fromEntries(JOINTS.map(j=>[j[0],j[1]]));
-const JOINT_MUS={cuello:["espaldaAlta"],hombro:["deltAnt","deltLat","deltPost","pecho"],codo:["biceps","triceps","antebrazo"],muneca:["antebrazo"],cadera:["gluteo","aductor","cuadriceps","femoral"],rodilla:["cuadriceps","femoral"],tobillo:["pantorrilla"],espalda_alta:["espaldaAlta","dorsal","deltPost"],lumbar:["femoral","gluteo","core","espaldaAlta"]};
+const JOINT_MUS={cuello:["espaldaAlta"],hombro:["deltAnt","deltLat","deltPost","pecho"],codo:["biceps","triceps","antebrazo"],muneca:["antebrazo"],cadera:["gluteo","aductor","cuadriceps","femoral"],rodilla:["cuadriceps","femoral"],tobillo:["pantorrilla"],espalda_alta:["espaldaAlta","dorsal","deltPost"],lumbar:["femoral","gluteo","core","espaldaAlta","lumbar"]};
 const PAIN_LVL=["Sin molestia","Leve","Moderada","Fuerte"], PAIN_COL=["#34C759","#FF9F0A","#FF6B00","#FF3B30"];
 function jointMuscles(j){ return JOINT_MUS[j]||JOINT_MUS[j.replace(/_[di]$/,"")]||[]; }
 function activePains(){   // última marca por articulación en los últimos 21 días (nivel 0 = resuelta)
@@ -5425,6 +5425,7 @@ function bodyMapSVG(ev,opts){
     ${F("deltLat",'<ellipse cx="229" cy="56" rx="8" ry="10"/><ellipse cx="287" cy="56" rx="8" ry="10"/>')}
     ${F("deltPost",'<ellipse cx="236" cy="55" rx="8" ry="9"/><ellipse cx="280" cy="55" rx="8" ry="9"/>')}
     ${F("dorsal",'<path d="M239,76 L255,78 L255,118 Q248,120 241,112 Q237,96 239,76 Z"/><path d="M277,76 L261,78 L261,118 Q268,120 275,112 Q279,96 277,76 Z"/>')}
+    ${F("lumbar",'<path d="M252,94 Q256,92 257.5,94 L257.5,123 Q252,123 250,119 Q249,106 252,94 Z"/><path d="M264,94 Q260,92 258.5,94 L258.5,123 Q264,123 266,119 Q267,106 264,94 Z"/>')}
     ${F("triceps",'<ellipse cx="222" cy="82" rx="7" ry="17"/><ellipse cx="294" cy="82" rx="7" ry="17"/>')}
     ${F("antebrazo",'<ellipse cx="219" cy="128" rx="6" ry="19"/><ellipse cx="297" cy="128" rx="6" ry="19"/>')}
     ${F("gluteo",'<path d="M256,122 Q238,120 238,136 Q239,150 255,150 Q256,150 256,140 Z"/><path d="M260,122 Q278,120 278,136 Q277,150 261,150 Q260,150 260,140 Z"/>')}
@@ -5625,6 +5626,7 @@ function x3Body(J,inv,cam,ctx){
     const cvo=v3.m(T.F,-b.cv*.8);
     [1,-1].forEach(s=>{ o+=mus('pe'+s,'pecho',v3.c([N,1],[U,-4.2],[T.R,2.2*s],[T.F,3.8]),v3.c([N,1],[U,-5.4],[T.R,8.4*s],[T.F,3]),T.F,0,4.4); });
     o+=mus('co','core',v3.c([P,1],[U,4],[L.F,4.3],[cvo,.6]),v3.c([P,1],[U,15.5],[L.F,4.1],[cvo,1]),L.F,0,5);
+    [1,-1].forEach(s=>{ o+=mus('lu'+s,'lumbar',v3.c([P,1],[U,2.6],[L.R,2.5*s],[L.F,-4.3],[cvo,.5]),v3.c([P,1],[U,14],[L.R,2.5*s],[L.F,-4],[cvo,1]),v3.m(L.F,-1),0,2.8); });
     [1,-1].forEach(s=>{ o+=mus('la'+s,'dorsal',v3.c([N,1],[U,-7],[T.R,7.4*s],[T.F,-2.4]),v3.c([P,1],[U,8],[L.R,5.6*s],[L.F,-2.8],[cvo,1]),v3.n(v3.c([T.F,-.7],[T.R,.7*s])),0,3.6); });
     o+=mus('ea','espaldaAlta',v3.c([N,1],[U,.5],[T.F,-2.8]),v3.c([N,1],[U,-10],[T.F,-3.9],[cvo,.6]),v3.m(T.F,-1),0,5.4);
     [1,-1].forEach(s=>{ o+=mus('tp'+s,'espaldaAlta',v3.c([N,1],[U,.2],[T.R,1.6*s],[T.F,-2]),v3.c([N,1],[U,-1.6],[T.R,7.4*s],[T.F,-1.8]),v3.n(v3.c([T.F,-.6],[U,.8])),0,2.6); });
@@ -5911,7 +5913,7 @@ const X3_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['inclinemach','handles
 function x3PatFor(ex){
   if(!ex) return null; if(X3_MAP[ex.id]) return X3_MAP[ex.id];
   const n=(ex.name||"").toLowerCase(), eq=/mancuern/.test(n)?'db':(/barra/.test(n)?'bar':(/m[aá]quina/.test(n)?'handles':'none'));
-  const R=[[/(extensi[oó]n de cu[aá]d|cu[aá]driceps).*(unilateral|individual)/,'legextuni','none'],[/(curl )?femoral.*(unilateral|individual)/,'legcurluni','none'],[/extensi[oó]n de cu[aá]d|leg ext|cu[aá]driceps en m[aá]quina/,'legext','none'],[/curl femoral sentado|femoral sentado/,'legcurlsit','none'],[/femoral|leg curl/,'legcurl','none'],
+  const R=[[/hiperextensi[oó]n|extensi[oó]n lumbar|banco romano|silla romana/,'hyperext','none'],[/(extensi[oó]n de cu[aá]d|cu[aá]driceps).*(unilateral|individual)/,'legextuni','none'],[/(curl )?femoral.*(unilateral|individual)/,'legcurluni','none'],[/extensi[oó]n de cu[aá]d|leg ext|cu[aá]driceps en m[aá]quina/,'legext','none'],[/curl femoral sentado|femoral sentado/,'legcurlsit','none'],[/femoral|leg curl/,'legcurl','none'],
     [/polea alta|remo alto/,'highrow','handles'],[/remo.*(inclinad|banco)/,'inclrow','db'],[/remo.*m[aá]quina/,'machrow','handles'],[/remo.*(polea|sentado|gironda)/,'cablerow','hbar'],[/remo/,'bentrow',eq==='none'?'bar':eq],
     [/press franc|skull|rompecr/,'skull','ez'],[/inclinad/,eq==='handles'?'inclinemach':'incline',eq==='none'?'bar':eq],[/press de pecho|chest press/,'chestpress','handles'],
     [/banca|press plano|floor/,'bench',eq==='none'?'bar':eq],[/pec ?fly|pec deck|apertura/,'pecfly','handles'],[/cruce|crossover|arriba hacia abajo/,'crossover','handles'],[/fondo|dip/,'dips','none'],
@@ -6722,7 +6724,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=27;   // subir junto con CACHE de sw.js
+const APP_VER=28;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
