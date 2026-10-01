@@ -53,8 +53,8 @@ function load(){
     const tgt=DEFAULT_EXERCISES.find(e=>e.id===to); remapExId(from,to,tgt&&tgt.name);
     state.exercises=state.exercises.filter(e=>e.id!==from);
   });
-  // migración: nombres nuevos de ejercicios de fábrica (mismo id) y ejercicios de fábrica nuevos, sin tocar los del usuario
-  syncExLibrary();
+  // migración única: nombres nuevos de ejercicios de fábrica (mismo id) y ejercicios nuevos; luego, los de fábrica que falten (sin duplicar por nombre)
+  const libMigrated=migrateExLibrary(), libAdded=addMissingDefaultExercises();
   // limpieza de duplicados/ejercicios retirados: se quitan de la biblioteca SOLO
   // si no están usados en ninguna sesión, plantilla o PR (así no se pierde nada).
   ["e_jalontriceps","e_copastriceps","e_remohammer","e_costurera"].forEach(id=>{
@@ -90,6 +90,7 @@ function load(){
   ensureSlots(); ensureWater();
   // restaurar sesión de entreno en curso (si la app se cerró a mitad)
   if(state.sessionDraft) sessionDraft = state.sessionDraft;
+  if(libMigrated||libAdded) saveLocal();   // la biblioteca migrada se guarda ya (sin cambiar _updatedAt: no pisa a la nube)
 }
 function ensureSlots(){
   if(!state.plan.slots) state.plan.slots = {};
@@ -180,10 +181,13 @@ function cloudPull(){
       const d=snap.data(), remoteAt=d.updatedAt||0, localAt=state._updatedAt||0;
       if(d.data && remoteAt>=localAt){
         cloudApplying=true;
+        delete state._exLibMig;   // la copia de la nube puede venir de una versión anterior: se vuelve a evaluar
         state=Object.assign(state, d.data);
         sessionDraft=state.sessionDraft||null;
+        const migrated=migrateExLibrary();   // sin esto la copia vieja de la nube pisaba la biblioteca ya migrada
         ensureSlots(); ensureWater(); saveLocal();
         cloudApplying=false; cloudLastSync=nowTime();
+        if(migrated) save();   // sube a la nube la biblioteca migrada
         nav(currentView||"hoy");
         toast("Datos traídos de la nube");
       } else { cloudPush(true); }
@@ -704,8 +708,9 @@ function importData(input){
       const data=JSON.parse(r.result);
       if(!data || typeof data!=="object") throw 0;
       if(!confirm("Esto reemplazará tus datos actuales con los del respaldo. ¿Continuar?")){ input.value=""; return; }
+      delete state._exLibMig;   // la marca de migración la decide el respaldo: uno anterior no la trae y se migra
       state=Object.assign(state,data);
-      syncExLibrary();   // un respaldo de una versión anterior queda con los nombres y ejercicios de fábrica actuales
+      migrateExLibrary();       // un respaldo de una versión anterior queda con los nombres y ejercicios de fábrica actuales
       sessionDraft=state.sessionDraft||null;
       ensureSlots(); save(); nav("hoy");
       toast("Datos restaurados");
@@ -4329,18 +4334,34 @@ function remapExId(from,to,name){
   Object.values(state.routineVersions||{}).forEach(arr=>arr.forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))));
   ["manualPRs","prWarmups"].forEach(k=>{ const o=state[k]; if(o&&o[from]){ if(!o[to]) o[to]=o[from]; delete o[from]; } });
 }
-/* biblioteca al día con la lista de fábrica (al abrir la app y al importar un respaldo):
-   - ejercicios renombrados: mismo id (historial, rutinas y PRs intactos); se cambia el nombre en la
-     biblioteca y en las copias del nombre guardadas en sesiones, rutinas y programas. Solo cambia
-     lo que aún tiene el nombre anterior (no pisa un nombre que hayas personalizado).
-   - ejercicios de fábrica nuevos: se añaden sin tocar los del usuario */
-function syncExLibrary(){
-  if(!Array.isArray(state.exercises)) return;
-  const RENAMED={e_extrice:"Extensión de tríceps", e_rdl:"RDL"};   // id → nombre anterior
-  Object.entries(RENAMED).forEach(([id,old])=>{
-    const de=DEFAULT_EXERCISES.find(e=>e.id===id); if(!de) return;
-    const fx=x=>{ if(x&&x.exId===id&&x.name===old) x.name=de.name; };
-    state.exercises.forEach(e=>{ if(e.id===id&&e.name===old) e.name=de.name; });
+/* ---- biblioteca de ejercicios al día con la lista de fábrica ----
+   Los datos del usuario (state.exercises) son la fuente de verdad: el nombre se guarda en ellos y las
+   sesiones guardan además una copia (entries[].name). Comparación por nombre sin mayúsculas ni acentos. */
+const exNorm=s=>(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/\s+/g," ").trim();
+const EXLIB_MIG=1;                                                   // versión de la migración (state._exLibMig)
+const EXLIB_RENAMED={e_extrice:["extension de triceps"], e_rdl:["rdl"]};   // id → nombres anteriores
+/* añade los de fábrica que falten; no duplica (mismo id o mismo nombre) ni reemplaza nada del usuario */
+function addMissingDefaultExercises(){
+  if(!Array.isArray(state.exercises)) return 0;
+  const names=new Set(state.exercises.map(e=>exNorm(e.name))); let n=0;
+  DEFAULT_EXERCISES.forEach(de=>{
+    if(state.exercises.some(e=>e.id===de.id)||names.has(exNorm(de.name))) return;
+    const ne={...de}; if(de.muscles) ne.muscles={...de.muscles};
+    state.exercises.push(ne); names.add(exNorm(de.name)); n++;
+  });
+  return n;
+}
+/* MIGRACIÓN ÚNICA (marca state._exLibMig): corre al cargar datos viejos, al importar un respaldo y al traer
+   los datos de la nube.
+   - Renombra (mismo id) solo si el ejercicio aún tiene el nombre anterior; no pisa un nombre personalizado.
+   - Actualiza la copia del nombre guardada en sesiones, sesión en curso, rutinas, programas y versiones.
+   - Inserta los ejercicios de fábrica que falten. Devuelve true si corrió. */
+function migrateExLibrary(){
+  if(!Array.isArray(state.exercises) || state._exLibMig>=EXLIB_MIG) return false;
+  Object.entries(EXLIB_RENAMED).forEach(([id,olds])=>{
+    const de=DEFAULT_EXERCISES.find(e=>e.id===id), cur=state.exercises.find(e=>e.id===id); if(!de||!cur) return;
+    if(olds.includes(exNorm(cur.name))) cur.name=de.name;
+    const fx=x=>{ if(x&&x.exId===id&&x.name!=null) x.name=cur.name; };   // la copia sigue al nombre de la biblioteca
     (state.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx));
     (state.programs||[]).forEach(p=>(p.weeks||[]).forEach(w=>(w.days||[]).forEach(d=>(d.items||[]).forEach(fx))));
     (state.workouts||[]).forEach(w=>(w.entries||[]).forEach(fx));
@@ -4348,7 +4369,8 @@ function syncExLibrary(){
     (state.clients||[]).forEach(c=>(c.routines||[]).forEach(r=>{ (r.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx)); (r.versions||[]).forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))); }));
     Object.values(state.routineVersions||{}).forEach(arr=>arr.forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))));
   });
-  DEFAULT_EXERCISES.forEach(de=>{ if(!state.exercises.some(e=>e.id===de.id)) state.exercises.push({...de}); });
+  addMissingDefaultExercises();
+  state._exLibMig=EXLIB_MIG; return true;
 }
 function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.forEach(x=>ids.add(x.exId)));
   const defIds=new Set(DEFAULT_EXERCISES.map(e=>e.id)); const out=[];
@@ -6724,7 +6746,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=28;   // subir junto con CACHE de sw.js
+const APP_VER=29;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
