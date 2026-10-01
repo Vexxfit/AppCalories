@@ -102,7 +102,7 @@ const DEFAULT_EXERCISES = [
   {id:"e_pressmil",       name:"Press militar con mancuernas",               group:"Hombro",     repRange:"6-10",  rir:"0-1"},
   {id:"e_latmanc",        name:"Laterales con mancuernas",                   group:"Hombro",     repRange:"8-15",  rir:"0-1"},
   {id:"e_latpolea",       name:"Laterales en polea unilaterales",            group:"Hombro",     repRange:"8-12",  rir:"0-1"},
-  {id:"e_extrice",        name:"Extensión de tríceps",                       group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_extrice",        name:"Extensión de tríceps con cuerda",            group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
   {id:"e_extuni",         name:"Extensión sobre la cabeza unilateral",       group:"Tríceps",    repRange:"10-15", rir:"0-1"},
   {id:"e_pulldownneutro", name:"Pulldown neutro cerrado",                    group:"Espalda",    repRange:"12-15", rir:"0-1"},
   {id:"e_pulldownabierto",name:"Pulldown abierto",                           group:"Espalda",    repRange:"10-15", rir:"0-1"},
@@ -116,7 +116,7 @@ const DEFAULT_EXERCISES = [
   {id:"e_faceaway",       name:"Face away curl",                             group:"Bíceps",     repRange:"10-15", rir:"0-1"},
   {id:"e_curlfemac",      name:"Curl femoral acostado",                      group:"Femoral",    repRange:"8-12",  rir:"0-1"},
   {id:"e_curlfemsent",    name:"Curl femoral sentado",                       group:"Femoral",    repRange:"8-15",  rir:"0-1"},
-  {id:"e_rdl",            name:"RDL",                                        group:"Femoral",    repRange:"6-8",   rir:"1-2"},
+  {id:"e_rdl",            name:"Peso muerto rumano con barra",               group:"Femoral",    repRange:"6-8",   rir:"1-2"},
   {id:"e_pesomuerto",     name:"Peso muerto convencional",                   group:"Femoral",    repRange:"4-8",   rir:"1-2"},
   {id:"e_sentadilla",     name:"Sentadilla (Smith, Hack o péndulo)",         group:"Cuádriceps", repRange:"6-10",  rir:"1-2"},
   {id:"e_extcuad",        name:"Extensión de cuádriceps",                    group:"Cuádriceps", repRange:"6-10",  rir:"0-1"},
@@ -157,6 +157,12 @@ const DEFAULT_EXERCISES = [
   {id:"e_predicadormaq",  name:"Curl predicador en máquina",                 group:"Bíceps",     repRange:"8-12",  rir:"0-1"},
   {id:"e_pendulo",        name:"Sentadilla péndulo",                         group:"Cuádriceps", repRange:"6-10",  rir:"0-1"},
   {id:"e_movcadera",      name:"Movilidad de cadera",                        group:"Core",       repRange:"6-10",  rir:"2-3"},
+  // Nuevos (biblioteca)
+  {id:"e_pressmilsmith",  name:"Press militar en Smith",                     group:"Hombro",     repRange:"6-10",  rir:"0-1"},
+  {id:"e_extricebarra",   name:"Extensión de tríceps en polea con barra",    group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_girondaprono",   name:"Remo gironda agarre prono ancho",            group:"Espalda",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_remounimanc",    name:"Remo unilateral con mancuerna",              group:"Espalda",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_hiperext",       name:"Hiperextensión lumbar",                      group:"Core",       repRange:"10-15", rir:"0-1"},
 ];
 
 /* Tips de técnica por ejercicio (clave + error común), en lenguaje simple */
@@ -227,6 +233,11 @@ const EX_TIPS={
   e_predicadormaq:"Brazo apoyado; aprieta arriba en cada rep y baja controlado casi hasta extender. Evita medias reps.",
   e_pendulo:"Baja controlado buscando profundidad; talones firmes y empuja parejo. Prioriza técnica sobre peso.",
   e_movcadera:"Circuito de movilidad (6 reps por lado salvo indicado): elevación de pierna hacia atrás · rotar cadera adentro/afuera · flexión lateral · sentadilla sin peso 5 reps + isometría 15 s · alcanzar puntas de pie · rodilla toca talón 10 y 10 · girar y pegar pecho al suelo · tocar puntas sentado · tocar puntas parado y cruzado.",
+  e_pressmilsmith:"Espalda pegada al respaldo; baja la barra hasta la barbilla y empuja sin arquear la espalda baja. Ajusta el banco para que la barra suba justo frente a tu cara y gira el gancho para trabarla al terminar.",
+  e_extricebarra:"Codos pegados al cuerpo y fijos; extiende completo y sube controlado hasta el pecho. Evita balancear el torso o abrir los codos.",
+  e_girondaprono:"Agarre prono ancho (palmas hacia abajo); pecho arriba y jala la barra al pecho bajo llevando los codos hacia afuera y atrás. Aprieta la espalda 1 seg. Evita balancearte o encoger los hombros.",
+  e_remounimanc:"Una mano y una rodilla en el banco, espalda recta y paralela al piso; jala la mancuerna a la cadera con el codo atrás y arriba. Baja lento hasta estirar el dorsal. Evita girar el torso para subir más peso.",
+  e_hiperext:"Cojín justo bajo la cadera (no sobre el abdomen) y tobillos fijos; baja con la espalda recta y sube hasta alinear el cuerpo, sin pasarte. Aprieta los glúteos arriba. Evita arquear la zona lumbar o rebotar.",
 };
 /* Movilidad (días de descanso, antes de dormir). Ficha distinta a fuerza.
    type: estatico = estiramiento estático · dinamico = movilidad dinámica · cars = rotación articular controlada */

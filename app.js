@@ -53,8 +53,8 @@ function load(){
     const tgt=DEFAULT_EXERCISES.find(e=>e.id===to); remapExId(from,to,tgt&&tgt.name);
     state.exercises=state.exercises.filter(e=>e.id!==from);
   });
-  // migración: añadir ejercicios de fábrica nuevos sin tocar los del usuario
-  DEFAULT_EXERCISES.forEach(de=>{ if(!state.exercises.some(e=>e.id===de.id)) state.exercises.push({...de}); });
+  // migración: nombres nuevos de ejercicios de fábrica (mismo id) y ejercicios de fábrica nuevos, sin tocar los del usuario
+  syncExLibrary();
   // limpieza de duplicados/ejercicios retirados: se quitan de la biblioteca SOLO
   // si no están usados en ninguna sesión, plantilla o PR (así no se pierde nada).
   ["e_jalontriceps","e_copastriceps","e_remohammer","e_costurera"].forEach(id=>{
@@ -705,6 +705,7 @@ function importData(input){
       if(!data || typeof data!=="object") throw 0;
       if(!confirm("Esto reemplazará tus datos actuales con los del respaldo. ¿Continuar?")){ input.value=""; return; }
       state=Object.assign(state,data);
+      syncExLibrary();   // un respaldo de una versión anterior queda con los nombres y ejercicios de fábrica actuales
       sessionDraft=state.sessionDraft||null;
       ensureSlots(); save(); nav("hoy");
       toast("Datos restaurados");
@@ -4328,6 +4329,27 @@ function remapExId(from,to,name){
   Object.values(state.routineVersions||{}).forEach(arr=>arr.forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))));
   ["manualPRs","prWarmups"].forEach(k=>{ const o=state[k]; if(o&&o[from]){ if(!o[to]) o[to]=o[from]; delete o[from]; } });
 }
+/* biblioteca al día con la lista de fábrica (al abrir la app y al importar un respaldo):
+   - ejercicios renombrados: mismo id (historial, rutinas y PRs intactos); se cambia el nombre en la
+     biblioteca y en las copias del nombre guardadas en sesiones, rutinas y programas. Solo cambia
+     lo que aún tiene el nombre anterior (no pisa un nombre que hayas personalizado).
+   - ejercicios de fábrica nuevos: se añaden sin tocar los del usuario */
+function syncExLibrary(){
+  if(!Array.isArray(state.exercises)) return;
+  const RENAMED={e_extrice:"Extensión de tríceps", e_rdl:"RDL"};   // id → nombre anterior
+  Object.entries(RENAMED).forEach(([id,old])=>{
+    const de=DEFAULT_EXERCISES.find(e=>e.id===id); if(!de) return;
+    const fx=x=>{ if(x&&x.exId===id&&x.name===old) x.name=de.name; };
+    state.exercises.forEach(e=>{ if(e.id===id&&e.name===old) e.name=de.name; });
+    (state.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx));
+    (state.programs||[]).forEach(p=>(p.weeks||[]).forEach(w=>(w.days||[]).forEach(d=>(d.items||[]).forEach(fx))));
+    (state.workouts||[]).forEach(w=>(w.entries||[]).forEach(fx));
+    if(state.sessionDraft) (state.sessionDraft.entries||[]).forEach(fx);
+    (state.clients||[]).forEach(c=>(c.routines||[]).forEach(r=>{ (r.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx)); (r.versions||[]).forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))); }));
+    Object.values(state.routineVersions||{}).forEach(arr=>arr.forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))));
+  });
+  DEFAULT_EXERCISES.forEach(de=>{ if(!state.exercises.some(e=>e.id===de.id)) state.exercises.push({...de}); });
+}
 function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.forEach(x=>ids.add(x.exId)));
   const defIds=new Set(DEFAULT_EXERCISES.map(e=>e.id)); const out=[];
   ids.forEach(id=>{ if(!defIds.has(id)){ const e=exById(id); if(e){ const o={id:e.id,name:e.name,group:e.group,repRange:e.repRange,rir:e.rir,custom:true}; if(e.muscles)o.muscles=e.muscles; out.push(o); } } });
@@ -5237,7 +5259,9 @@ const EX_MUSCLES={
   e_latmaq:{deltLat:1}, e_copastriceps:{triceps:1}, e_predicadormaq:{biceps:1,antebrazo:0.2},
   e_remohammer:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_costurera:{aductor:1},
   e_pendulo:{cuadriceps:1,gluteo:0.5,femoral:0.3}, e_movcadera:{core:0.3,gluteo:0.2},
-  ce_1782313044383:{femoral:1}
+  ce_1782313044383:{femoral:1},
+  e_pressmilsmith:{deltAnt:1,deltLat:0.5,triceps:0.45}, e_extricebarra:{triceps:1}, e_girondaprono:{espaldaAlta:1,dorsal:0.6,deltPost:0.4,biceps:0.35},
+  e_remounimanc:{dorsal:1,espaldaAlta:0.4,biceps:0.35}   // e_hiperext usa el mapa por defecto del grupo Core
 };
 const GROUP_FALLBACK={ "Pecho":{pecho:1,deltAnt:0.4,triceps:0.4},"Hombro":{deltLat:1,deltAnt:0.5},"Espalda":{dorsal:1,espaldaAlta:0.5,biceps:0.4,deltPost:0.3},
   "Bíceps":{biceps:1,antebrazo:0.3},"Tríceps":{triceps:1},"Cuádriceps":{cuadriceps:1,gluteo:0.4},"Femoral":{femoral:1,gluteo:0.4},"Glúteo":{gluteo:1,femoral:0.3},"Pantorrilla":{pantorrilla:1},"Core":{core:1} };
@@ -5853,6 +5877,22 @@ const X3P={
     {P:[0,41,-6],th:95,hr:{a:[5,3,6]},ep:[0.3,0,-1]}]}
 };
 X3P.smith=Object.assign({},X3P.squat,{eq:[{a:[22,0,0],b:[22,98,0],w:3,t:3,c:'metal'},{a:[-22,0,0],b:[-22,98,0],w:3,t:3,c:'metal'},{a:[-22,98,0],b:[22,98,0],w:3,t:3,c:'metal'}]});
+/* ----- biblioteca nueva: Smith, polea con barra, remos y lumbar ----- */
+/* press militar sentado en Smith: la barra corre por dos guías verticales */
+X3P.smithohp={views:['tq','side','front'], k:[{...SIT,th:-5,hr:[6,4,5],ep:[0.5,-1,0.1]},{hr:[2,28,3]}], barLen:26, pr:7,
+  eq:X3EQ.seat(true).concat([{a:[31,0,-1],b:[31,104,-1],w:4,t:4,c:'frame'},{a:[-31,0,-1],b:[-31,104,-1],w:4,t:4,c:'frame'},{a:[-31,104,-1],b:[31,104,-1],w:4,t:4,c:'frame'}]),
+  links:[{from:{j:'Wm',o:[27,0,0]},to:{j:'Wm',o:[31,0,0]},w:3.2,c:'metal',mir:1}]};
+/* extensión de tríceps en polea con barra recta (misma mecánica que con cuerda) */
+X3P.pushdownbar=Object.assign({},X3P.pushdown,{rope:0,cab:[0,94,24],eq:[X3EQ.tower(0,26,98)],k:[{P:[0,42.6,0],th:10,hr:[-2,-8,11],ep:[0,-1,-0.7],fr:FEET,kp:[0.2,0,1]},{hr:[-1,-28,5]}]});
+/* remo gironda con barra larga, agarre prono ancho: manos muy abiertas y codos hacia afuera */
+X3P.girondawide=Object.assign({},X3P.gironda,{views:['tq','side'],k:[{P:[0,12,-6],th:20,hr:[9,-1,27],ep:[1,-0.4,-0.8],fr:{a:[8,10,29]},kp:[0.2,1,0.3],fdir:[0,0.6,-0.8]},{th:-6,hr:{p:[19,17,7]},ep:[1,0,-0.5]}]});
+/* remo unilateral con mancuerna: mano y rodilla izquierdas en el banco, jala la derecha */
+X3P.dbrowuni={views:['side','tq'], uni:1, k:[{P:[0,38,-4],th:72,hr:{g:[1,-27.5,2]},ep:[0.3,-0.6,-1],hl:{a:[11,18.5,26]},epL:[1,0,-0.3],fr:{a:[18,2,8]},kp:[0.2,0,1],fl:{a:[11,19,-16]},kpL:[0,0,1]},{tw:-8,hr:{p:[8,11,5]}}],
+  eq:[{a:[-11,15,-18],b:[-11,15,32],w:12,t:4,c:'pad'},{a:[-11,0,-12],b:[-11,13,-12],w:6,t:5,c:'frame'},{a:[-11,0,26],b:[-11,13,26],w:6,t:5,c:'frame'}]};
+/* hiperextensión lumbar en banco a 45°: caderas en el cojín, tobillos bajo el rodillo, el torso sube hasta alinearse con las piernas */
+X3P.hyperext={views:['side','tq'], k:[{P:[0,40,6],th:132,hp:-30,hr:[-6,9,-2],ep:[1,0.2,-0.3],fr:{a:[8,11,-23]},fdir:[0,-0.7,0.7],kp:[0,0.7,0.7]},{th:45,hp:0}],
+  eq:[{a:[0,0,-22],b:[0,0,16],w:30,t:3,c:'frame'},{a:[12,0,15],b:[12,31,8],w:5,t:5,c:'frame'},{a:[-12,0,15],b:[-12,31,8],w:5,t:5,c:'frame'},{a:[12,0,-12],b:[12,13,-8],w:5,t:5,c:'frame'},{a:[-12,0,-12],b:[-12,13,-8],w:5,t:5,c:'frame'},
+    {a:[0,16.7,-7.4],b:[0,33.6,9.5],w:22,t:5,c:'pad'},{a:[0,12.4,-28.6],b:[0,0.4,-16.6],w:18,t:3,c:'frame'},{a:[-9,17.7,-22.7],b:[9,17.7,-22.7],w:5,t:5,c:'pad'}]};
 /* ejercicio → [movimiento, carga] */
 const X3_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['inclinemach','handles'],e_pressincbarra:['incline','bar'],e_pressincmanc:['incline','db'],
   e_pecfly:['pecfly','handles'],e_flysarriba:['crossover','handles'],e_crossover:['crossover','handles'],e_fondos:['dips','none'],e_pressmil:['ohpsit','db'],e_pressmaqhombro:['ohpmach','handles'],
@@ -5865,7 +5905,8 @@ const X3_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['inclinemach','handles
   e_pendulo:['pendulum','none'],e_extcuad:['legext','none'],e_prensa:['legpress','none'],e_abductor:['abductor','none'],e_aductor:['aductor','none'],e_pantprensa:['calfpress','none'],
   e_pantsent:['calfsit','none'],e_gemelopie:['calfstand','db'],e_pressmaqpecho:['chestpress','handles'],e_pressplanomanc:['bench','db'],e_floorpress:['floorpress','db'],
   e_zancadas:['lunge','db'],e_bulgara:['bulgara','db'],e_hipthrust:['hipthrust','bar'],e_plancha:['plank','none'],e_crunchpolea:['cablecrunch','none'],
-  e_elevpiernas:['legraise','none'],e_abruedita:['abwheel','none'],e_movcadera:['m_circuit','none']};
+  e_elevpiernas:['legraise','none'],e_abruedita:['abwheel','none'],e_movcadera:['m_circuit','none'],
+  e_pressmilsmith:['smithohp','bar'],e_extricebarra:['pushdownbar','hbar'],e_girondaprono:['girondawide','lbar'],e_remounimanc:['dbrowuni','dbn'],e_hiperext:['hyperext','none']};
 /* ejercicios propios: por nombre (lo más específico primero) y si no, por grupo */
 function x3PatFor(ex){
   if(!ex) return null; if(X3_MAP[ex.id]) return X3_MAP[ex.id];
@@ -6681,7 +6722,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=26;   // subir junto con CACHE de sw.js
+const APP_VER=27;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
