@@ -102,7 +102,7 @@ const DEFAULT_EXERCISES = [
   {id:"e_pressmil",       name:"Press militar con mancuernas",               group:"Hombro",     repRange:"6-10",  rir:"0-1"},
   {id:"e_latmanc",        name:"Laterales con mancuernas",                   group:"Hombro",     repRange:"8-15",  rir:"0-1"},
   {id:"e_latpolea",       name:"Laterales en polea unilaterales",            group:"Hombro",     repRange:"8-12",  rir:"0-1"},
-  {id:"e_extrice",        name:"Extensión de tríceps",                       group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_extrice",        name:"Extensión de tríceps con cuerda",            group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
   {id:"e_extuni",         name:"Extensión sobre la cabeza unilateral",       group:"Tríceps",    repRange:"10-15", rir:"0-1"},
   {id:"e_pulldownneutro", name:"Pulldown neutro cerrado",                    group:"Espalda",    repRange:"12-15", rir:"0-1"},
   {id:"e_pulldownabierto",name:"Pulldown abierto",                           group:"Espalda",    repRange:"10-15", rir:"0-1"},
@@ -116,7 +116,7 @@ const DEFAULT_EXERCISES = [
   {id:"e_faceaway",       name:"Face away curl",                             group:"Bíceps",     repRange:"10-15", rir:"0-1"},
   {id:"e_curlfemac",      name:"Curl femoral acostado",                      group:"Femoral",    repRange:"8-12",  rir:"0-1"},
   {id:"e_curlfemsent",    name:"Curl femoral sentado",                       group:"Femoral",    repRange:"8-15",  rir:"0-1"},
-  {id:"e_rdl",            name:"RDL",                                        group:"Femoral",    repRange:"6-8",   rir:"1-2"},
+  {id:"e_rdl",            name:"Peso muerto rumano con barra",               group:"Femoral",    repRange:"6-8",   rir:"1-2"},
   {id:"e_pesomuerto",     name:"Peso muerto convencional",                   group:"Femoral",    repRange:"4-8",   rir:"1-2"},
   {id:"e_sentadilla",     name:"Sentadilla (Smith, Hack o péndulo)",         group:"Cuádriceps", repRange:"6-10",  rir:"1-2"},
   {id:"e_extcuad",        name:"Extensión de cuádriceps",                    group:"Cuádriceps", repRange:"6-10",  rir:"0-1"},
@@ -157,6 +157,12 @@ const DEFAULT_EXERCISES = [
   {id:"e_predicadormaq",  name:"Curl predicador en máquina",                 group:"Bíceps",     repRange:"8-12",  rir:"0-1"},
   {id:"e_pendulo",        name:"Sentadilla péndulo",                         group:"Cuádriceps", repRange:"6-10",  rir:"0-1"},
   {id:"e_movcadera",      name:"Movilidad de cadera",                        group:"Core",       repRange:"6-10",  rir:"2-3"},
+  // Nuevos (biblioteca)
+  {id:"e_pressmilsmith",  name:"Press militar en Smith",                     group:"Hombro",     repRange:"6-10",  rir:"0-1"},
+  {id:"e_extricebarra",   name:"Extensión de tríceps en polea con barra",    group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_girondaprono",   name:"Remo gironda agarre prono ancho",            group:"Espalda",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_remounimanc",    name:"Remo unilateral con mancuerna",              group:"Espalda",    repRange:"8-12",  rir:"0-1"},
+  {id:"e_hiperext",       name:"Hiperextensión lumbar",                      group:"Core",       repRange:"10-15", rir:"0-1"},
 ];
 
 /* Tips de técnica por ejercicio (clave + error común), en lenguaje simple */

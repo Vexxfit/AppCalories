@@ -53,8 +53,8 @@ function load(){
     const tgt=DEFAULT_EXERCISES.find(e=>e.id===to); remapExId(from,to,tgt&&tgt.name);
     state.exercises=state.exercises.filter(e=>e.id!==from);
   });
-  // migración: añadir ejercicios de fábrica nuevos sin tocar los del usuario
-  DEFAULT_EXERCISES.forEach(de=>{ if(!state.exercises.some(e=>e.id===de.id)) state.exercises.push({...de}); });
+  // migración: nombres nuevos de ejercicios de fábrica (mismo id) y ejercicios de fábrica nuevos, sin tocar los del usuario
+  syncExLibrary();
   // limpieza de duplicados/ejercicios retirados: se quitan de la biblioteca SOLO
   // si no están usados en ninguna sesión, plantilla o PR (así no se pierde nada).
   ["e_jalontriceps","e_copastriceps","e_remohammer","e_costurera"].forEach(id=>{
@@ -705,6 +705,7 @@ function importData(input){
       if(!data || typeof data!=="object") throw 0;
       if(!confirm("Esto reemplazará tus datos actuales con los del respaldo. ¿Continuar?")){ input.value=""; return; }
       state=Object.assign(state,data);
+      syncExLibrary();   // un respaldo de una versión anterior queda con los nombres y ejercicios de fábrica actuales
       sessionDraft=state.sessionDraft||null;
       ensureSlots(); save(); nav("hoy");
       toast("Datos restaurados");
@@ -4328,6 +4329,27 @@ function remapExId(from,to,name){
   Object.values(state.routineVersions||{}).forEach(arr=>arr.forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))));
   ["manualPRs","prWarmups"].forEach(k=>{ const o=state[k]; if(o&&o[from]){ if(!o[to]) o[to]=o[from]; delete o[from]; } });
 }
+/* biblioteca al día con la lista de fábrica (al abrir la app y al importar un respaldo):
+   - ejercicios renombrados: mismo id (historial, rutinas y PRs intactos); se cambia el nombre en la
+     biblioteca y en las copias del nombre guardadas en sesiones, rutinas y programas. Solo cambia
+     lo que aún tiene el nombre anterior (no pisa un nombre que hayas personalizado).
+   - ejercicios de fábrica nuevos: se añaden sin tocar los del usuario */
+function syncExLibrary(){
+  if(!Array.isArray(state.exercises)) return;
+  const RENAMED={e_extrice:"Extensión de tríceps", e_rdl:"RDL"};   // id → nombre anterior
+  Object.entries(RENAMED).forEach(([id,old])=>{
+    const de=DEFAULT_EXERCISES.find(e=>e.id===id); if(!de) return;
+    const fx=x=>{ if(x&&x.exId===id&&x.name===old) x.name=de.name; };
+    state.exercises.forEach(e=>{ if(e.id===id&&e.name===old) e.name=de.name; });
+    (state.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx));
+    (state.programs||[]).forEach(p=>(p.weeks||[]).forEach(w=>(w.days||[]).forEach(d=>(d.items||[]).forEach(fx))));
+    (state.workouts||[]).forEach(w=>(w.entries||[]).forEach(fx));
+    if(state.sessionDraft) (state.sessionDraft.entries||[]).forEach(fx);
+    (state.clients||[]).forEach(c=>(c.routines||[]).forEach(r=>{ (r.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx)); (r.versions||[]).forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))); }));
+    Object.values(state.routineVersions||{}).forEach(arr=>arr.forEach(v=>(v.templates||[]).forEach(t=>(t.exercises||[]).forEach(fx))));
+  });
+  DEFAULT_EXERCISES.forEach(de=>{ if(!state.exercises.some(e=>e.id===de.id)) state.exercises.push({...de}); });
+}
 function customExsFor(tpls){ const ids=new Set(); tpls.forEach(t=>t.exercises.forEach(x=>ids.add(x.exId)));
   const defIds=new Set(DEFAULT_EXERCISES.map(e=>e.id)); const out=[];
   ids.forEach(id=>{ if(!defIds.has(id)){ const e=exById(id); if(e){ const o={id:e.id,name:e.name,group:e.group,repRange:e.repRange,rir:e.rir,custom:true}; if(e.muscles)o.muscles=e.muscles; out.push(o); } } });
@@ -5237,7 +5259,9 @@ const EX_MUSCLES={
   e_latmaq:{deltLat:1}, e_copastriceps:{triceps:1}, e_predicadormaq:{biceps:1,antebrazo:0.2},
   e_remohammer:{dorsal:1,espaldaAlta:0.6,biceps:0.5,deltPost:0.3}, e_costurera:{aductor:1},
   e_pendulo:{cuadriceps:1,gluteo:0.5,femoral:0.3}, e_movcadera:{core:0.3,gluteo:0.2},
-  ce_1782313044383:{femoral:1}
+  ce_1782313044383:{femoral:1},
+  e_pressmilsmith:{deltAnt:1,deltLat:0.5,triceps:0.45}, e_extricebarra:{triceps:1}, e_girondaprono:{espaldaAlta:1,dorsal:0.6,deltPost:0.4,biceps:0.35},
+  e_remounimanc:{dorsal:1,espaldaAlta:0.4,biceps:0.35}   // e_hiperext usa el mapa por defecto del grupo Core
 };
 const GROUP_FALLBACK={ "Pecho":{pecho:1,deltAnt:0.4,triceps:0.4},"Hombro":{deltLat:1,deltAnt:0.5},"Espalda":{dorsal:1,espaldaAlta:0.5,biceps:0.4,deltPost:0.3},
   "Bíceps":{biceps:1,antebrazo:0.3},"Tríceps":{triceps:1},"Cuádriceps":{cuadriceps:1,gluteo:0.4},"Femoral":{femoral:1,gluteo:0.4},"Glúteo":{gluteo:1,femoral:0.3},"Pantorrilla":{pantorrilla:1},"Core":{core:1} };
@@ -6681,7 +6705,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=26;   // subir junto con CACHE de sw.js
+const APP_VER=27;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
