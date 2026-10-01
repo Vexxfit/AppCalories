@@ -158,11 +158,11 @@ const DEFAULT_EXERCISES = [
   {id:"e_pendulo",        name:"Sentadilla péndulo",                         group:"Cuádriceps", repRange:"6-10",  rir:"0-1"},
   {id:"e_movcadera",      name:"Movilidad de cadera",                        group:"Core",       repRange:"6-10",  rir:"2-3"},
   // Nuevos (biblioteca)
-  {id:"e_pressmilsmith",  name:"Press militar en Smith",                     group:"Hombro",     repRange:"6-10",  rir:"0-1"},
-  {id:"e_extricebarra",   name:"Extensión de tríceps en polea con barra",    group:"Tríceps",    repRange:"8-12",  rir:"0-1"},
-  {id:"e_girondaprono",   name:"Remo gironda agarre prono ancho",            group:"Espalda",    repRange:"8-12",  rir:"0-1"},
-  {id:"e_remounimanc",    name:"Remo unilateral con mancuerna",              group:"Espalda",    repRange:"8-12",  rir:"0-1"},
-  {id:"e_hiperext",       name:"Hiperextensión lumbar",                      group:"Core",       repRange:"10-15", rir:"0-1"},
+  {id:"e_pressmilsmith",  name:"Press militar en Smith",                     group:"Hombro",     repRange:"6-10",  rir:"0-1", muscles:{deltAnt:1,deltLat:0.5,triceps:0.45}},
+  {id:"e_extricebarra",   name:"Extensión de tríceps en polea con barra",    group:"Tríceps",    repRange:"8-12",  rir:"0-1", muscles:{triceps:1}},
+  {id:"e_girondaprono",   name:"Remo gironda agarre prono ancho",            group:"Espalda",    repRange:"8-12",  rir:"0-1", muscles:{espaldaAlta:1,dorsal:0.6,deltPost:0.4,biceps:0.35}},
+  {id:"e_remounimanc",    name:"Remo unilateral con mancuerna",              group:"Espalda",    repRange:"8-12",  rir:"0-1", muscles:{dorsal:1,espaldaAlta:0.4,biceps:0.35}},
+  {id:"e_hiperext",       name:"Hiperextensión lumbar",                      group:"Core",       repRange:"10-15", rir:"0-1", muscles:{lumbar:1,gluteo:0.5,femoral:0.3}},
 ];
 
 /* Tips de técnica por ejercicio (clave + error común), en lenguaje simple */
