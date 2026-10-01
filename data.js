@@ -233,6 +233,11 @@ const EX_TIPS={
   e_predicadormaq:"Brazo apoyado; aprieta arriba en cada rep y baja controlado casi hasta extender. Evita medias reps.",
   e_pendulo:"Baja controlado buscando profundidad; talones firmes y empuja parejo. Prioriza técnica sobre peso.",
   e_movcadera:"Circuito de movilidad (6 reps por lado salvo indicado): elevación de pierna hacia atrás · rotar cadera adentro/afuera · flexión lateral · sentadilla sin peso 5 reps + isometría 15 s · alcanzar puntas de pie · rodilla toca talón 10 y 10 · girar y pegar pecho al suelo · tocar puntas sentado · tocar puntas parado y cruzado.",
+  e_pressmilsmith:"Espalda pegada al respaldo; baja la barra hasta la barbilla y empuja sin arquear la espalda baja. Ajusta el banco para que la barra suba justo frente a tu cara y gira el gancho para trabarla al terminar.",
+  e_extricebarra:"Codos pegados al cuerpo y fijos; extiende completo y sube controlado hasta el pecho. Evita balancear el torso o abrir los codos.",
+  e_girondaprono:"Agarre prono ancho (palmas hacia abajo); pecho arriba y jala la barra al pecho bajo llevando los codos hacia afuera y atrás. Aprieta la espalda 1 seg. Evita balancearte o encoger los hombros.",
+  e_remounimanc:"Una mano y una rodilla en el banco, espalda recta y paralela al piso; jala la mancuerna a la cadera con el codo atrás y arriba. Baja lento hasta estirar el dorsal. Evita girar el torso para subir más peso.",
+  e_hiperext:"Cojín justo bajo la cadera (no sobre el abdomen) y tobillos fijos; baja con la espalda recta y sube hasta alinear el cuerpo, sin pasarte. Aprieta los glúteos arriba. Evita arquear la zona lumbar o rebotar.",
 };
 /* Movilidad (días de descanso, antes de dormir). Ficha distinta a fuerza.
    type: estatico = estiramiento estático · dinamico = movilidad dinámica · cars = rotación articular controlada */

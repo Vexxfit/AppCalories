@@ -5877,6 +5877,22 @@ const X3P={
     {P:[0,41,-6],th:95,hr:{a:[5,3,6]},ep:[0.3,0,-1]}]}
 };
 X3P.smith=Object.assign({},X3P.squat,{eq:[{a:[22,0,0],b:[22,98,0],w:3,t:3,c:'metal'},{a:[-22,0,0],b:[-22,98,0],w:3,t:3,c:'metal'},{a:[-22,98,0],b:[22,98,0],w:3,t:3,c:'metal'}]});
+/* ----- biblioteca nueva: Smith, polea con barra, remos y lumbar ----- */
+/* press militar sentado en Smith: la barra corre por dos guías verticales */
+X3P.smithohp={views:['tq','side','front'], k:[{...SIT,th:-5,hr:[6,4,5],ep:[0.5,-1,0.1]},{hr:[2,28,3]}], barLen:26, pr:7,
+  eq:X3EQ.seat(true).concat([{a:[31,0,-1],b:[31,104,-1],w:4,t:4,c:'frame'},{a:[-31,0,-1],b:[-31,104,-1],w:4,t:4,c:'frame'},{a:[-31,104,-1],b:[31,104,-1],w:4,t:4,c:'frame'}]),
+  links:[{from:{j:'Wm',o:[27,0,0]},to:{j:'Wm',o:[31,0,0]},w:3.2,c:'metal',mir:1}]};
+/* extensión de tríceps en polea con barra recta (misma mecánica que con cuerda) */
+X3P.pushdownbar=Object.assign({},X3P.pushdown,{rope:0,cab:[0,94,24],eq:[X3EQ.tower(0,26,98)],k:[{P:[0,42.6,0],th:10,hr:[-2,-8,11],ep:[0,-1,-0.7],fr:FEET,kp:[0.2,0,1]},{hr:[-1,-28,5]}]});
+/* remo gironda con barra larga, agarre prono ancho: manos muy abiertas y codos hacia afuera */
+X3P.girondawide=Object.assign({},X3P.gironda,{views:['tq','side'],k:[{P:[0,12,-6],th:20,hr:[9,-1,27],ep:[1,-0.4,-0.8],fr:{a:[8,10,29]},kp:[0.2,1,0.3],fdir:[0,0.6,-0.8]},{th:-6,hr:{p:[19,17,7]},ep:[1,0,-0.5]}]});
+/* remo unilateral con mancuerna: mano y rodilla izquierdas en el banco, jala la derecha */
+X3P.dbrowuni={views:['side','tq'], uni:1, k:[{P:[0,38,-4],th:72,hr:{g:[1,-27.5,2]},ep:[0.3,-0.6,-1],hl:{a:[11,18.5,26]},epL:[1,0,-0.3],fr:{a:[18,2,8]},kp:[0.2,0,1],fl:{a:[11,19,-16]},kpL:[0,0,1]},{tw:-8,hr:{p:[8,11,5]}}],
+  eq:[{a:[-11,15,-18],b:[-11,15,32],w:12,t:4,c:'pad'},{a:[-11,0,-12],b:[-11,13,-12],w:6,t:5,c:'frame'},{a:[-11,0,26],b:[-11,13,26],w:6,t:5,c:'frame'}]};
+/* hiperextensión lumbar en banco a 45°: caderas en el cojín, tobillos bajo el rodillo, el torso sube hasta alinearse con las piernas */
+X3P.hyperext={views:['side','tq'], k:[{P:[0,40,6],th:132,hp:-30,hr:[-6,9,-2],ep:[1,0.2,-0.3],fr:{a:[8,11,-23]},fdir:[0,-0.7,0.7],kp:[0,0.7,0.7]},{th:45,hp:0}],
+  eq:[{a:[0,0,-22],b:[0,0,16],w:30,t:3,c:'frame'},{a:[12,0,15],b:[12,31,8],w:5,t:5,c:'frame'},{a:[-12,0,15],b:[-12,31,8],w:5,t:5,c:'frame'},{a:[12,0,-12],b:[12,13,-8],w:5,t:5,c:'frame'},{a:[-12,0,-12],b:[-12,13,-8],w:5,t:5,c:'frame'},
+    {a:[0,16.7,-7.4],b:[0,33.6,9.5],w:22,t:5,c:'pad'},{a:[0,12.4,-28.6],b:[0,0.4,-16.6],w:18,t:3,c:'frame'},{a:[-9,17.7,-22.7],b:[9,17.7,-22.7],w:5,t:5,c:'pad'}]};
 /* ejercicio → [movimiento, carga] */
 const X3_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['inclinemach','handles'],e_pressincbarra:['incline','bar'],e_pressincmanc:['incline','db'],
   e_pecfly:['pecfly','handles'],e_flysarriba:['crossover','handles'],e_crossover:['crossover','handles'],e_fondos:['dips','none'],e_pressmil:['ohpsit','db'],e_pressmaqhombro:['ohpmach','handles'],
@@ -5889,7 +5905,8 @@ const X3_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['inclinemach','handles
   e_pendulo:['pendulum','none'],e_extcuad:['legext','none'],e_prensa:['legpress','none'],e_abductor:['abductor','none'],e_aductor:['aductor','none'],e_pantprensa:['calfpress','none'],
   e_pantsent:['calfsit','none'],e_gemelopie:['calfstand','db'],e_pressmaqpecho:['chestpress','handles'],e_pressplanomanc:['bench','db'],e_floorpress:['floorpress','db'],
   e_zancadas:['lunge','db'],e_bulgara:['bulgara','db'],e_hipthrust:['hipthrust','bar'],e_plancha:['plank','none'],e_crunchpolea:['cablecrunch','none'],
-  e_elevpiernas:['legraise','none'],e_abruedita:['abwheel','none'],e_movcadera:['m_circuit','none']};
+  e_elevpiernas:['legraise','none'],e_abruedita:['abwheel','none'],e_movcadera:['m_circuit','none'],
+  e_pressmilsmith:['smithohp','bar'],e_extricebarra:['pushdownbar','hbar'],e_girondaprono:['girondawide','lbar'],e_remounimanc:['dbrowuni','dbn'],e_hiperext:['hyperext','none']};
 /* ejercicios propios: por nombre (lo más específico primero) y si no, por grupo */
 function x3PatFor(ex){
   if(!ex) return null; if(X3_MAP[ex.id]) return X3_MAP[ex.id];
