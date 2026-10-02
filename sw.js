@@ -14,11 +14,8 @@
      guardan al vuelo, incluso respuestas opacas, para abrir sin red.
    - No toca localStorage: tus datos están a salvo.
    Sin internet no funcionan: escáner de código de barras, nube y ranking. */
-const CACHE = "vexx-cache-v30";
-const SHELL = ["./", "./index.html", "./styles.css", "./data.js", "./app.js", "./body3d.js", "./icon.png", "./manifest.webmanifest"];
-/* visor 3D: pesado, se guarda en segundo plano (si falla, no rompe la instalación; se cachea al primer uso) */
-const LAZY = ["./vendor/three/three.module.min.js","./vendor/three/GLTFLoader.js","./vendor/three/DRACOLoader.js","./vendor/three/BufferGeometryUtils.js",
-  "./vendor/three/draco/draco_wasm_wrapper.js","./vendor/three/draco/draco_decoder.wasm","./vendor/three/draco/draco_decoder.js","./models/cuerpo.glb","./models/joints.json"];
+const CACHE = "vexx-cache-v31";
+const SHELL = ["./", "./index.html", "./styles.css", "./data.js", "./anatomy2d.js", "./app.js", "./icon.png", "./manifest.webmanifest"];
 const EXTRA = [
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap",
   "https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js",
@@ -37,7 +34,6 @@ self.addEventListener("install", e => {
     await Promise.all(EXTRA.map(async u => {
       try { const r = await fetch(u, { mode: "no-cors" }); if (r) await c.put(u, r); } catch (err) {}
     }));
-    await Promise.all(LAZY.map(async u => { try { const r = await fetch(u); if (r && r.ok) await c.put(u, r); } catch (err) {} }));
     self.skipWaiting();   // solo tras un shell completo
   })());
 });

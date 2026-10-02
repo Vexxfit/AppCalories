@@ -583,7 +583,7 @@ function renderAjustes(){
     {ic:ic('note',18),label:"Reporte en PDF (con gráficas)",val:"",act:"openPrintReport()"},
     {ic:ic('download',18),label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
     {ic:ic('upload',18),label:"Importar respaldo",val:"",act:"triggerImport()"},
-    {ic:ic('note',18),label:"Créditos del modelo anatómico 3D",val:"",act:"openCredits3D()"},
+    {ic:ic('note',18),label:"Créditos del mapa anatómico",val:"",act:"openCredits3D()"},
     {ic:ic('cycle',18),label:"Versión de la app (buscar actualización)",val:"v"+APP_VER,act:"checkAppUpdate()"}
   ];
   let html=cloudCardHTML();
@@ -5170,7 +5170,7 @@ function renderProgreso(){
   }else{
     sel.innerHTML="";
     const pm=__volMode==="pain";
-    document.getElementById("bodyMap").innerHTML=`<div class="seg" style="max-width:300px;margin:0 auto 10px"><span class="${pm?'':'on'}" onclick="setVolMode('sets')">Series</span><span class="${pm?'on':''}" onclick="setVolMode('pain')">Molestias</span></div>`+bodyMapBlock({}, pm?{painTap:true}:{}, pm?{painTap:true}:{pain:true}); bodyMapMount({}, pm?{painTap:true}:{});
+    document.getElementById("bodyMap").innerHTML=`<div class="seg" style="max-width:300px;margin:0 auto 10px"><span class="${pm?'':'on'}" onclick="setVolMode('sets')">Series</span><span class="${pm?'on':''}" onclick="setVolMode('pain')">Molestias</span></div>`+bodyMapSVG({}, pm?{painTap:true}:{pain:true});
     document.getElementById("groupVolumeTable").innerHTML=pm?painListHTML(null):`<div class="empty">Aún sin sesiones. Registra un entreno para ver tus músculos trabajados.</div>`;
     ["imbalanceBox","muscleProgressBox","qualityBox"].forEach(id=>{const el=document.getElementById(id); if(el) el.innerHTML=`<div class="empty" style="margin:0">Sin datos aún.</div>`;});
   }
@@ -5314,12 +5314,6 @@ const MV_SUB={ pecho:[10,12,20,22],deltAnt:[0,6,12,16],deltLat:[8,12,20,26],delt
 function volStatus(mk,sets){ const r=MV_SUB[mk]; if(!r) return {label:"—",color:"var(--muted)",range:""}; const [mev,lo,hi,mrv]=r,range=`ideal ${lo}–${hi}`;
   if(sets<mev) return {label:"Bajo",color:"var(--warn)",range}; if(sets>mrv) return {label:"Alto",color:"var(--bad)",range};
   if(sets>=lo&&sets<=hi) return {label:"Óptimo",color:"var(--ok)",range}; return {label:"OK",color:"var(--accent)",range}; }
-/* mapa del cuerpo: visor 3D (body3d.js) y, si no hay WebGL o no carga, el mapa 2D de siempre */
-function bodyMapBlock(ev,o3,svgOpts){ return `<div id="b3Host" class="b3-host">${bodyMapSVG(ev,svgOpts)}</div>${o3.painTap?"":body3dLegendHTML(o3.mode)}`; }
-function bodyMapMount(ev,o3){
-  const host=document.getElementById("b3Host"); if(!host||typeof body3dMount!=="function") return;
-  body3dMount(host,ev,o3).then(()=>{ const l=document.getElementById("b3Legend"); if(l) l.hidden=false; }).catch(()=>{});
-}
 let __volMode="sets";
 function setVolMode(m){ __volMode=m; renderProgreso(); }
 function renderGroupVolume(wk){
@@ -5327,24 +5321,25 @@ function renderGroupVolume(wk){
   const nAct=Object.keys(activePains()).length;
   const seg=`<div class="seg" style="max-width:340px;margin:0 auto 10px"><span class="${!ton&&!pain?'on':''}" onclick="setVolMode('sets')">Series</span><span class="${ton?'on':''}" onclick="setVolMode('ton')">Tonelaje</span><span class="${pain?'on':''}" onclick="setVolMode('pain')">Molestias${nAct?` (${nAct})`:''}</span></div>`;
   if(pain){   // el diagrama del volumen con las articulaciones tocables encima
-    document.getElementById("bodyMap").innerHTML=seg+bodyMapBlock(ev,{painTap:true},{painTap:true}); bodyMapMount(ev,{painTap:true});
+    document.getElementById("bodyMap").innerHTML=seg+bodyMapSVG(ev,{painTap:true});
     document.getElementById("groupVolumeTable").innerHTML=painListHTML(wk);
     return;
   }
-  document.getElementById("bodyMap").innerHTML = seg + bodyMapBlock(ton?et:ev, ton?{mode:"ton"}:{}, ton?{mode:"ton",pain:true}:{pain:true}); bodyMapMount(ton?et:ev, ton?{mode:"ton"}:{});
+  document.getElementById("bodyMap").innerHTML = seg + bodyMapSVG(ton?et:ev, ton?{mode:"ton",pain:true}:{pain:true});
   const worked=SUBMUSCLES.filter(([k])=>(ev[k]||0)>0||(et[k]||0)>0).sort((a,b)=>ton?((et[b[0]]||0)-(et[a[0]]||0)):((ev[b[0]]||0)-(ev[a[0]]||0)));
   const el=document.getElementById("groupVolumeTable");
   el.innerHTML = worked.length ? `<table><thead><tr><th>Músculo</th><th class="r">Series efect.</th><th class="r">Tonelaje efect.</th><th class="r">Estado</th></tr></thead><tbody>
     ${worked.map(([k,lbl])=>{const s=ev[k]||0,v=volStatus(k,s);return `<tr><td><span class="pill">${lbl}</span></td><td class="r num">${r1(s)}</td><td class="r num">${nfmt(fromKg(et[k]||0))}</td><td class="r"><span style="color:${v.color};font-weight:700;font-size:12px">${v.label}</span>${v.range?`<br><span style="font-size:10px;color:var(--muted)">${v.range}</span>`:""}</td></tr>`;}).join("")}
     </tbody></table><small class="hint">Volumen <b>efectivo</b> = series ponderadas por cercanía al fallo (RIR). <b>Tonelaje efectivo</b> = tonelaje de cada ejercicio × la fracción con la que trabaja ese músculo (p. ej. press banca: pecho 100%, tríceps 50%). En ${unit()}.</small>` : `<div class="empty">Sin datos en esta semana.</div>`;
 }
-function muscleColor(s){ if(!s) return "#E2DBF1"; if(s<=4) return "#D2C2F4"; if(s<=8) return "#B79CF0"; if(s<=12) return "#9466E8"; if(s<=16) return "#7C3AED"; return "#5B21B6"; }
+function muscleColor(s){ if(!s) return "#B9C0D0"; if(s<=4) return "#D2C2F4"; if(s<=8) return "#B79CF0"; if(s<=12) return "#9466E8"; if(s<=16) return "#7C3AED"; return "#5B21B6"; }
 /* ===== MOLESTIAS por articulación, marcadas sobre el mismo diagrama del volumen =====
    Vista de frente: tu lado derecho está a la IZQUIERDA de la pantalla. */
 const JOINTS=[["cuello","Cuello",86,44],["hombro_d","Hombro derecho",58,50],["hombro_i","Hombro izquierdo",114,50],["codo_d","Codo derecho",48,106],["codo_i","Codo izquierdo",124,106],
   ["muneca_d","Muñeca derecha",46,153],["muneca_i","Muñeca izquierda",126,153],["cadera_d","Cadera derecha",70,152],["cadera_i","Cadera izquierda",102,152],
   ["rodilla_d","Rodilla derecha",75,214],["rodilla_i","Rodilla izquierda",97,214],["tobillo_d","Tobillo derecho",74,271],["tobillo_i","Tobillo izquierdo",98,271],
   ["espalda_alta","Espalda alta / media",258,72],["lumbar","Espalda baja",258,118]];
+if(typeof BODY2D!=="undefined"&&BODY2D.joints) JOINTS.forEach(j=>{ const p=BODY2D.joints[j[0]]; if(p){ j[2]=(p[2]?258:86)+p[0]; j[3]=p[1]; } });   // articulaciones sobre la figura real
 const JOINT_LBL=Object.fromEntries(JOINTS.map(j=>[j[0],j[1]]));
 const JOINT_MUS={cuello:["espaldaAlta"],hombro:["deltAnt","deltLat","deltPost","pecho"],codo:["biceps","triceps","antebrazo"],muneca:["antebrazo"],cadera:["gluteo","aductor","cuadriceps","femoral"],rodilla:["cuadriceps","femoral"],tobillo:["pantorrilla"],espalda_alta:["espaldaAlta","dorsal","deltPost"],lumbar:["femoral","gluteo","core","espaldaAlta","lumbar"]};
 const PAIN_LVL=["Sin molestia","Leve","Moderada","Fuerte"], PAIN_COL=["#34C759","#FF9F0A","#FF6B00","#FF3B30"];
@@ -5405,11 +5400,40 @@ function painSessionBannerHTML(){
    · frac = participación de UN ejercicio (0-1: primario/secundario) */
 function muscleColorBy(v,opts){
   if(!opts||!opts.mode||opts.mode==="sets") return muscleColor(v);
-  const cols=["#E2DBF1","#D2C2F4","#B79CF0","#9466E8","#7C3AED","#5B21B6"]; if(!v) return cols[0];
+  const cols=["#B9C0D0","#D2C2F4","#B79CF0","#9466E8","#7C3AED","#5B21B6"]; if(!v) return cols[0];
   const r=opts.mode==="frac"?v:v/(opts.max||1);
   return r<=0.2?cols[1]:(r<=0.4?cols[2]:(r<=0.6?cols[3]:(r<=0.85?cols[4]:cols[5])));
 }
+/* ---- mapa corporal plano: formas anatómicas reales (Z-Anatomy) en estilo vectorial simple ----
+   Los contornos están en anatomy2d.js (BODY2D). Cada músculo es una forma de un solo color, separada por línea blanca. */
+let __mapData=null;
+function mapTip(k){
+  const el=document.getElementById("mapTip"); if(!el||!__mapData) return;
+  const {ev,opts}=__mapData, v=ev[k]||0, lbl=(typeof SUBLABEL!=="undefined"&&SUBLABEL[k])||k;
+  const val=opts.mode==="ton"?`${nfmt(fromKg(v))} ${unit()} efectivos`:(opts.mode==="frac"?`${Math.round(v*100)}% de participación`:`${r1(v)} series efect.`);
+  el.innerHTML=`<b>${lbl}</b> · ${val}`; el.hidden=false; clearTimeout(el._t); el._t=setTimeout(()=>{ el.hidden=true; },3200);
+}
+function bodyMapFlat(ev,opts){
+  const mode=opts.mode||"sets"; if(mode==="ton"&&!opts.max) opts.max=Math.max(1,...Object.values(ev));
+  const tip=k=>mode==="ton"?`${nfmt(fromKg(ev[k]||0))} ${unit()} efectivos`:(mode==="frac"?`${Math.round((ev[k]||0)*100)}% de participación`:`${r1(ev[k]||0)} series efect.`);
+  const gap="stroke:var(--surface);stroke-width:.8;stroke-linejoin:round", ZERO=muscleColorBy(0,opts);
+  const fig=(view,cx)=>{ const d=BODY2D[view]; if(!d) return "";
+    let o=`<g transform="translate(${cx},0)"><path d="${d.sil}" fill-rule="evenodd" style="fill:var(--surface);stroke:#CBC3DE;stroke-width:1;stroke-linejoin:round"/>`;
+    Object.keys(d.m).forEach(k=>{ const tracked=k!=="otros", col=tracked?muscleColorBy(ev[k]||0,opts):ZERO;
+      o+=`<path d="${d.m[k]}" fill-rule="evenodd" style="fill:${col};${gap}"${tracked&&!opts.painTap?` onclick="mapTip('${k}')"`:''}>${tracked?`<title>${(typeof SUBLABEL!=="undefined"&&SUBLABEL[k])||k}: ${tip(k)}</title>`:''}</path>`; });
+    return o+`</g>`; };
+  __mapData={ev,opts};
+  const figs=fig("front",86)+fig("back",258);
+  const cols=["#B9C0D0","#D2C2F4","#B79CF0","#9466E8","#7C3AED","#5B21B6"];
+  const labs=mode==="ton"?["0","bajo","","medio","","alto"]:(mode==="frac"?["—","","secund.","","","primario"]:["0","≤4","≤8","≤12","≤16","17+"]);
+  const names=`<text x="86" y="296" text-anchor="middle" font-size="11" fill="#86868B" font-weight="600">Frente</text><text x="258" y="296" text-anchor="middle" font-size="11" fill="#86868B" font-weight="600">Espalda</text>`;
+  const legend=`<g transform="translate(10,312)">${labs.map((lab,i)=>{const x=i*54;return `<rect x="${x}" y="0" width="13" height="13" rx="3" fill="${cols[i]}"/><text x="${x+17}" y="11" font-size="10" fill="#86868B">${lab}</text>`;}).join("")}</g>`;
+  if(opts.compact) return `<svg viewBox="0 0 344 290" width="100%" style="max-width:${opts.width||170}px;display:block;margin:0 auto" aria-label="Músculos trabajados">${figs}</svg>`;
+  const painLayer=opts.painTap||opts.pain?painLayerSVG(!!opts.painTap):"";
+  return `<div class="table-wrap"><svg viewBox="0 0 344 332" width="100%" style="max-width:360px;display:block;margin:0 auto">${figs}${names}${painLayer}${opts.painTap?'':legend}</svg><div id="mapTip" class="map-tip" hidden></div></div>`;
+}
 function bodyMapSVG(ev,opts){
+  if(typeof BODY2D!=="undefined"&&BODY2D.front) return bodyMapFlat(ev||{},opts||{});
   ev=ev||{}; opts=opts||{}; const mode=opts.mode||"sets"; const skin="#ECE9F3", line="#D8D3E6";
   if(mode==="ton"&&!opts.max) opts.max=Math.max(1,...Object.values(ev));
   const tip=k=>mode==="ton"?`${nfmt(fromKg(ev[k]||0))} ${unit()} efectivos`:(mode==="frac"?`${Math.round((ev[k]||0)*100)}% de participación`:`${r1(ev[k]||0)} series efect.`);
@@ -5461,7 +5485,7 @@ function bodyMapSVG(ev,opts){
     ${F("femoral",'<path d="M238,154 Q247,152 255,154 L254,208 Q247,212 240,208 Z"/><path d="M278,154 Q269,152 261,154 L262,208 Q269,212 276,208 Z"/>')}
     ${F("pantorrilla",'<ellipse cx="246" cy="238" rx="8" ry="20"/><ellipse cx="250" cy="249" rx="5" ry="11"/><ellipse cx="270" cy="238" rx="8" ry="20"/><ellipse cx="266" cy="249" rx="5" ry="11"/>')}
     <text x="258" y="296" text-anchor="middle" font-size="11" fill="#86868B" font-weight="600">Espalda</text>`;
-  const cols=["#E2DBF1","#D2C2F4","#B79CF0","#9466E8","#7C3AED","#5B21B6"];
+  const cols=["#B9C0D0","#D2C2F4","#B79CF0","#9466E8","#7C3AED","#5B21B6"];
   const labs = mode==="ton" ? ["0","bajo","","medio","","alto"] : (mode==="frac" ? ["—","","secund.","","","primario"] : ["0","≤4","≤8","≤12","≤16","17+"]);
   const legend=`<g transform="translate(10,312)">${labs.map((lab,i)=>{const x=i*54;return `<rect x="${x}" y="0" width="13" height="13" rx="3" fill="${cols[i]}"/><text x="${x+17}" y="11" font-size="10" fill="#86868B">${lab}</text>`;}).join("")}</g>`;
   if(opts.compact){   // versión mini para tarjetas de ejercicio (sin leyenda ni rótulos)
@@ -6753,7 +6777,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=30;   // subir junto con CACHE de sw.js
+const APP_VER=31;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
@@ -6773,8 +6797,8 @@ function registerSW(){
   }
 }
 function openCredits3D(){
-  document.getElementById("exInfoTitle").textContent="Créditos · modelo anatómico 3D";
-  document.getElementById("exInfoBody").innerHTML=`<div style="font-size:14px;line-height:1.65"><p>El cuerpo 3D de Progreso usa el modelo de <b>Z-Anatomy</b> (<a href="https://www.z-anatomy.com" target="_blank" rel="noopener">z-anatomy.com</a>), obra de Gauthier Kervyn y colaboradores, derivado de <b>BodyParts3D</b> (© Life Science Database Archive, DBCLS).</p><p>Licencia <b>Creative Commons Atribución-CompartirIgual 4.0</b> (CC BY-SA 4.0). Adaptado para VEXX: selección de los músculos que usa la app, simplificación de la malla y coloreado por volumen de entrenamiento. El modelo adaptado se comparte bajo la misma licencia.</p><p style="color:var(--muted);font-size:12.5px">Visualización con three.js (licencia MIT).</p></div>`;
+  document.getElementById("exInfoTitle").textContent="Créditos · mapa anatómico";
+  document.getElementById("exInfoBody").innerHTML=`<div style="font-size:14px;line-height:1.65"><p>Las siluetas y formas musculares del mapa de Progreso derivan del modelo de <b>Z-Anatomy</b> (<a href="https://www.z-anatomy.com" target="_blank" rel="noopener">z-anatomy.com</a>), obra de Gauthier Kervyn y colaboradores, derivado de <b>BodyParts3D</b> (© Life Science Database Archive, DBCLS).</p><p>Licencia <b>Creative Commons Atribución-CompartirIgual 4.0</b> (CC BY-SA 4.0). Adaptado para VEXX: vista frontal y posterior proyectadas a 2D, contornos por músculo simplificados y coloreados por volumen de entrenamiento. Las formas adaptadas se comparten bajo la misma licencia.</p></div>`;
   openModal("exInfoModal");
 }
 function checkAppUpdate(){
