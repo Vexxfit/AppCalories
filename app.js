@@ -6066,7 +6066,7 @@ function mobPattern(m){
 }
 /* ---- dibujos animados propios (Blender): músculos reales de Z-Anatomy posados con el esqueleto de cada ejercicio ----
    Cada ejercicio tiene una tira de cuadros (ex3/<id>.webp) que se reproduce de ida y vuelta, y una miniatura (ex3/<id>_0.webp). */
-const EX_SPR={"e_pressbanca":[7],"e_pressincmaq":[7],"e_pressincbarra":[7],"e_pressincmanc":[7],"e_pecfly":[7],"e_flysarriba":[7],"e_crossover":[7],"e_fondos":[7],"e_pressmil":[7],"e_pressmaqhombro":[7],"e_landmine":[7],"e_latmanc":[7],"e_latpolea":[7],"e_latmaq":[7],"e_frontraise":[7],"e_reardelt":[7],"e_facepull":[7],"e_extrice":[7],"e_extuni":[7],"e_pressfrances":[7],"e_pulldownneutro":[7],"e_pulldownabierto":[7],"e_jalonpecho":[7],"e_remobarra":[7],"e_remomanc":[7],"e_remopolea":[7],"ce_1782311296032":[7],"ce_1782310417636":[7],"ce_1782313044383":[7],"ce_1782334604277":[7],"e_remogironda":[7],"e_remosentado":[7],"e_remomaq":[7],"e_pullover":[7],"e_predicador":[7],"e_predicadormaq":[7],"e_curlpolea":[7],"e_curlmartillo":[7],"e_faceaway":[7],"e_curlconcentrado":[7],"e_curlfemac":[7],"e_curlfemsent":[7],"e_rdl":[7],"e_rdlmanc":[7],"e_pesomuerto":[7],"e_sentadilla":[7],"e_pendulo":[7],"e_extcuad":[7],"e_prensa":[7],"e_abductor":[7],"e_aductor":[7],"e_pantprensa":[7],"e_pantsent":[7],"e_gemelopie":[7],"e_pressmaqpecho":[7],"e_pressplanomanc":[7],"e_floorpress":[7],"e_zancadas":[7],"e_bulgara":[7],"e_hipthrust":[7],"e_plancha":[7],"e_crunchpolea":[7],"e_elevpiernas":[7],"e_abruedita":[7],"e_movcadera":[7],"e_pressmilsmith":[7],"e_extricebarra":[7],"e_girondaprono":[7],"e_remounimanc":[7],"e_hiperext":[7],"mb_9090":[7],"mb_hipcars":[20,1,2],"mb_wgs":[7],"mb_deepsq":[7],"mb_adductor":[7],"mb_hamstring":[7],"mb_ankle":[7],"mb_catcow":[7],"mb_circuit":[20,1,4],"mb_shcars":[20,1,2],"mb_passthru":[7],"mb_thoracic":[7],"mb_wall":[7],"mb_wrist":[7]};
+const EX_SPR={"e_pressbanca":[16],"e_pressincmaq":[16],"e_pressincbarra":[16],"e_pressincmanc":[16],"e_pecfly":[16],"e_flysarriba":[16],"e_crossover":[16],"e_fondos":[16],"e_pressmil":[16],"e_pressmaqhombro":[16],"e_landmine":[16],"e_latmanc":[16],"e_latpolea":[16],"e_latmaq":[16],"e_frontraise":[16],"e_reardelt":[16],"e_facepull":[16],"e_extrice":[16],"e_extuni":[16],"e_pressfrances":[16],"e_pulldownneutro":[16],"e_pulldownabierto":[16],"e_jalonpecho":[7],"e_remobarra":[16],"e_remomanc":[16],"e_remopolea":[16],"ce_1782311296032":[16],"ce_1782310417636":[16],"ce_1782313044383":[16],"ce_1782334604277":[16],"e_remogironda":[16],"e_remosentado":[7],"e_remomaq":[16],"e_pullover":[16],"e_predicador":[16],"e_predicadormaq":[16],"e_curlpolea":[16],"e_curlmartillo":[16],"e_faceaway":[16],"e_curlconcentrado":[16],"e_curlfemac":[16],"e_curlfemsent":[16],"e_rdl":[16],"e_rdlmanc":[16],"e_pesomuerto":[16],"e_sentadilla":[16],"e_pendulo":[16],"e_extcuad":[16],"e_prensa":[16],"e_abductor":[16],"e_aductor":[16],"e_pantprensa":[16],"e_pantsent":[16],"e_gemelopie":[16],"e_pressmaqpecho":[16],"e_pressplanomanc":[16],"e_floorpress":[16],"e_zancadas":[16],"e_bulgara":[16],"e_hipthrust":[16],"e_plancha":[16],"e_crunchpolea":[16],"e_elevpiernas":[16],"e_abruedita":[16],"e_movcadera":[16],"e_pressmilsmith":[16],"e_extricebarra":[16],"e_girondaprono":[16],"e_remounimanc":[16],"e_hiperext":[16],"mb_9090":[16],"mb_hipcars":[36,1,2],"mb_wgs":[16],"mb_deepsq":[16],"mb_adductor":[16],"mb_hamstring":[16],"mb_ankle":[16],"mb_catcow":[16],"mb_circuit":[36,1,4],"mb_shcars":[36,1,2],"mb_passthru":[16],"mb_thoracic":[16],"mb_wall":[16],"mb_wrist":[16]};
 const exSprOf=id=>EX_SPR[id]||null;
 function exSprHTML(exId,opts){
   const o=exSprOf(exId); if(!o) return ""; opts=opts||{};
@@ -6078,14 +6078,14 @@ function exSprHTML(exId,opts){
 /* un solo reloj para todas las animaciones visibles: ida y vuelta con una pausa en cada extremo */
 let __sprT=null, __sprI=0;
 const __sprSeq={};
-function sprSeq(n){ if(__sprSeq[n]) return __sprSeq[n]; const s=[0,0]; for(let i=0;i<n;i++) s.push(i); s.push(n-1,n-1); for(let i=n-2;i>=1;i--) s.push(i); return __sprSeq[n]=s; }
+function sprSeq(n){ if(__sprSeq[n]) return __sprSeq[n]; const s=[0,0,0,0]; for(let i=1;i<n-1;i++) s.push(i); s.push(n-1,n-1,n-1,n-1); for(let i=n-2;i>=1;i--) s.push(i); return __sprSeq[n]=s; }
 function sprTick(){
   const els=document.querySelectorAll(".ex-spr[data-anim]");
   if(!els.length){ clearInterval(__sprT); __sprT=null; return; }
   __sprI++;
   els.forEach(el=>{ const n=+el.dataset.n, lp=+el.dataset.loop||0; let i; if(lp) i=Math.floor(__sprI/lp)%n; else { const s=sprSeq(n); i=s[__sprI%s.length]; } el.style.backgroundPosition=(n>1?(i/(n-1))*100:0)+"% 0"; });
 }
-function sprStart(){ if(!__sprT) __sprT=setInterval(sprTick,125); }
+function sprStart(){ if(!__sprT) __sprT=setInterval(sprTick,60); }
 if(typeof MutationObserver!=="undefined") new MutationObserver(()=>{ if(!__sprT&&document.querySelector(".ex-spr[data-anim]")) sprStart(); }).observe(document.documentElement,{childList:true,subtree:true});
 /* ---- ilustraciones de línea (Everkinetic, CC BY-SA 4.0): pose inicial y final del ejercicio ----
    La animación alterna las dos poses con un fundido suave (CSS, sin JS). [id del dibujo, 1 = variante parecida] */
@@ -6903,7 +6903,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=38;   // subir junto con CACHE de sw.js
+const APP_VER=39;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
