@@ -3227,7 +3227,7 @@ function openMobDetail(id){
     <div class="mob-box ok"><b>Qué debes sentir</b><br>${m.feel||"—"}</div>
     <div class="mob-box warn"><b>Error común a evitar</b><br>${m.error||"—"}</div>
     ${m.custom?`<div class="row" style="gap:8px;margin-top:12px"><button class="btn-ghost btn-sm" style="flex:1" onclick="openMobForm('${m.id}')">Editar</button><button class="btn-danger btn-sm" style="flex:1" onclick="deleteMob('${m.id}')">Eliminar</button></div>`:''}`;
-  openModal("exInfoModal");
+  openModal("exInfoModal"); xaPlayerAttach(document.getElementById("xaHowBox"));
 }
 function openMobForm(id){
   const m=id?mobById(id):null;
@@ -3984,7 +3984,7 @@ function openExTip(exId){ const ex=exById(exId); const tip=(typeof EX_TIPS!=="un
     (pose?xaHowtoHTML('ex',exId,"Músculos que trabaja en morado."):'')+
     (ks.length?`<div class="ex-mmap"><div style="flex:0 0 150px;width:150px">${bodyMapSVG(inv,{mode:"frac",compact:true,width:150})}</div><div class="ex-mmap-l">${ks.sort((a,b)=>inv[b]-inv[a]).map(k=>`${SUBLABEL[k]||k}${inv[k]<1?` <span style="color:var(--muted)">${Math.round(inv[k]*100)}%</span>`:''}`).join(" · ")}</div></div>`:'')+
     (tip?`<div style="font-size:14.5px;line-height:1.6">${tip}</div>`:'');
-  openModal("exInfoModal"); }
+  openModal("exInfoModal"); xaPlayerAttach(document.getElementById("xaHowBox")); }
 function editWorkout(id){
   if(sessionDraft){ if(!confirm("Tienes una sesión en el editor. ¿Reemplazarla por esta?")) return; }
   const w=state.workouts.find(x=>x.id===id); if(!w) return;
@@ -4165,7 +4165,7 @@ function renderSesion(){
             ${sug?`<div class="exmeta" style="color:${sug.color};font-weight:600">${sug.text}</div>`:''}</div>
           <div class="exstats">Tonelaje<br><b>${fmtTon(ton)}</b><br>1RM est: ${orm>0?fmtW(orm):"—"}</div>
         </div>
-        ${exMuscleMapHTML(e.exId,112)}
+        ${exMuscleMapHTML(e.exId,128)}
         <div class="set-head${e.uni?' uni':''}">${e.uni?`<span></span><span>Peso (${unit()})</span><span>Izq</span><span>Der</span><span>RIR</span><span></span><span></span>`:`<span></span><span>Peso (${unit()})</span><span>Reps</span><span>RIR</span><span></span><span></span>`}</div>
         ${e.sets.map((s,j)=>{
           if(s.type==="u") delete s.type;   // limpieza del experimento LD por serie (descartado)
@@ -5692,6 +5692,65 @@ function x3Body(J,inv,cam,ctx){
     items.push({id:'head',z:Z(b.Hd)+.8,svg:o}); }
   return items;
 }
+/* ---- cuerpo anatómico: los mismos músculos reales del mapa de Progreso (anatomy3d.js), colocados con el esqueleto 3D ----
+   Cada músculo es un casco convexo rígido unido a su hueso; se proyecta a la vista elegida y se ordena por profundidad. */
+let __anatRest=null, __anatReady=false;
+function x3AnatRest(){
+  if(__anatRest) return __anatRest;
+  const Ld=ANAT3.land, n=v3.n, s=v3.s, R={};
+  const fr=(O,a,ref)=>{ const len=v3.l(a); a=n(a); let r=s(ref,v3.m(a,v3.d(ref,a))); r=n(r); return {O,a,r,c:v3.x(a,r),len}; };
+  R.T=fr(Ld.P,s(Ld.N,Ld.P),[0,0,1]); R.L=R.T;
+  ["R","L"].forEach(sd=>{ const S=Ld["S"+sd],E=Ld["E"+sd],W=Ld["W"+sd],H=Ld["H"+sd],K=Ld["K"+sd],A=Ld["A"+sd];
+    R["UA"+sd]=fr(S,s(E,S),[0,0,-1]); R["FA"+sd]=fr(E,s(W,E),[0,0,-1]); R["TH"+sd]=fr(H,s(K,H),[0,0,1]); R["SH"+sd]=fr(K,s(A,K),[0,0,1]);
+    R["FT"+sd]=fr(A,s(A,K),[0,0,1]); R["FT"+sd].len=1; });
+  R.HD=fr(Ld.HEAD,s(Ld.HEAD,Ld.N),[0,0,1]); R.HD.len=1;
+  // coordenadas de cada vértice en el marco de su hueso (se calculan una sola vez)
+  const prep=(seg,flat,gl,ga)=>{ const f=R[seg], m=flat.length/3, q=new Float32Array(m*3);
+    for(let i=0;i<m;i++){ const d=[flat[i*3]/10-f.O[0],flat[i*3+1]/10-f.O[1],flat[i*3+2]/10-f.O[2]]; q[i*3]=v3.d(d,f.a); q[i*3+1]=v3.d(d,f.r); q[i*3+2]=v3.d(d,f.c); }
+    // ensancha cada pieza respecto a su centro (los músculos reales quedan casi pegados; sin esto se ven huecos entre ellos)
+    let ca=0,cr=0,cc=0; for(let i=0;i<m;i++){ ca+=q[i*3]; cr+=q[i*3+1]; cc+=q[i*3+2]; } ca/=m; cr/=m; cc/=m;
+    for(let i=0;i<m;i++){ q[i*3]=ca+(q[i*3]-ca)*ga; q[i*3+1]=cr+(q[i*3+1]-cr)*gl; q[i*3+2]=cc+(q[i*3+2]-cc)*gl; } return q; };
+  const pt0=k=>k!=="otros";   // los músculos que cuenta la app se ensanchan más
+  ANAT3._p=ANAT3.parts.map(([k,seg,pcs])=>({k,seg,pcs:pcs.map(f=>prep(seg,f,pt0(k)?1.5:1.34,1.06))}));
+  ANAT3._s=ANAT3.skin.map(([seg,f])=>({seg,q:prep(seg,f,1.06,1.02)}));
+  __anatRest=R; return R;
+}
+function x3AnatPosed(J){
+  const b=J.b, n=v3.n, s=v3.s, R=x3AnatRest(), P={};
+  const fr=(O,a,ref,len0)=>{ const l=v3.l(a); a=n(a); let r=s(ref,v3.m(a,v3.d(ref,a))); if(v3.l(r)<1e-4) r=[1,0,0]; r=n(r); return {O,a,r,c:v3.x(a,r),k:len0?l/len0:1}; };
+  P.T=fr(J.P,b.T.U,b.T.F,0); P.T.k=v3.l(s(J.N,J.P))/R.T.len; P.L=fr(J.P,b.L.U,b.L.F,0); P.L.k=P.T.k;
+  ["R","L"].forEach(sd=>{ const S=J["S"+sd],E=J["E"+sd],W=J["W"+sd],H=J["H"+sd],K=J["K"+sd],A=J["A"+sd],T=J["T"+sd];
+    P["UA"+sd]=fr(S,s(E,S),J["v"+sd],R["UA"+sd].len); P["FA"+sd]=fr(E,s(W,E),J["v"+sd],R["FA"+sd].len);
+    P["TH"+sd]=fr(H,s(K,H),J["k"+sd],R["TH"+sd].len); P["SH"+sd]=fr(K,s(A,K),J["k"+sd],R["SH"+sd].len);
+    P["FT"+sd]=fr(A,s(A,K),s(T,A),0); P["FT"+sd].k=1; });
+  P.HD=fr(J.Hd,b.hdir,b.T.F,0); P.HD.k=1;
+  return P;
+}
+function x3BodyAnat(J,inv,cam){
+  if(!__anatReady){ x3AnatRest(); __anatReady=true; }
+  const Pf=x3AnatPosed(J), items=[], ZERO="#B9C0D0", gap="stroke:var(--surface);stroke-width:.32;stroke-linejoin:round";
+  const proj=(q,f)=>{ const m=q.length/3, pts=new Array(m); let zs=0;
+    for(let i=0;i<m;i++){ const xa=q[i*3]*f.k, xr=q[i*3+1], xc=q[i*3+2];
+      const px=f.O[0]+f.a[0]*xa+f.r[0]*xr+f.c[0]*xc, py=f.O[1]+f.a[1]*xa+f.r[1]*xr+f.c[1]*xc, pz=f.O[2]+f.a[2]*xa+f.r[2]*xr+f.c[2]*xc;
+      pts[i]=[px*cam.X[0]+pz*cam.X[2],-py]; zs+=px*cam.D[0]+pz*cam.D[2]; }
+    return {h:x3Hull(pts),z:zs/m}; };
+  // contorno suave: curvas cuadráticas por los puntos medios (los músculos reales no tienen esquinas)
+  const path=h=>{ const m=h.length; if(m<3) return ""; const md=(a,b)=>[(a[0]+b[0])/2,(a[1]+b[1])/2]; const m0=md(h[0],h[1]); let d="M"+xr(m0[0])+","+xr(m0[1]);
+    for(let i=1;i<=m;i++){ const c=h[i%m], e=md(c,h[(i+1)%m]); d+="Q"+xr(c[0])+","+xr(c[1])+" "+xr(e[0])+","+xr(e[1]); } return d+"Z"; };
+  ANAT3._s.forEach((sk,i)=>{ const f=Pf[sk.seg]; if(!f) return; const r=proj(sk.q,f); if(r.h.length<3) return;
+    items.push({id:"sk"+i,z:r.z,svg:`<path d="${path(r.h)}" style="fill:var(--surface);stroke:#CBC3DE;stroke-width:.9;stroke-linejoin:round"/>`}); });
+  const segs={};
+  ANAT3._p.forEach((pt,i)=>{ const f=Pf[pt.seg]; if(!f) return; let d="", zs=0, nz=0;
+    pt.pcs.forEach(q=>{ const r=proj(q,f); if(r.h.length>=3){ d+=path(r.h); zs+=r.z; nz++; const g=segs[pt.seg]||(segs[pt.seg]={pts:[],z:1e9}); r.h.forEach(p=>g.pts.push(p)); g.z=Math.min(g.z,r.z); } }); if(!nz) return;
+    const tracked=pt.k!=="otros", v=inv&&tracked?(inv[pt.k]||0):0, col=v>0?xaMC(v):ZERO;
+    items.push({id:"m"+i,z:zs/nz+(v>0?0.6:0),svg:`<path d="${d}" style="fill:${col};${gap}"/>`}); });
+  Object.keys(segs).forEach(k=>{ const g=segs[k], h=x3Hull(g.pts); if(h.length<3) return;
+    items.push({id:"sg"+k,z:g.z-1.2,svg:`<path d="${path(h)}" style="fill:var(--surface);stroke:#CBC3DE;stroke-width:.7;stroke-linejoin:round"/>`}); });
+  // articulaciones: pequeñas piezas neutras que tapan el hueco al doblar codo y rodilla
+  [["ER",2.5],["EL",2.5],["KR",3.4],["KL",3.4]].forEach(([k,rad])=>{ const p=J[k], c=[p[0]*cam.X[0]+p[2]*cam.X[2],-p[1]];
+    items.push({id:"j"+k,z:p[0]*cam.D[0]+p[2]*cam.D[2]+0.4,svg:`<circle cx="${xr(c[0])}" cy="${xr(c[1])}" r="${rad}" style="fill:${ZERO};${gap}"/>`}); });
+  return items;
+}
 /* ---- accesorios que se mueven: pesas, barras, cables, palancas de máquina ---- */
 function x3Props(pat,J,cam,load){
   const P2=p=>x3P(p,cam), Z=p=>x3Z(p,cam), it=[], b=J.b;
@@ -5751,7 +5810,7 @@ function x3Arrow(pat,cam,Js,si,gi){
     return `<path d="M${xr(p[0]+d[0]*2.6)},${xr(p[1]+d[1]*2.6)} L${xr(p[0]-d[0]*1.6+w[0]*2.3)},${xr(p[1]-d[1]*1.6+w[1]*2.3)} L${xr(p[0]-d[0]*1.6-w[0]*2.3)},${xr(p[1]-d[1]*1.6-w[1]*2.3)} Z" fill="var(--accent)"/>`; };
   return {pts:q, svg:`<path d="M${q.map(p=>xr(p[0])+','+xr(p[1])).join(' L')}" fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".9"/>`+head(q[q.length-1],q[q.length-2])+head(q[0],q[1])};
 }
-function xaToggleAnim(el){ const s=el.querySelector("svg"); if(!s||!s.pauseAnimations) return; if(s.animationsPaused()){ s.unpauseAnimations(); el.classList.remove("paused"); } else { s.pauseAnimations(); el.classList.add("paused"); } }
+function xaToggleAnim(el){ if(el._play){ el._play.paused=!el._play.paused; el.classList.toggle("paused",el._play.paused); return; } const s=el.querySelector("svg"); if(!s||!s.pauseAnimations) return; if(s.animationsPaused()){ s.unpauseAnimations(); el.classList.remove("paused"); } else { s.pauseAnimations(); el.classList.add("paused"); } }
 /* dibujo final: animado (ficha) o pose fija con la inicial tenue y flecha (tarjetas) */
 function x3Render(pat,load,inv,opts){
   opts=opts||{}; const view=opts.view&&pat.views.includes(opts.view)?opts.view:pat.views[0], cam=x3Cam(view);
@@ -5760,16 +5819,21 @@ function x3Render(pat,load,inv,opts){
   const moved=n>1&&['WR','WL','AR','AL','P','Hd','ER','KR','TR'].some(k=>v3.l(v3.s(Js[k],Jg[k]))>3);
   const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches, anim=opts.anim&&moved&&!reduce;
   const eq=(pat.eq||[]).map((e,i)=>Object.assign({id:'eq'+i},x3Beam(e,cam)));
-  const build=(J,ctx,withMus)=>eq.concat(x3Body(J,withMus?inv:null,cam,ctx),x3Props(pat,J,cam,load));
+  const useAnat=typeof ANAT3!=="undefined", body=(J,inv2,ctx)=>useAnat?x3BodyAnat(J,inv2,cam):x3Body(J,inv2,cam,ctx);
+  const build=(J,ctx,withMus)=>eq.concat(body(J,withMus?inv:null,ctx),x3Props(pat,J,cam,load));
   const pts=[], JK=['P','N','Hd','SR','SL','ER','EL','WR','WL','HR','HL','KR','KL','AR','AL','TR','TL'], add=J=>JK.forEach(k=>pts.push(x3P(J[k],cam)));
   let s="";
-  if(anim){
+  if(anim&&useAnat){   // animación en vivo: se redibuja cada cuadro (el casco de cada músculo cambia de forma)
+    const NF=16; for(let k=0;k<=NF;k++) add(x3Frame(pat,k/NF));
+    const frameSVG=u=>build(x3Frame(pat,u),{},true).sort((a,c)=>a.z-c.z).map(i=>i.svg).join("");
+    s=`<g class="xa-fig">${frameSVG(0.25)}</g>`; if(opts.onPlayer) opts.onPlayer(frameSVG,parseFloat(pat.dur)*1000||3600);
+  } else if(anim){
     const NF=16, frames=[]; for(let k=0;k<=NF;k++) frames.push(x3Frame(pat,k/NF));
     const ctx={ref:true,vis:{}}, order=build(frames[Math.round(NF/4)],ctx,true).sort((a,c)=>a.z-c.z).map(i=>i.id); ctx.ref=false;
     s=xaMergeFrames(frames.map(J=>{ const m={}; build(J,ctx,true).forEach(i=>m[i.id]=i.svg); return order.map(id=>m[id]||"").join(""); }),pat.dur||"3.6s");
     frames.forEach(add);
   } else {
-    if(moved&&!opts.thumb){ s+=`<g opacity=".28">${x3Body(Jg,null,cam,{ref:true,vis:{}}).concat(x3Props(pat,Jg,cam,load).filter(i=>!/^cab/.test(i.id))).sort((a,c)=>a.z-c.z).map(i=>i.svg).join("")}</g>`; add(Jg); }
+    if(moved&&!opts.thumb){ s+=`<g opacity=".28">${body(Jg,null,{ref:true,vis:{}}).concat(x3Props(pat,Jg,cam,load).filter(i=>!/^cab/.test(i.id))).sort((a,c)=>a.z-c.z).map(i=>i.svg).join("")}</g>`; add(Jg); }
     s+=build(Js,{ref:true,vis:{}},true).sort((a,c)=>a.z-c.z).map(i=>i.svg).join(""); add(Js);
     if(moved&&!opts.thumb){ const ar=x3Arrow(pat,cam,Js,si,gi); s+=ar.svg; ar.pts.forEach(p=>pts.push(p)); }
   }
@@ -5964,6 +6028,7 @@ const X3_MAP={e_pressbanca:['bench','bar'],e_pressincmaq:['inclinemach','handles
   e_elevpiernas:['legraise','none'],e_abruedita:['abwheel','none'],e_movcadera:['m_circuit','none'],
   e_pressmilsmith:['smithohp','bar'],e_extricebarra:['pushdownbar','hbar'],e_girondaprono:['girondawide','lbar'],e_remounimanc:['dbrowuni','dbn'],e_hiperext:['hyperext','none']};
 /* ejercicios propios: por nombre (lo más específico primero) y si no, por grupo */
+Object.values(X3P).forEach(p=>{ const i=p.views.indexOf("tq"); if(i>0){ p.views.splice(i,1); p.views.unshift("tq"); } });   // 3/4 primero: se ve mejor el músculo trabajado
 function x3PatFor(ex){
   if(!ex) return null; if(X3_MAP[ex.id]) return X3_MAP[ex.id];
   const n=(ex.name||"").toLowerCase(), eq=/mancuern/.test(n)?'db':(/barra/.test(n)?'bar':(/m[aá]quina/.test(n)?'handles':'none'));
@@ -5997,14 +6062,20 @@ function mobPattern(m){
   for(const [re,p] of R) if(re.test(t)) return p;
   return 'm_deepsq';
 }
+const __thumbCache=new Map();
 function exPoseSVG(exId,opts){
+  if(opts&&opts.thumb&&!opts.view){ const e0=exById(exId)||{id:exId}, key=exId+"|"+opts.size+"|"+JSON.stringify(exMuscles(e0))+(typeof ANAT3!=="undefined"?"a":""); if(__thumbCache.has(key)) return __thumbCache.get(key); const out=exPoseSVGRaw(exId,opts); __thumbCache.set(key,out); return out; }
+  return exPoseSVGRaw(exId,opts);
+}
+function exPoseSVGRaw(exId,opts){
   const ex=exById(exId)||{id:exId}, pm=x3PatFor(ex); if(!pm||!X3P[pm[0]]) return "";
   return x3Render(X3P[pm[0]],pm[1]||'none',exMuscles(ex),opts);
 }
 function mobPoseSVG(m,opts){ const p=mobPattern(m); if(!p||!X3P[p]) return ""; const inv={}; (m.mus||[]).forEach(k=>inv[k]=0.6); return x3Render(X3P[p],'none',inv,opts); }
 /* bloque de la ficha: vista (frente/3/4/lado/espalda) + animación o pose fija */
 let __xaHow=null;
-function xaHowSvg(){ const h=__xaHow, o={view:h.view,anim:h.mode==='anim'}; return h.kind==='ex'?exPoseSVG(h.id,o):mobPoseSVG(mobById(h.id),o); }
+let __xaPlayFn=null, __xaPlayDur=3600;
+function xaHowSvg(){ __xaPlayFn=null; const h=__xaHow, o={view:h.view,anim:h.mode==='anim',onPlayer:(f,d)=>{ __xaPlayFn=f; __xaPlayDur=d; }}; return h.kind==='ex'?exPoseSVG(h.id,o):mobPoseSVG(mobById(h.id),o); }
 function xaHowtoHTML(kind,id,cap){
   const pn=kind==='ex'?(x3PatFor(exById(id)||{id})||[])[0]:mobPattern(mobById(id)), pat=X3P[pn]; if(!pat) return "";
   __xaHow={kind,id,view:pat.views[0],mode:'anim'};
@@ -6015,7 +6086,16 @@ function xaHowtoHTML(kind,id,cap){
     ${still?'':`<div class="xa-seg" style="margin:6px 0 0"><button class="on" onclick="xaHowSet('mode','anim',this)">Animación</button><button onclick="xaHowSet('mode','pose',this)">Pose fija</button></div>`}
     <div class="xa-cap">${cap||''}${still?'':' Toca la figura para pausar.'}</div></div>`;
 }
-function xaHowSet(k,v,btn){ if(!__xaHow) return; __xaHow[k]=v; [...btn.parentNode.children].forEach(b=>b.classList.toggle('on',b===btn)); const box=document.getElementById('xaHowBox'); if(box){ box.innerHTML=xaHowSvg(); box.classList.remove('paused'); } }
+function xaHowSet(k,v,btn){ if(!__xaHow) return; __xaHow[k]=v; [...btn.parentNode.children].forEach(b=>b.classList.toggle('on',b===btn)); const box=document.getElementById('xaHowBox'); if(box){ box.innerHTML=xaHowSvg(); box.classList.remove('paused'); xaPlayerAttach(box); } }
+/* reproductor: redibuja la figura ~30 veces por segundo; se detiene solo al cerrar la ficha */
+function xaPlayerAttach(box){
+  if(!box) return; if(box._raf) cancelAnimationFrame(box._raf); box._play=null; box._raf=0;
+  const fn=__xaPlayFn, dur=__xaPlayDur; if(!fn) return; const g=box.querySelector("g.xa-fig"); if(!g) return;
+  const st={paused:false}, t0=performance.now(); box._play=st; let last=0;
+  let gapMs=33;   // si el equipo es lento, baja de cuadros en vez de trabarse
+  const tick=t=>{ if(!box.isConnected) return; if(!st.paused&&t-last>=gapMs){ last=t; const a=performance.now(); g.innerHTML=fn(((t-t0)%dur)/dur); const cost=performance.now()-a; gapMs=cost>22?Math.min(120,Math.round(cost*2.2)):33; } box._raf=requestAnimationFrame(tick); };
+  box._raf=requestAnimationFrame(tick);
+}
 
 
 /* ====================================================================
@@ -6778,7 +6858,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=33;   // subir junto con CACHE de sw.js
+const APP_VER=34;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
