@@ -5421,6 +5421,7 @@ function bodyMapFlat(ev,opts){
     let o=`<g transform="translate(${cx},0)"><path d="${d.sil}" fill-rule="evenodd" style="fill:var(--surface);stroke:#CBC3DE;stroke-width:1;stroke-linejoin:round"/>`;
     Object.keys(d.m).forEach(k=>{ const tracked=k!=="otros", col=tracked?muscleColorBy(ev[k]||0,opts):ZERO;
       o+=`<path d="${d.m[k]}" fill-rule="evenodd" style="fill:${col};${gap}"${tracked&&!opts.painTap?` onclick="mapTip('${k}')"`:''}>${tracked?`<title>${(typeof SUBLABEL!=="undefined"&&SUBLABEL[k])||k}: ${tip(k)}</title>`:''}</path>`; });
+    if(d.lines) o+=`<path d="${d.lines}" fill="none" style="stroke:var(--surface);stroke-width:.9;stroke-linecap:round;pointer-events:none"/>`;
     return o+`</g>`; };
   __mapData={ev,opts};
   const figs=fig("front",86)+fig("back",258);
@@ -6777,7 +6778,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=31;   // subir junto con CACHE de sw.js
+const APP_VER=32;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
