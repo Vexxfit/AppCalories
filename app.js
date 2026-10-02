@@ -6903,7 +6903,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=36;   // subir junto con CACHE de sw.js
+const APP_VER=37;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
