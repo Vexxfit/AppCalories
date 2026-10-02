@@ -583,6 +583,7 @@ function renderAjustes(){
     {ic:ic('note',18),label:"Reporte en PDF (con gráficas)",val:"",act:"openPrintReport()"},
     {ic:ic('download',18),label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
     {ic:ic('upload',18),label:"Importar respaldo",val:"",act:"triggerImport()"},
+    {ic:ic('note',18),label:"Créditos del modelo anatómico 3D",val:"",act:"openCredits3D()"},
     {ic:ic('cycle',18),label:"Versión de la app (buscar actualización)",val:"v"+APP_VER,act:"checkAppUpdate()"}
   ];
   let html=cloudCardHTML();
@@ -5169,7 +5170,7 @@ function renderProgreso(){
   }else{
     sel.innerHTML="";
     const pm=__volMode==="pain";
-    document.getElementById("bodyMap").innerHTML=`<div class="seg" style="max-width:300px;margin:0 auto 10px"><span class="${pm?'':'on'}" onclick="setVolMode('sets')">Series</span><span class="${pm?'on':''}" onclick="setVolMode('pain')">Molestias</span></div>`+bodyMapSVG({}, pm?{painTap:true}:{pain:true});
+    document.getElementById("bodyMap").innerHTML=`<div class="seg" style="max-width:300px;margin:0 auto 10px"><span class="${pm?'':'on'}" onclick="setVolMode('sets')">Series</span><span class="${pm?'on':''}" onclick="setVolMode('pain')">Molestias</span></div>`+bodyMapBlock({}, pm?{painTap:true}:{}, pm?{painTap:true}:{pain:true}); bodyMapMount({}, pm?{painTap:true}:{});
     document.getElementById("groupVolumeTable").innerHTML=pm?painListHTML(null):`<div class="empty">Aún sin sesiones. Registra un entreno para ver tus músculos trabajados.</div>`;
     ["imbalanceBox","muscleProgressBox","qualityBox"].forEach(id=>{const el=document.getElementById(id); if(el) el.innerHTML=`<div class="empty" style="margin:0">Sin datos aún.</div>`;});
   }
@@ -5313,6 +5314,12 @@ const MV_SUB={ pecho:[10,12,20,22],deltAnt:[0,6,12,16],deltLat:[8,12,20,26],delt
 function volStatus(mk,sets){ const r=MV_SUB[mk]; if(!r) return {label:"—",color:"var(--muted)",range:""}; const [mev,lo,hi,mrv]=r,range=`ideal ${lo}–${hi}`;
   if(sets<mev) return {label:"Bajo",color:"var(--warn)",range}; if(sets>mrv) return {label:"Alto",color:"var(--bad)",range};
   if(sets>=lo&&sets<=hi) return {label:"Óptimo",color:"var(--ok)",range}; return {label:"OK",color:"var(--accent)",range}; }
+/* mapa del cuerpo: visor 3D (body3d.js) y, si no hay WebGL o no carga, el mapa 2D de siempre */
+function bodyMapBlock(ev,o3,svgOpts){ return `<div id="b3Host" class="b3-host">${bodyMapSVG(ev,svgOpts)}</div>${o3.painTap?"":body3dLegendHTML(o3.mode)}`; }
+function bodyMapMount(ev,o3){
+  const host=document.getElementById("b3Host"); if(!host||typeof body3dMount!=="function") return;
+  body3dMount(host,ev,o3).then(()=>{ const l=document.getElementById("b3Legend"); if(l) l.hidden=false; }).catch(()=>{});
+}
 let __volMode="sets";
 function setVolMode(m){ __volMode=m; renderProgreso(); }
 function renderGroupVolume(wk){
@@ -5320,11 +5327,11 @@ function renderGroupVolume(wk){
   const nAct=Object.keys(activePains()).length;
   const seg=`<div class="seg" style="max-width:340px;margin:0 auto 10px"><span class="${!ton&&!pain?'on':''}" onclick="setVolMode('sets')">Series</span><span class="${ton?'on':''}" onclick="setVolMode('ton')">Tonelaje</span><span class="${pain?'on':''}" onclick="setVolMode('pain')">Molestias${nAct?` (${nAct})`:''}</span></div>`;
   if(pain){   // el diagrama del volumen con las articulaciones tocables encima
-    document.getElementById("bodyMap").innerHTML=seg+bodyMapSVG(ev,{painTap:true});
+    document.getElementById("bodyMap").innerHTML=seg+bodyMapBlock(ev,{painTap:true},{painTap:true}); bodyMapMount(ev,{painTap:true});
     document.getElementById("groupVolumeTable").innerHTML=painListHTML(wk);
     return;
   }
-  document.getElementById("bodyMap").innerHTML = seg + bodyMapSVG(ton?et:ev, ton?{mode:"ton",pain:true}:{pain:true});
+  document.getElementById("bodyMap").innerHTML = seg + bodyMapBlock(ton?et:ev, ton?{mode:"ton"}:{}, ton?{mode:"ton",pain:true}:{pain:true}); bodyMapMount(ton?et:ev, ton?{mode:"ton"}:{});
   const worked=SUBMUSCLES.filter(([k])=>(ev[k]||0)>0||(et[k]||0)>0).sort((a,b)=>ton?((et[b[0]]||0)-(et[a[0]]||0)):((ev[b[0]]||0)-(ev[a[0]]||0)));
   const el=document.getElementById("groupVolumeTable");
   el.innerHTML = worked.length ? `<table><thead><tr><th>Músculo</th><th class="r">Series efect.</th><th class="r">Tonelaje efect.</th><th class="r">Estado</th></tr></thead><tbody>
@@ -6746,7 +6753,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=29;   // subir junto con CACHE de sw.js
+const APP_VER=30;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
@@ -6764,6 +6771,11 @@ function registerSW(){
       else toast("Nueva versión lista: se aplicará al guardar la sesión y volver a abrir");
     });
   }
+}
+function openCredits3D(){
+  document.getElementById("exInfoTitle").textContent="Créditos · modelo anatómico 3D";
+  document.getElementById("exInfoBody").innerHTML=`<div style="font-size:14px;line-height:1.65"><p>El cuerpo 3D de Progreso usa el modelo de <b>Z-Anatomy</b> (<a href="https://www.z-anatomy.com" target="_blank" rel="noopener">z-anatomy.com</a>), obra de Gauthier Kervyn y colaboradores, derivado de <b>BodyParts3D</b> (© Life Science Database Archive, DBCLS).</p><p>Licencia <b>Creative Commons Atribución-CompartirIgual 4.0</b> (CC BY-SA 4.0). Adaptado para VEXX: selección de los músculos que usa la app, simplificación de la malla y coloreado por volumen de entrenamiento. El modelo adaptado se comparte bajo la misma licencia.</p><p style="color:var(--muted);font-size:12.5px">Visualización con three.js (licencia MIT).</p></div>`;
+  openModal("exInfoModal");
 }
 function checkAppUpdate(){
   if(!swReg) return toast("Versión v"+APP_VER);

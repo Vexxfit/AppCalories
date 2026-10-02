@@ -947,3 +947,22 @@ html[data-theme="dark"] .supp-chip.on{background:rgba(52,199,89,.17)}
 .set-row.uni input{padding:10px 4px!important}
 .set-row.uni .btn-sm{padding:4px 0!important;min-height:26px;width:26px;justify-self:center}
 @media(max-width:370px){ .set-row.uni,.set-head.uni{grid-template-columns:26px 1.05fr .85fr .85fr .65fr 24px 24px!important;gap:5px!important} .set-row.uni .btn-sm{width:24px;min-height:24px} }
+
+/* ---- 26 · visor 3D del cuerpo (Progreso) ---- */
+.b3-host{max-width:380px;margin:0 auto}
+.b3d{position:relative;width:100%;height:min(112vw,470px);border-radius:18px;background:radial-gradient(120% 90% at 50% 38%,var(--bg2),transparent 78%);touch-action:pan-y;user-select:none;-webkit-user-select:none}
+.b3d canvas{width:100%;height:100%;display:block;cursor:grab;touch-action:pan-y}
+.b3d canvas:active{cursor:grabbing}
+.b3d-btns{position:absolute;top:8px;right:8px;display:flex;gap:6px}
+.b3d-btns button{border:none;background:var(--surface);color:var(--text);font:inherit;font-size:12px;font-weight:650;padding:6px 10px;border-radius:10px;box-shadow:0 1px 4px rgba(60,40,120,.14);cursor:pointer}
+.b3d-btns button.on{background:var(--accent);color:#fff}
+.b3d-tip{position:absolute;left:50%;bottom:30px;transform:translateX(-50%);background:var(--text);color:var(--bg);font-size:12.5px;padding:7px 12px;border-radius:12px;white-space:nowrap;pointer-events:none;max-width:92%;overflow:hidden;text-overflow:ellipsis}
+.b3d-hint{position:absolute;left:0;right:0;bottom:6px;text-align:center;font-size:11px;color:var(--muted);pointer-events:none}
+.b3d-legend{display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin:8px 0 0;font-size:11px;color:var(--muted)}
+.b3d-legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:4px;vertical-align:-2px}
+
+/* ---- control segmentado (Series · Tonelaje · Molestias, Mis alimentos · Comí fuera…) ---- */
+.seg{display:flex;background:var(--bg2);border-radius:13px;padding:3px;gap:2px}
+.seg span{flex:1;text-align:center;font-family:var(--font);font-size:13px;font-weight:600;letter-spacing:-.01em;color:var(--muted);border-radius:10px;padding:8px 10px;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s}
+.seg span.on{background:var(--surface);color:var(--text);box-shadow:var(--shadow-sm)}
+[data-theme="dark"] .seg span.on{background:var(--surface2,var(--surface))}
