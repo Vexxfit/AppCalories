@@ -583,7 +583,7 @@ function renderAjustes(){
     {ic:ic('note',18),label:"Reporte en PDF (con gráficas)",val:"",act:"openPrintReport()"},
     {ic:ic('download',18),label:"Exportar respaldo (.json)",val:"",act:"exportData()"},
     {ic:ic('upload',18),label:"Importar respaldo",val:"",act:"triggerImport()"},
-    {ic:ic('note',18),label:"Créditos del mapa anatómico",val:"",act:"openCredits3D()"},
+    {ic:ic('note',18),label:"Créditos de ilustraciones y mapa",val:"",act:"openCredits3D()"},
     {ic:ic('cycle',18),label:"Versión de la app (buscar actualización)",val:"v"+APP_VER,act:"checkAppUpdate()"}
   ];
   let html=cloudCardHTML();
@@ -3977,11 +3977,11 @@ function openExMiniHist(exId){
   openModal("exInfoModal");
 }
 function openExTip(exId){ const ex=exById(exId); const tip=(typeof EX_TIPS!=="undefined")&&EX_TIPS[exId];
-  const pose=exPoseSVG(exId); if(!tip&&!pose) return;
+  const ill=exIllOf(exId), pose=ill?"":exPoseSVG(exId); if(!tip&&!pose&&!ill) return;
   const inv=exMuscles(ex||{id:exId}), ks=Object.keys(inv);
   document.getElementById("exInfoTitle").textContent=ex?ex.name:"Técnica";
   document.getElementById("exInfoBody").innerHTML=
-    (pose?xaHowtoHTML('ex',exId,"Músculos que trabaja en morado."):'')+
+    (ill?exIllFichaHTML(exId):(pose?xaHowtoHTML('ex',exId,"Músculos que trabaja en morado."):''))+
     (ks.length?`<div class="ex-mmap"><div style="flex:0 0 150px;width:150px">${bodyMapSVG(inv,{mode:"frac",compact:true,width:150})}</div><div class="ex-mmap-l">${ks.sort((a,b)=>inv[b]-inv[a]).map(k=>`${SUBLABEL[k]||k}${inv[k]<1?` <span style="color:var(--muted)">${Math.round(inv[k]*100)}%</span>`:''}`).join(" · ")}</div></div>`:'')+
     (tip?`<div style="font-size:14.5px;line-height:1.6">${tip}</div>`:'');
   openModal("exInfoModal"); xaPlayerAttach(document.getElementById("xaHowBox")); }
@@ -5004,7 +5004,7 @@ function renderExTable(){
   const el=document.getElementById("exList");
   el.innerHTML = rows.length ? rows.map(e=>`
     <div class="list-row">
-      <div class="lr-thumb" title="Cómo se hace" onclick="openExTip('${e.id}')">${exPoseSVG(e.id,{thumb:true,size:40})}</div>
+      <div class="lr-thumb${exIllOf(e.id)?" ill":""}" title="Cómo se hace" onclick="openExTip('${e.id}')">${exIllHTML(e.id,{thumb:true})||exPoseSVG(e.id,{thumb:true,size:40})}</div>
       <div class="lr-main"><div class="lr-title">${e.name} ${e.custom?'<span class="badge" style="background:var(--accent-soft);color:var(--accent)">propio</span>':''}</div>
         <div class="lr-sub">${e.group} · ${e.repRange} reps · RIR ${e.rir} · ${exEquip(e)}</div><div class="ex-howlink" style="margin-top:2px" onclick="openExTip('${e.id}')">Cómo se hace ›</div></div>
       <button class="icon-btn" onclick="openExModal('${e.id}')" aria-label="Editar"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20h4L18.5 9.5a2 2 0 00-3-3L5 17v3z"/></svg></button>
@@ -5499,7 +5499,9 @@ function bodyMapSVG(ev,opts){
 /* mapa mini de un ejercicio (qué músculos trabaja) + cómo se hace (animación) + leyenda textual */
 function exMuscleMapHTML(exId,width){
   const ex=exById(exId)||{id:exId}; const inv=exMuscles(ex); const ks=Object.keys(inv);
-  const w=width||150, pose=exPoseSVG(exId);
+  const w=width||150, ill=exIllHTML(exId), pose=ill?"":exPoseSVG(exId);
+  if(ill){ const lb=ks.sort((a,b)=>inv[b]-inv[a]).map(k=>`${SUBLABEL[k]||k}${inv[k]<1?` <span style="color:var(--muted)">${Math.round(inv[k]*100)}%</span>`:''}`).join(" · ");
+    const wi=Math.round(w*1.2); return `<div class="ex-mmap"><div class="ex-pose ex-pose-ill" style="flex:0 0 ${wi}px;width:${wi}px" title="Cómo se hace" onclick="openExTip('${exId}')">${ill}</div><div class="ex-mmap-l">${lb}<div class="ex-howlink" onclick="openExTip('${exId}')">Ver cómo se hace ›</div></div></div>`; }
   if(!ks.length&&!pose) return "";
   const lbls=ks.sort((a,b)=>inv[b]-inv[a]).map(k=>`${SUBLABEL[k]||k}${inv[k]<1?` <span style="color:var(--muted)">${Math.round(inv[k]*100)}%</span>`:''}`).join(" · ");
   // la figura en la pose del ejercicio ya lleva pintados los músculos que trabaja
@@ -6062,6 +6064,25 @@ function mobPattern(m){
   for(const [re,p] of R) if(re.test(t)) return p;
   return 'm_deepsq';
 }
+/* ---- ilustraciones de línea (Everkinetic, CC BY-SA 4.0): pose inicial y final del ejercicio ----
+   La animación alterna las dos poses con un fundido suave (CSS, sin JS). [id del dibujo, 1 = variante parecida] */
+const EX_ILL={"e_pressbanca":["0042"],"e_pressincbarra":["0043"],"e_pressincmanc":["0061"],"e_fondos":["0054"],"e_latmanc":["0018"],"e_extrice":["0206"],"e_extricebarra":["0205"],"e_pulldownneutro":["0096"],"e_remogironda":["0025"],"e_girondaprono":["0025",1],"e_predicador":["0239"],"e_predicadormaq":["0236"],"e_curlpolea":["0212"],"e_curlfemac":["0117"],"e_curlfemsent":["0119"],"ce_1782313044383":["0120",1],"e_rdl":["0118"],"e_pesomuerto":["0099"],"e_sentadilla":["0124"],"e_extcuad":["0142"],"ce_1782334604277":["0142",1],"e_prensa":["0127"],"e_abductor":["0156"],"e_aductor":["0157"],"e_pantprensa":["0273"],"e_pantsent":["0279"],"e_gemelopie":["0281"],"e_pressmaqpecho":["0066"],"e_pressplanomanc":["0055"],"e_crossover":["0048"],"e_flysarriba":["0048"],"e_frontraise":["0033"],"e_reardelt":["0032"],"e_curlmartillo":["0227"],"e_curlconcentrado":["0220"],"e_pressfrances":["0183"],"e_zancadas":["0115"],"e_crunchpolea":["0288"],"e_abruedita":["0286"],"ce_1782310417636":["0087"],"e_hiperext":["0103"],"e_pendulo":["0123",1],"e_remobarra":["0026",1],"e_remopolea":["0025",1],"e_remomaq":["0025",1],"e_latmaq":["0018",1],"e_pecfly":["0056",1],"e_hipthrust":["0109",1],"e_rdlmanc":["0107",1]};
+function exIllOf(exId){ const v=EX_ILL[exId]; return v?{id:v[0],sim:!!v[1]}:null; }
+const exIllSrc=(id,p)=>`ex/${id}-${p}.svg`;   // p: relaxation (inicio) | tension (final)
+function exIllHTML(exId,opts){
+  const o=exIllOf(exId); if(!o) return ""; opts=opts||{};
+  if(opts.thumb) return `<img class="ex-ill-t" loading="lazy" decoding="async" alt="" src="${exIllSrc(o.id,"relaxation")}">`;
+  if(opts.side) return `<div class="ex-ill-2"><figure><img alt="Inicio" src="${exIllSrc(o.id,"relaxation")}"><figcaption>Inicio</figcaption></figure><figure><img alt="Final" src="${exIllSrc(o.id,"tension")}"><figcaption>Final</figcaption></figure></div>`;
+  return `<div class="ex-ill"><img class="a" alt="Inicio" src="${exIllSrc(o.id,"relaxation")}"><img class="b" alt="Final" src="${exIllSrc(o.id,"tension")}"></div>`;
+}
+let __exIllId=null;
+function exIllFichaHTML(exId){
+  const o=exIllOf(exId); if(!o) return ""; __exIllId=exId;
+  return `<div class="ex-howto"><div class="xa-seg"><button class="on" onclick="exIllMode(this,'anim')">Animación</button><button onclick="exIllMode(this,'side')">Inicio y final</button></div>
+    <div id="exIllBox" class="exill-box">${exIllHTML(exId)}</div>
+    <div class="xa-cap">${o.sim?"Dibujo de un ejercicio parecido (variante). ":""}Alterna la posición inicial y la final. Ilustración: Everkinetic · CC BY-SA 4.0.</div></div>`;
+}
+function exIllMode(btn,mode){ if(!__exIllId) return; [...btn.parentNode.children].forEach(b=>b.classList.toggle("on",b===btn)); const box=document.getElementById("exIllBox"); if(box) box.innerHTML=exIllHTML(__exIllId,mode==="side"?{side:true}:{}); }
 const __thumbCache=new Map();
 function exPoseSVG(exId,opts){
   if(opts&&opts.thumb&&!opts.view){ const e0=exById(exId)||{id:exId}, key=exId+"|"+opts.size+"|"+JSON.stringify(exMuscles(e0))+(typeof ANAT3!=="undefined"?"a":""); if(__thumbCache.has(key)) return __thumbCache.get(key); const out=exPoseSVGRaw(exId,opts); __thumbCache.set(key,out); return out; }
@@ -6858,7 +6879,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=34;   // subir junto con CACHE de sw.js
+const APP_VER=35;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
@@ -6878,8 +6899,8 @@ function registerSW(){
   }
 }
 function openCredits3D(){
-  document.getElementById("exInfoTitle").textContent="Créditos · mapa anatómico";
-  document.getElementById("exInfoBody").innerHTML=`<div style="font-size:14px;line-height:1.65"><p>Las siluetas y formas musculares del mapa de Progreso derivan del modelo de <b>Z-Anatomy</b> (<a href="https://www.z-anatomy.com" target="_blank" rel="noopener">z-anatomy.com</a>), obra de Gauthier Kervyn y colaboradores, derivado de <b>BodyParts3D</b> (© Life Science Database Archive, DBCLS).</p><p>Licencia <b>Creative Commons Atribución-CompartirIgual 4.0</b> (CC BY-SA 4.0). Adaptado para VEXX: vista frontal y posterior proyectadas a 2D, contornos por músculo simplificados y coloreados por volumen de entrenamiento. Las formas adaptadas se comparten bajo la misma licencia.</p></div>`;
+  document.getElementById("exInfoTitle").textContent="Créditos · ilustraciones y mapa";
+  document.getElementById("exInfoBody").innerHTML=`<div style="font-size:14px;line-height:1.65"><p>Las siluetas y formas musculares del mapa de Progreso derivan del modelo de <b>Z-Anatomy</b> (<a href="https://www.z-anatomy.com" target="_blank" rel="noopener">z-anatomy.com</a>), obra de Gauthier Kervyn y colaboradores, derivado de <b>BodyParts3D</b> (© Life Science Database Archive, DBCLS).</p><p>Los dibujos de ejercicios (posición inicial y final) son de <b>Everkinetic</b> (Greg Priday, <a href=\"https://github.com/everkinetic/data\" target=\"_blank\" rel=\"noopener\">github.com/everkinetic/data</a>), licencia <b>CC BY-SA 4.0</b>.</p><p>Licencia <b>Creative Commons Atribución-CompartirIgual 4.0</b> (CC BY-SA 4.0). Adaptado para VEXX: vista frontal y posterior proyectadas a 2D, contornos por músculo simplificados y coloreados por volumen de entrenamiento. Las formas adaptadas se comparten bajo la misma licencia.</p></div>`;
   openModal("exInfoModal");
 }
 function checkAppUpdate(){
