@@ -973,3 +973,7 @@ html[data-theme="dark"] .supp-chip.on{background:rgba(52,199,89,.17)}
 .ex-ill-2 figure{margin:0;background:#fff;border-radius:12px;padding:4px 4px 6px;text-align:center}
 .ex-ill-2 img{width:100%;display:block}
 .ex-ill-2 figcaption{font-size:11px;font-weight:650;color:#777;margin-top:2px}
+
+/* ---- 28 · dibujos animados propios (tira de cuadros) ---- */
+.ex-spr{width:100%;aspect-ratio:1;background-color:#fff;background-repeat:no-repeat;border-radius:12px}
+.ex-ill-2 .ex-spr{border-radius:8px}
