@@ -3220,7 +3220,7 @@ function openMobDetail(id){
   document.getElementById("exInfoTitle").textContent=m.name;
   const pose=mobPoseSVG(m);
   document.getElementById("exInfoBody").innerHTML=`
-    ${pose?xaHowtoHTML('mob',m.id,(m.mus||[]).length?`Zona que trabaja en morado: ${(m.mus||[]).map(k=>SUBLABEL[k]||k).join(" · ")}.`:''):''}
+    ${pose==='spr'?`<div class="ex-howto"><div class="exill-box">${exSprHTML(m.id)}</div><div class="xa-cap">${(m.mus||[]).length?`Zona que trabaja en morado: ${(m.mus||[]).map(k=>SUBLABEL[k]||k).join(" · ")}.`:''}</div></div>`:pose?xaHowtoHTML('mob',m.id,(m.mus||[]).length?`Zona que trabaja en morado: ${(m.mus||[]).map(k=>SUBLABEL[k]||k).join(" · ")}.`:''):''}
     <div class="paramchips" style="margin:0 0 12px;display:flex;gap:6px;flex-wrap:wrap"><span class="pill">${m.zone}</span><span class="pill">${MOB_TYPES[m.type]||m.type}</span><span class="pill">${m.dose}</span></div>
     <div style="font-weight:700;margin-bottom:6px">Paso a paso</div>
     <ol class="mob-steps">${(m.steps||[]).map(s=>`<li>${s}</li>`).join("")}</ol>
@@ -6066,14 +6066,14 @@ function mobPattern(m){
 }
 /* ---- dibujos animados propios (Blender): músculos reales de Z-Anatomy posados con el esqueleto de cada ejercicio ----
    Cada ejercicio tiene una tira de cuadros (ex3/<id>.webp) que se reproduce de ida y vuelta, y una miniatura (ex3/<id>_0.webp). */
-const EX_SPR={"e_pressbanca":[7],"e_pressincmaq":[7],"e_pressincbarra":[7],"e_pressincmanc":[7],"e_pecfly":[7],"e_flysarriba":[7],"e_crossover":[7],"e_fondos":[7],"e_pressmil":[7],"e_pressmaqhombro":[7],"e_landmine":[7],"e_latmanc":[7],"e_latpolea":[7],"e_latmaq":[7],"e_frontraise":[7],"e_reardelt":[7],"e_facepull":[7],"e_extrice":[7],"e_extuni":[7],"e_pressfrances":[7],"e_pulldownneutro":[7],"e_pulldownabierto":[7],"e_jalonpecho":[7],"e_remobarra":[7],"e_remomanc":[7],"e_remopolea":[7],"ce_1782311296032":[7],"ce_1782310417636":[7],"ce_1782313044383":[7],"ce_1782334604277":[7],"e_remogironda":[7],"e_remosentado":[7],"e_remomaq":[7],"e_pullover":[7],"e_predicador":[7],"e_predicadormaq":[7],"e_curlpolea":[7],"e_curlmartillo":[7],"e_faceaway":[7],"e_curlconcentrado":[7],"e_curlfemac":[7],"e_curlfemsent":[7],"e_rdl":[7],"e_rdlmanc":[7],"e_pesomuerto":[7],"e_sentadilla":[7],"e_pendulo":[7],"e_extcuad":[7],"e_prensa":[7],"e_abductor":[7],"e_aductor":[7],"e_pantprensa":[7],"e_pantsent":[7],"e_gemelopie":[7],"e_pressmaqpecho":[7],"e_pressplanomanc":[7],"e_floorpress":[7],"e_zancadas":[7],"e_bulgara":[7],"e_hipthrust":[7],"e_plancha":[7],"e_crunchpolea":[7],"e_elevpiernas":[7],"e_abruedita":[7],"e_movcadera":[7],"e_pressmilsmith":[7],"e_extricebarra":[7],"e_girondaprono":[7],"e_remounimanc":[7],"e_hiperext":[7]};
+const EX_SPR={"e_pressbanca":[7],"e_pressincmaq":[7],"e_pressincbarra":[7],"e_pressincmanc":[7],"e_pecfly":[7],"e_flysarriba":[7],"e_crossover":[7],"e_fondos":[7],"e_pressmil":[7],"e_pressmaqhombro":[7],"e_landmine":[7],"e_latmanc":[7],"e_latpolea":[7],"e_latmaq":[7],"e_frontraise":[7],"e_reardelt":[7],"e_facepull":[7],"e_extrice":[7],"e_extuni":[7],"e_pressfrances":[7],"e_pulldownneutro":[7],"e_pulldownabierto":[7],"e_jalonpecho":[7],"e_remobarra":[7],"e_remomanc":[7],"e_remopolea":[7],"ce_1782311296032":[7],"ce_1782310417636":[7],"ce_1782313044383":[7],"ce_1782334604277":[7],"e_remogironda":[7],"e_remosentado":[7],"e_remomaq":[7],"e_pullover":[7],"e_predicador":[7],"e_predicadormaq":[7],"e_curlpolea":[7],"e_curlmartillo":[7],"e_faceaway":[7],"e_curlconcentrado":[7],"e_curlfemac":[7],"e_curlfemsent":[7],"e_rdl":[7],"e_rdlmanc":[7],"e_pesomuerto":[7],"e_sentadilla":[7],"e_pendulo":[7],"e_extcuad":[7],"e_prensa":[7],"e_abductor":[7],"e_aductor":[7],"e_pantprensa":[7],"e_pantsent":[7],"e_gemelopie":[7],"e_pressmaqpecho":[7],"e_pressplanomanc":[7],"e_floorpress":[7],"e_zancadas":[7],"e_bulgara":[7],"e_hipthrust":[7],"e_plancha":[7],"e_crunchpolea":[7],"e_elevpiernas":[7],"e_abruedita":[7],"e_movcadera":[7],"e_pressmilsmith":[7],"e_extricebarra":[7],"e_girondaprono":[7],"e_remounimanc":[7],"e_hiperext":[7],"mb_9090":[7],"mb_hipcars":[20,1,2],"mb_wgs":[7],"mb_deepsq":[7],"mb_adductor":[7],"mb_hamstring":[7],"mb_ankle":[7],"mb_catcow":[7],"mb_circuit":[20,1,4],"mb_shcars":[20,1,2],"mb_passthru":[7],"mb_thoracic":[7],"mb_wall":[7],"mb_wrist":[7]};
 const exSprOf=id=>EX_SPR[id]||null;
 function exSprHTML(exId,opts){
   const o=exSprOf(exId); if(!o) return ""; opts=opts||{};
   if(opts.thumb) return `<img class="ex-ill-t" loading="lazy" decoding="async" alt="" src="ex3/${exId}_0.webp">`;
-  const n=o[0], bs=`background-image:url(ex3/${exId}.webp);background-size:${n*100}% 100%`;
+  const n=o[0], lp=o[1]?` data-loop="${o[2]||1}"`:"", bs=`background-image:url(ex3/${exId}.webp);background-size:${n*100}% 100%`;
   if(opts.side) return `<div class="ex-ill-2"><figure><div class="ex-spr" style="${bs};background-position:0 0"></div><figcaption>Inicio</figcaption></figure><figure><div class="ex-spr" style="${bs};background-position:100% 0"></div><figcaption>Final</figcaption></figure></div>`;
-  return `<div class="ex-spr" data-anim="1" data-n="${n}" style="${bs};background-position:0 0"></div>`;
+  return `<div class="ex-spr" data-anim="1" data-n="${n}"${lp} style="${bs};background-position:0 0"></div>`;
 }
 /* un solo reloj para todas las animaciones visibles: ida y vuelta con una pausa en cada extremo */
 let __sprT=null, __sprI=0;
@@ -6083,7 +6083,7 @@ function sprTick(){
   const els=document.querySelectorAll(".ex-spr[data-anim]");
   if(!els.length){ clearInterval(__sprT); __sprT=null; return; }
   __sprI++;
-  els.forEach(el=>{ const n=+el.dataset.n, s=sprSeq(n), i=s[__sprI%s.length]; el.style.backgroundPosition=(n>1?(i/(n-1))*100:0)+"% 0"; });
+  els.forEach(el=>{ const n=+el.dataset.n, lp=+el.dataset.loop||0; let i; if(lp) i=Math.floor(__sprI/lp)%n; else { const s=sprSeq(n); i=s[__sprI%s.length]; } el.style.backgroundPosition=(n>1?(i/(n-1))*100:0)+"% 0"; });
 }
 function sprStart(){ if(!__sprT) __sprT=setInterval(sprTick,125); }
 if(typeof MutationObserver!=="undefined") new MutationObserver(()=>{ if(!__sprT&&document.querySelector(".ex-spr[data-anim]")) sprStart(); }).observe(document.documentElement,{childList:true,subtree:true});
@@ -6116,7 +6116,7 @@ function exPoseSVGRaw(exId,opts){
   const ex=exById(exId)||{id:exId}, pm=x3PatFor(ex); if(!pm||!X3P[pm[0]]) return "";
   return x3Render(X3P[pm[0]],pm[1]||'none',exMuscles(ex),opts);
 }
-function mobPoseSVG(m,opts){ const p=mobPattern(m); if(!p||!X3P[p]) return ""; const inv={}; (m.mus||[]).forEach(k=>inv[k]=0.6); return x3Render(X3P[p],'none',inv,opts); }
+function mobPoseSVG(m,opts){ if(exSprOf(m.id)) return opts&&opts.thumb?exSprHTML(m.id,{thumb:true}):"spr"; const p=mobPattern(m); if(!p||!X3P[p]) return ""; const inv={}; (m.mus||[]).forEach(k=>inv[k]=0.6); return x3Render(X3P[p],'none',inv,opts); }
 /* bloque de la ficha: vista (frente/3/4/lado/espalda) + animación o pose fija */
 let __xaHow=null;
 let __xaPlayFn=null, __xaPlayDur=3600;
@@ -6903,7 +6903,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=37;   // subir junto con CACHE de sw.js
+const APP_VER=38;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
