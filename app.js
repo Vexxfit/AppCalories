@@ -6066,14 +6066,16 @@ function mobPattern(m){
 }
 /* ---- dibujos animados propios (Blender): músculos reales de Z-Anatomy posados con el esqueleto de cada ejercicio ----
    Cada ejercicio tiene una tira de cuadros (ex3/<id>.webp) que se reproduce de ida y vuelta, y una miniatura (ex3/<id>_0.webp). */
-const EX_SPR={"e_pressbanca":[16],"e_pressincmaq":[16],"e_pressincbarra":[16],"e_pressincmanc":[16],"e_pecfly":[16],"e_flysarriba":[16],"e_crossover":[16],"e_fondos":[16],"e_pressmil":[16],"e_pressmaqhombro":[16],"e_landmine":[16],"e_latmanc":[16],"e_latpolea":[16],"e_latmaq":[16],"e_frontraise":[16],"e_reardelt":[16],"e_facepull":[16],"e_extrice":[16],"e_extuni":[16],"e_pressfrances":[16],"e_pulldownneutro":[16],"e_pulldownabierto":[16],"e_jalonpecho":[7],"e_remobarra":[16],"e_remomanc":[16],"e_remopolea":[16],"ce_1782311296032":[16],"ce_1782310417636":[16],"ce_1782313044383":[16],"ce_1782334604277":[16],"e_remogironda":[16],"e_remosentado":[7],"e_remomaq":[16],"e_pullover":[16],"e_predicador":[16],"e_predicadormaq":[16],"e_curlpolea":[16],"e_curlmartillo":[16],"e_faceaway":[16],"e_curlconcentrado":[16],"e_curlfemac":[16],"e_curlfemsent":[16],"e_rdl":[16],"e_rdlmanc":[16],"e_pesomuerto":[16],"e_sentadilla":[16],"e_pendulo":[16],"e_extcuad":[16],"e_prensa":[16],"e_abductor":[16],"e_aductor":[16],"e_pantprensa":[16],"e_pantsent":[16],"e_gemelopie":[16],"e_pressmaqpecho":[16],"e_pressplanomanc":[16],"e_floorpress":[16],"e_zancadas":[16],"e_bulgara":[16],"e_hipthrust":[16],"e_plancha":[16],"e_crunchpolea":[16],"e_elevpiernas":[16],"e_abruedita":[16],"e_movcadera":[16],"e_pressmilsmith":[16],"e_extricebarra":[16],"e_girondaprono":[16],"e_remounimanc":[16],"e_hiperext":[16],"mb_9090":[16],"mb_hipcars":[36,1,2],"mb_wgs":[16],"mb_deepsq":[16],"mb_adductor":[16],"mb_hamstring":[16],"mb_ankle":[16],"mb_catcow":[16],"mb_circuit":[36,1,4],"mb_shcars":[36,1,2],"mb_passthru":[16],"mb_thoracic":[16],"mb_wall":[16],"mb_wrist":[16]};
+const EX_SPR={"e_pressbanca":[16,0,1,8,2],"e_pressincmaq":[16,0,1,8,2],"e_pressincbarra":[16,0,1,8,2],"e_pressincmanc":[16,0,1,8,2],"e_pecfly":[16,0,1,8,2],"e_flysarriba":[16,0,1,8,2],"e_crossover":[16,0,1,8,2],"e_fondos":[16,0,1,8,2],"e_pressmil":[16,0,1,8,2],"e_pressmaqhombro":[16,0,1,8,2],"e_landmine":[16,0,1,8,2],"e_latmanc":[16,0,1,8,2],"e_latpolea":[16,0,1,8,2],"e_latmaq":[16,0,1,8,2],"e_frontraise":[16,0,1,8,2],"e_reardelt":[16,0,1,8,2],"e_facepull":[16,0,1,8,2],"e_extrice":[16,0,1,8,2],"e_extuni":[16,0,1,8,2],"e_pressfrances":[16,0,1,8,2],"e_pulldownneutro":[16,0,1,8,2],"e_pulldownabierto":[16,0,1,8,2],"e_remobarra":[16,0,1,8,2],"e_remomanc":[16,0,1,8,2],"e_remopolea":[16,0,1,8,2],"ce_1782311296032":[16,0,1,8,2],"ce_1782310417636":[16,0,1,8,2],"ce_1782313044383":[16,0,1,8,2],"ce_1782334604277":[16,0,1,8,2],"e_remogironda":[16,0,1,8,2],"e_remomaq":[16,0,1,8,2],"e_pullover":[16,0,1,8,2],"e_predicador":[16,0,1,8,2],"e_predicadormaq":[16,0,1,8,2],"e_curlpolea":[16,0,1,8,2],"e_curlmartillo":[16,0,1,8,2],"e_faceaway":[16,0,1,8,2],"e_curlconcentrado":[16,0,1,8,2],"e_curlfemac":[16,0,1,8,2],"e_curlfemsent":[16,0,1,8,2],"e_rdl":[16,0,1,8,2],"e_rdlmanc":[16,0,1,8,2],"e_pesomuerto":[16,0,1,8,2],"e_sentadilla":[16,0,1,8,2],"e_pendulo":[16,0,1,8,2],"e_extcuad":[16,0,1,8,2],"e_prensa":[16,0,1,8,2],"e_abductor":[16,0,1,8,2],"e_aductor":[16,0,1,8,2],"e_pantprensa":[16,0,1,8,2],"e_pantsent":[16,0,1,8,2],"e_gemelopie":[16,0,1,8,2],"e_pressmaqpecho":[16,0,1,8,2],"e_pressplanomanc":[16,0,1,8,2],"e_floorpress":[16,0,1,8,2],"e_zancadas":[16,0,1,8,2],"e_bulgara":[16,0,1,8,2],"e_hipthrust":[16,0,1,8,2],"e_plancha":[1,0,1,1,1],"e_crunchpolea":[16,0,1,8,2],"e_elevpiernas":[16,0,1,8,2],"e_abruedita":[16,0,1,8,2],"e_movcadera":[72,1,3,8,9],"e_pressmilsmith":[16,0,1,8,2],"e_extricebarra":[16,0,1,8,2],"e_girondaprono":[16,0,1,8,2],"e_remounimanc":[16,0,1,8,2],"e_hiperext":[16,0,1,8,2],"mb_9090":[16,0,1,8,2],"mb_hipcars":[36,1,2,8,5],"mb_wgs":[16,0,1,8,2],"mb_deepsq":[16,0,1,8,2],"mb_adductor":[16,0,1,8,2],"mb_hamstring":[16,0,1,8,2],"mb_ankle":[16,0,1,8,2],"mb_catcow":[16,0,1,8,2],"mb_circuit":[72,1,3,8,9],"mb_shcars":[36,1,2,8,5],"mb_passthru":[16,0,1,8,2],"mb_thoracic":[16,0,1,8,2],"mb_wall":[16,0,1,8,2],"mb_wrist":[16,0,1,8,2]};
 const exSprOf=id=>EX_SPR[id]||null;
+function sprPos(i,c,r){ const x=i%c, y=Math.floor(i/c); return (c>1?x/(c-1)*100:0)+"% "+(r>1?y/(r-1)*100:0)+"%"; }
 function exSprHTML(exId,opts){
   const o=exSprOf(exId); if(!o) return ""; opts=opts||{};
   if(opts.thumb) return `<img class="ex-ill-t" loading="lazy" decoding="async" alt="" src="ex3/${exId}_0.webp">`;
-  const n=o[0], lp=o[1]?` data-loop="${o[2]||1}"`:"", bs=`background-image:url(ex3/${exId}.webp);background-size:${n*100}% 100%`;
-  if(opts.side) return `<div class="ex-ill-2"><figure><div class="ex-spr" style="${bs};background-position:0 0"></div><figcaption>Inicio</figcaption></figure><figure><div class="ex-spr" style="${bs};background-position:100% 0"></div><figcaption>Final</figcaption></figure></div>`;
-  return `<div class="ex-spr" data-anim="1" data-n="${n}"${lp} style="${bs};background-position:0 0"></div>`;
+  const n=o[0], c=o[3]||n, r=o[4]||1, lp=o[1]?` data-loop="${o[2]||1}"`:"", bs=`background-image:url(ex3/${exId}.webp?v=${APP_VER});background-size:${c*100}% ${r*100}%`;
+  if(opts.side) return `<div class="ex-ill-2"><figure><div class="ex-spr" style="${bs};background-position:${sprPos(0,c,r)}"></div><figcaption>Inicio</figcaption></figure><figure><div class="ex-spr" style="${bs};background-position:${sprPos(o[1]?Math.floor(n/2):n-1,c,r)}"></div><figcaption>${o[1]?"Mitad":"Final"}</figcaption></figure></div>`;
+  if(n<2) return `<div class="ex-spr" style="${bs};background-position:0 0"></div>`;
+  return `<div class="ex-spr" data-anim="1" data-n="${n}" data-c="${c}" data-r="${r}"${lp} style="${bs};background-position:0 0"></div>`;
 }
 /* un solo reloj para todas las animaciones visibles: ida y vuelta con una pausa en cada extremo */
 let __sprT=null, __sprI=0;
@@ -6083,7 +6085,7 @@ function sprTick(){
   const els=document.querySelectorAll(".ex-spr[data-anim]");
   if(!els.length){ clearInterval(__sprT); __sprT=null; return; }
   __sprI++;
-  els.forEach(el=>{ const n=+el.dataset.n, lp=+el.dataset.loop||0; let i; if(lp) i=Math.floor(__sprI/lp)%n; else { const s=sprSeq(n); i=s[__sprI%s.length]; } el.style.backgroundPosition=(n>1?(i/(n-1))*100:0)+"% 0"; });
+  els.forEach(el=>{ const n=+el.dataset.n, lp=+el.dataset.loop||0; let i; if(lp) i=Math.floor(__sprI/lp)%n; else { const s=sprSeq(n); i=s[__sprI%s.length]; } el.style.backgroundPosition=sprPos(i,+el.dataset.c||n,+el.dataset.r||1); });
 }
 function sprStart(){ if(!__sprT) __sprT=setInterval(sprTick,60); }
 if(typeof MutationObserver!=="undefined") new MutationObserver(()=>{ if(!__sprT&&document.querySelector(".ex-spr[data-anim]")) sprStart(); }).observe(document.documentElement,{childList:true,subtree:true});
@@ -6903,7 +6905,7 @@ async function requestPersistentStorage(){
     }
   }catch(e){}
 }
-const APP_VER=39;   // subir junto con CACHE de sw.js
+const APP_VER=40;   // subir junto con CACHE de sw.js
 let swReg=null;
 function registerSW(){
   if("serviceWorker" in navigator && location.protocol.startsWith("http")){
